@@ -1,0 +1,78 @@
+import type { liveEn } from "@/lib/i18n/en/live";
+import { newVersionAvailable } from "@/lib/i18n/sw/common";
+
+// A live stream is "matangazo ya moja kwa moja", a co-host "mwenyeji mwenza" and a guest "mgeni"; the stage is
+// "jukwaa". Home is "Mwanzo", the label the nav gives it.
+export const live: typeof liveEn = {
+  errors: {
+    not_configured: "Matangazo ya moja kwa moja bado hayapatikani.",
+    not_a_member: "Jiunge kwanza na Circle hiyo ili utazame matangazo haya.",
+    not_found: "Matangazo haya yameshaisha.",
+    rate_limited: "Punguza kasi kidogo kisha ujaribu tena.",
+    unavailable: "Imeshindwa kuunganisha. Angalia muunganisho wako kisha ujaribu tena.",
+    network: "Imeshindwa kuunganisha. Angalia muunganisho wako kisha ujaribu tena.",
+    stale_deployment: newVersionAvailable,
+    stream_full: "Matangazo haya yamejaa kwa sasa. Jaribu tena baada ya muda mfupi.",
+    other: "Imeshindwa kuingia kwenye matangazo. Jaribu tena.",
+  },
+  refresh: "Onyesha upya",
+  tryAgain: "Jaribu tena",
+  backHome: "Rudi Mwanzo",
+  starting: "Inaanzisha matangazo yako ya moja kwa moja…",
+  joining: "Inaingia kwenye matangazo ya moja kwa moja…",
+  choosing: {
+    spots: "Nafasi {filled}/{capacity} za mwenyeji mwenza/mgeni zimejazwa",
+    watch: "Tazama",
+    askGuest: "Omba kujiunga kama mgeni",
+    askCohost: "Omba kujiunga kama mwenyeji mwenza",
+    stageFull: "Jukwaa limejaa kwa sasa, lakini bado unaweza kuomba: huenda nafasi ikapatikana.",
+    approval: "Anayetangaza huidhinisha maombi ya mgeni na mwenyeji mwenza kabla hujaonekana moja kwa moja jukwaani.",
+  },
+  badge: "MOJA KWA MOJA",
+  watching: "Wanatazama",
+  onStage: "Jukwaani",
+  record: "Rekodi",
+  stopRecording: "Acha kurekodi",
+  recordAndPost: "Rekodi na uchapishe",
+  recordAndPostLabel: "Rekodi na uchapishe kwenye mtiririko wa Mwanzo",
+  screenshot: "Picha ya skrini",
+  dismiss: "Funga",
+  autoPost: {
+    failed: "Kuchapisha rekodi hii kiotomatiki hakukuweza kupangwa. Kurekodi kunaendelea.",
+    set: "Rekodi hii itachapishwa itakapomaliza kuchakatwa.",
+    recordFailed: "Imeshindwa kuanza kurekodi. Jaribu tena.",
+  },
+  recordings: {
+    title: "Rekodi",
+    count: "Rekodi ({count})",
+    loading: "Inapakia...",
+    getLink: "Pata kiungo",
+  },
+  stage: {
+    waiting: "Wanasubiri kupanda jukwaani",
+    someone: "Mtu fulani",
+    roles: { COHOST: "mwenyeji mwenza", GUEST: "mgeni" },
+    approve: "Idhinisha",
+    approveName: "Idhinisha {name}",
+    approveRequest: "Idhinisha ombi hili",
+    decline: "Kataa",
+    declineName: "Kataa {name}",
+    declineRequest: "Kataa ombi hili",
+    pending: {
+      COHOST: "Inasubiri ombi lako la kuwa mwenyeji mwenza liidhinishwe…",
+      GUEST: "Inasubiri ombi lako la kuwa mgeni liidhinishwe…",
+    },
+    cancel: "Ghairi",
+    turnOnMedia: "Uko jukwaani: gusa ili kuwasha kamera na maikrofoni yako",
+    cameraFailed: "Imeshindwa kuanzisha kamera yako. Angalia muunganisho wako kisha ujaribu tena.",
+    declined: "Ombi lako la kupanda jukwaani lilikataliwa.",
+  },
+  chat: {
+    someone: "Mtu fulani",
+    placeholder: "Andika kitu...",
+    label: "Andika maoni",
+    send: "Tuma maoni",
+  },
+  react: "Jibu kwa hisia",
+  reactWith: "Jibu kwa {emoji}",
+};

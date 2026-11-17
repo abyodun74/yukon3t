@@ -66,14 +66,18 @@ export function isTranslatable(text: string): boolean {
 
 /**
  * One of the app's languages when the text clearly is in it; "other" when it clearly is in some other language (a
- * script none of the app's languages use, or Persian/Urdu letters in Arabic script); "unknown" otherwise (Latin text
- * with no telling words: could be anything). Only a confident match hides the Translate button, so a wrong
- * "unknown" costs one tap that comes back "already in your language", while a wrong match would hide a button the
- * reader needed: the word lists below leave out every word two of the languages share.
+ * script none of the app's languages use, Persian/Urdu letters in Arabic script, or Marathi/Nepali words in
+ * Devanagari); "unknown" otherwise (Latin text with no telling words, or Devanagari with none either way: could be
+ * anything). Only a confident match hides the Translate button, so a wrong "unknown" costs one tap that comes back
+ * "already in your language", while a wrong match would hide a button the reader needed: the word lists below leave
+ * out every word two of the languages share (and words common in close neighbours, such as Dutch for German).
  */
 export type DetectedLanguage = Locale | "other" | "unknown";
 
-const WORDS: Record<Exclude<Locale, "ar">, string[]> = {
+/** The app's languages written in Latin script, told apart by their words. Arabic and Hindi go by script. */
+type LatinLocale = Exclude<Locale, "ar" | "hi">;
+
+const WORDS: Record<LatinLocale, string[]> = {
   en: [
     "the", "and", "is", "are", "was", "were", "you", "your", "this", "that", "with", "have", "has", "for", "not",
     "what", "it's", "i'm", "my", "me", "of", "to", "in", "on", "be", "we", "they", "will", "just", "so", "but", "it",
@@ -99,24 +103,65 @@ const WORDS: Record<Exclude<Locale, "ar">, string[]> = {
     "isso", "hoje", "amanhã", "noite", "amigos", "família", "porque", "quando", "aqui", "tem", "tenho", "ser", "sim",
     "nós", "bom", "boa", "dia", "feliz", "gente", "novo", "agora", "pra", "vocês", "então",
   ],
+  de: [
+    "der", "und", "ist", "ich", "nicht", "ein", "eine", "mit", "für", "auf", "sie", "wir", "auch", "aber", "dass",
+    "wie", "mein", "mir", "dir", "sehr", "danke", "hallo", "nein", "heute", "abend", "freunde", "weil", "wenn", "gut",
+    "schön", "neue", "jetzt", "bin", "habe", "haben", "ihr", "euch", "schon", "noch", "viel",
+  ],
+  it: [
+    "il", "gli", "di", "che", "è", "non", "sono", "ho", "hai", "anche", "molto", "grazie", "ciao", "buongiorno",
+    "buonasera", "oggi", "domani", "sera", "amici", "famiglia", "perché", "tutto", "tutti", "bene", "io", "noi",
+    "voi", "questo", "questa", "della", "nella", "sempre", "adesso", "felice", "nuovo", "ciò", "però", "così",
+  ],
+  sw: [
+    "ni", "wa", "ya", "kwa", "za", "katika", "hii", "huu", "sana", "asante", "habari", "karibu", "leo", "kesho",
+    "mimi", "wewe", "sisi", "nina", "lakini", "pia", "kila", "watu", "rafiki", "marafiki", "jambo", "nzuri", "sasa",
+    "hapa", "kwamba", "kuwa", "hapana", "ndiyo", "usiku", "asubuhi", "mpya", "yangu", "yako", "sijui", "tafadhali",
+    "hakuna", "nini", "wapi", "kwenye",
+  ],
 };
 
 // A word listed for two languages tells them apart from nothing, so it scores for neither.
 const WORD_LANGUAGES = (() => {
-  const map = new Map<string, Exclude<Locale, "ar">[]>();
-  for (const [locale, words] of Object.entries(WORDS) as [Exclude<Locale, "ar">, string[]][]) {
+  const map = new Map<string, LatinLocale[]>();
+  for (const [locale, words] of Object.entries(WORDS) as [LatinLocale, string[]][]) {
     for (const word of new Set(words)) map.set(word, [...(map.get(word) ?? []), locale]);
   }
   return new Map([...map].filter(([, locales]) => locales.length === 1).map(([word, [locale]]) => [word, locale]));
 })();
 
-const LETTER_HINTS: [RegExp, Exclude<Locale, "ar" | "en">, number][] = [
+const LETTER_HINTS: [RegExp, Exclude<LatinLocale, "en">, number][] = [
   [/[ñ¿¡]/u, "es", 2],
   [/[ãõ]/u, "pt", 2],
   [/[œèùëïîû]/u, "fr", 2],
+  [/[äöüß]/u, "de", 2],
 ];
 
 const PERSIAN_URDU_LETTERS = /[پچژگکیےٹڈڑںھ]/u;
+
+// Devanagari is also Marathi's and Nepali's script, so Hindi is named only from words: common Hindi words that
+// those two don't use, against telling words of theirs (Marathi आहे/आणि/नाही, Nepali छ/पनि/तपाईं ...).
+const HINDI_WORDS = new Set([
+  "है", "हैं", "में", "और", "नहीं", "मैं", "आप", "यह", "वह", "क्या", "हूँ", "हूं", "था", "थी", "थे", "से", "भी",
+  "बहुत", "धन्यवाद", "रहा", "रही", "रहे", "गया", "गई", "कैसे", "लिए", "साथ", "अपने", "मेरा", "मेरी", "तुम",
+]);
+const OTHER_DEVANAGARI_WORDS = new Set([
+  "आहे", "आहेत", "आणि", "नाही", "मला", "तुम्ही", "होते", "आम्ही", "काय",
+  "छ", "छन्", "हुन्छ", "तपाईं", "तपाईँ", "पनि", "गर्न", "भएको", "मेरो", "हो",
+]);
+
+function detectDevanagari(rest: string): DetectedLanguage {
+  const words = rest.match(/[\p{Script=Devanagari}]+/gu) ?? [];
+  let hindi = 0;
+  let other = 0;
+  for (const word of words) {
+    if (HINDI_WORDS.has(word)) hindi += 1;
+    else if (OTHER_DEVANAGARI_WORDS.has(word)) other += 1;
+  }
+  if (other > 0 && other >= hindi) return "other";
+  if (hindi >= (words.length <= 5 ? 1 : 2) && hindi >= other * 2 + 1) return "hi";
+  return "unknown";
+}
 
 export function detectLanguage(text: string): DetectedLanguage {
   const rest = linguisticText(text).toLowerCase();
@@ -124,11 +169,13 @@ export function detectLanguage(text: string): DetectedLanguage {
   if (letters.length === 0) return "unknown";
 
   const arabic = letters.filter((ch) => /\p{Script=Arabic}/u.test(ch)).length;
+  const devanagari = letters.filter((ch) => /\p{Script=Devanagari}/u.test(ch)).length;
   const latin = letters.filter((ch) => /\p{Script=Latin}/u.test(ch)).length;
   if (arabic > letters.length / 2) return PERSIAN_URDU_LETTERS.test(rest) ? "other" : "ar";
+  if (devanagari > letters.length / 2) return detectDevanagari(rest);
   if (latin <= letters.length / 2) return "other";
 
-  const scores: Record<Exclude<Locale, "ar">, number> = { en: 0, es: 0, fr: 0, pt: 0 };
+  const scores: Record<LatinLocale, number> = { en: 0, es: 0, fr: 0, pt: 0, de: 0, it: 0, sw: 0 };
   const words = rest.replace(/[’]/g, "'").match(/[\p{L}']+/gu) ?? [];
   for (const word of words) {
     const locale = WORD_LANGUAGES.get(word);
@@ -138,7 +185,7 @@ export function detectLanguage(text: string): DetectedLanguage {
     if (pattern.test(rest)) scores[locale] += weight;
   }
 
-  const ranked = (Object.entries(scores) as [Exclude<Locale, "ar">, number][]).sort((a, b) => b[1] - a[1]);
+  const ranked = (Object.entries(scores) as [LatinLocale, number][]).sort((a, b) => b[1] - a[1]);
   const [[best, bestScore], [, secondScore]] = ranked;
   // A short text needs one telling word, a longer one two; and the winner must clearly beat the runner-up.
   const needed = words.length <= 5 ? 1 : 2;
@@ -203,6 +250,10 @@ export const TARGET_LANGUAGE_NAMES: Record<Locale, string> = {
   fr: "French",
   pt: "Portuguese",
   ar: "Arabic",
+  de: "German",
+  it: "Italian",
+  hi: "Hindi",
+  sw: "Swahili",
 };
 
 /**

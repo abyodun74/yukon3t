@@ -15,11 +15,14 @@ describe("localeToRecord", () => {
   it("fills an empty account from the device's language", () => {
     expect(localeToRecord(null, undefined, "pt-BR,pt;q=0.9")).toBe("pt");
     expect(localeToRecord(undefined, null, null)).toBe("en");
-    expect(localeToRecord("de", undefined, "es")).toBe("es");
+    expect(localeToRecord("ja", undefined, "es")).toBe("es");
+    expect(localeToRecord(null, undefined, "hi-IN,hi;q=0.9,en;q=0.8")).toBe("hi");
+    expect(localeToRecord(null, undefined, "sw-KE")).toBe("sw");
   });
 
   it("never lets a device's implied language overwrite a stored one", () => {
     expect(localeToRecord("ar", undefined, "en-US")).toBeNull();
     expect(localeToRecord("es", "not-a-locale", "fr")).toBeNull();
+    expect(localeToRecord("de", undefined, "it-IT")).toBeNull();
   });
 });

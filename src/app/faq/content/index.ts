@@ -1,14 +1,18 @@
 import type { Locale } from "@/lib/i18n/locales";
 import type { FaqContent } from "../ids";
 import { ar } from "./ar";
+import { de } from "./de";
 import { es } from "./es";
 import { fr } from "./fr";
+import { hi } from "./hi";
+import { it } from "./it";
 import { pt } from "./pt";
+import { sw } from "./sw";
 
 // The FAQ in every language but English, which is the JSX in ../page.tsx. Server-side only: the page renders the one
 // language the reader gets, so none of this reaches a browser bundle. Kept out of src/lib/i18n because nothing but
 // the FAQ page reads it and it is as long as the rest of the dictionaries together.
-export const FAQ_CONTENT: Record<Exclude<Locale, "en">, FaqContent> = { es, fr, pt, ar };
+export const FAQ_CONTENT: Record<Exclude<Locale, "en">, FaqContent> = { es, fr, pt, ar, de, it, hi, sw };
 
 /** The translated FAQ for `locale`, or null for English. */
 export function faqContentFor(locale: Locale): FaqContent | null {

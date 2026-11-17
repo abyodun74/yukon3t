@@ -110,6 +110,26 @@ const PAGE_TEXT: Record<Locale, { title: string; body: string; retry: string }> 
     body: "وصل عدد كبير من الطلبات من هذا الجهاز أو هذه الشبكة خلال وقت قصير. سيُعاد تحميل هذه الصفحة تلقائيًا بعد ثوانٍ.",
     retry: "إعادة المحاولة الآن",
   },
+  de: {
+    title: "Einen Moment",
+    body: "Von diesem Gerät oder Netzwerk sind in kurzer Zeit zu viele Anfragen gekommen. Diese Seite wird in ein paar Sekunden von selbst neu geladen.",
+    retry: "Jetzt erneut versuchen",
+  },
+  it: {
+    title: "Un attimo",
+    body: "Da questo dispositivo o da questa rete sono arrivate troppe richieste in poco tempo. Questa pagina si ricaricherà da sola fra qualche secondo.",
+    retry: "Riprova adesso",
+  },
+  hi: {
+    title: "बस एक पल",
+    body: "थोड़े समय में इस डिवाइस या नेटवर्क से बहुत ज़्यादा रिक्वेस्ट आईं। यह पेज कुछ सेकंड में अपने आप फिर से लोड हो जाएगा।",
+    retry: "अभी फिर कोशिश करें",
+  },
+  sw: {
+    title: "Subiri kidogo",
+    body: "Maombi mengi mno yametoka kwenye kifaa hiki au mtandao huu kwa muda mfupi. Ukurasa huu utapakia upya wenyewe baada ya sekunde chache.",
+    retry: "Jaribu tena sasa",
+  },
 };
 
 export function rateLimitPageText(locale: Locale) {

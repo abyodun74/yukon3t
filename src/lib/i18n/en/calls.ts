@@ -161,7 +161,7 @@ export const callsEn = {
     switchOutputHint: "Switch audio output (speaker, earpiece, headset...)",
   },
   // The buttons this app adds to the call provider's own tray (Circle voice rooms, Collab sessions). That tray has
-  // no Arabic, so in Arabic these are shown in English with the rest of it (see call-frame.tsx).
+  // no Arabic, Hindi or Swahili, so in those these are shown in English with the rest of it (see call-frame.tsx).
   tray: {
     shareScreen: "Share screen",
     shareScreenTip: "Share your screen",

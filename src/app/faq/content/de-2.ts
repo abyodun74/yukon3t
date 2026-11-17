@@ -1,0 +1,128 @@
+import type { FaqItems } from "../ids";
+
+// German FAQ, part 2: Going Live, Stories, Muse, Ambient.
+export const de2 = {
+  "start-join-live-stream": {
+    q: "Wie starte ich einen Livestream oder trete einem bei?",
+    a: "Tippe über dem Start-Feed auf „Live gehen“, gib einen Titel ein und wähle, wer ihn sehen kann: **Alle** oder einer deiner Circles oder Sub-Circles. Ein Livestream für Alle oder für einen öffentlichen Circle erscheint, solange er läuft, auf Start auf zwei Arten: als Avatar in der Leiste „Jetzt live“ und als vollständige Karte weiter unten im Feed, die den Livestream live abspielt, mit der streamenden Person, der aktuellen Zuschauerzahl und den Schaltflächen „Zuschauen“, „Als Gast beitreten“ und „Als Co-Host beitreten“. Wenn du eine davon antippst, gelangst du direkt in den Livestream mit der bereits gewählten Option, ohne Zwischenbildschirme. Das Video auf dieser Karte startet erst, wenn du beim Scrollen wirklich bei ihr ankommst; wenn du beim Herunterscrollen einfach daran vorbeiziehst, zählst du also nicht als Zuschauer, wenn du dort stehen bleibst schon. Livestreams eines Circles erscheinen außerdem im Bereich „Jetzt live“ oben auf der Seite dieses Circles.",
+  },
+  "who-see-live-stream-start": {
+    q: "Wer kann einen Livestream sehen, den ich für einen Circle starte?",
+    a: "Das hängt von der Privatsphäre des Circles ab. Ein Livestream für einen **öffentlichen** Circle (oder für Alle) erscheint in der Leiste „Jetzt live“ auf Start und kann von allen gesehen werden. Einen Livestream für einen **privaten** Circle oder Sub-Circle sehen nur die Mitglieder dieses Circles: Er erscheint nie auf Start oder sonst irgendwo in der App, und seine Seite, sein Chat und seine Aufnahmen sind für Nicht-Mitglieder gesperrt, auch mit dem Link. In beiden Fällen legt die Wahl eines Circles oder Sub-Circles bei „Wer kann ihn sehen“ auch fest, wer *benachrichtigt* wird: Alle Mitglieder dieses Circles oder Sub-Circles erhalten eine Benachrichtigung, sobald der Livestream beginnt, egal ob ihn der Inhaber oder ein anderes Mitglied startet, und nicht die Gesamtheit deiner Abonnenten, auch dann nicht, wenn der Circle öffentlich ist. Ein Livestream, der für **Alle** gestartet wird, wird dagegen deinen eigenen Abonnenten angekündigt, wie jeder andere öffentliche Beitrag. Mitglieder finden den Livestream eines Circles außerdem im Bereich „Jetzt live“ auf der Seite des Circles.",
+  },
+  "start-live-stream-just-one": {
+    q: "Kann ich einen Livestream nur mit einer bestimmten Person starten?",
+    a: "Ja. Wähle beim Starten eines Livestreams unter „Wer kann ihn sehen“ bei „Eine bestimmte Person“ ihren Namen aus (dort erscheinen nur deine Kontakte). Dieser Livestream ist privat zwischen euch beiden: Er erscheint nie auf Start, auf der Seite eines Circles oder sonst irgendwo, und nur diese Person (und du) kann ihn sehen oder beitreten; deine Abonnenten und deine anderen Kontakte können das nicht. Diese Person erhält eine Benachrichtigung, sobald er beginnt, wie bei einem Anruf.",
+  },
+  "difference-between-watching-joining-guest": {
+    q: "Was ist der Unterschied zwischen Zuschauen, als Gast beitreten und als Co-Host beitreten?",
+    a: "**Zuschauen** heißt nur zuschauen: ohne Zugriff auf Kamera oder Mikrofon. Sowohl **Gast** als auch **Co-Host** bringen deine Kamera und dein Mikrofon auf die Bühne, in einer geteilten Bildschirmansicht neben der streamenden Person (Co-Host ist für jemanden gedacht, der beim Moderieren hilft, Gast für jemanden, der kurz vorbeischaut, aber beide funktionieren gleich). Es gibt insgesamt 3 Plätze auf der Bühne, geteilt zwischen Gästen und Co-Hosts, zusätzlich zur streamenden Person. Ein Livestream hat außerdem eine Obergrenze dafür, wie viele Personen gleichzeitig zuschauen können: Wenn er voll ist, siehst du eine entsprechende Meldung und kannst es in einer Weile noch einmal versuchen. Du siehst jeweils einen Livestream: Wenn du einen anderen anzusehen beginnst, verlässt du den, den du gerade angesehen hast.",
+  },
+  "host-mute-guest-co-host": {
+    q: "Kann die streamende Person einen Gast oder Co-Host stummschalten?",
+    a: "Ja. Die streamende Person kann im Videorahmen eines beliebigen Gastes oder Co-Hosts auf das Mikrofonsymbol tippen, um dessen Mikrofon für alle Zuschauenden stummzuschalten oder wieder einzuschalten, nicht nur auf ihrem eigenen Gerät. Diese Steuerung ist der streamenden Person vorbehalten (ein Co-Host hat sie nicht, auch wenn er sonst deren Übertragungsrechte teilt) und erscheint nie in deinem eigenen Rahmen. Ein stummgeschalteter Gast oder Co-Host kann sein Mikrofon selbst wieder einschalten, wenn er wieder sprechen möchte: Das dient dazu, Hintergrundgeräusche oder mehrere gleichzeitig Sprechende schnell in den Griff zu bekommen, es ist keine endgültige Sperre.",
+  },
+  "record-go-live-stream-take": {
+    q: "Kann ich einen Livestream aufnehmen oder einen Screenshot machen?",
+    a: "Die streamende Person und die Co-Hosts können auf „Aufnehmen“ tippen, um eine Cloud-Aufnahme zu starten. Wenn sie beendet wird, erscheint sie in einer Liste der Aufnahmen des Livestreams mit einem Download-Link. Alle, die im Livestream sind, können auf „Screenshot“ tippen, um ein Einzelbild zu speichern; dein Browser bittet dich zu bestätigen, was aufgenommen werden soll, denn so funktioniert die Aufnahme eines Live-Videos in Browsern.",
+  },
+  "recording-stream-posted-automatically": {
+    q: "Kann die Aufnahme meines Livestreams automatisch gepostet werden?",
+    a: "Ja. Wenn du die streamende Person bist, tippe statt auf „Aufnehmen“ auf „Aufnehmen und posten“ (die Aufnahmeschaltfläche mit einem kleinen Haus-Symbol), und die Aufnahme wird für dich gepostet, sobald sie fertig verarbeitet ist: im Start-Feed, wenn der Livestream für „Alle“ ist, oder im selben Circle, wenn du ihn auf einen beschränkt hast. Danach musst du nichts mehr hochladen. Es geht nicht sofort: Sie durchläuft genau dieselbe automatische Prüfung wie jedes andere Video, das du postest, gib ihr also ein paar Minuten; wenn die Prüfung ein Problem erkennt, benachrichtigen wir dich, statt sie zu posten. Die Schaltfläche, die du angetippt hast, gilt für diese Aufnahme, starte also eine neue, wenn du es dir anders überlegst. Diese Option gibt es nicht bei einem Livestream, den du nur mit einer bestimmten Person gestartet hast: Dieser Livestream ist privat zwischen euch beiden, und ein Beitrag hat keine entsprechende Einstellung.",
+  },
+  "did-live-stream-end-its": {
+    q: "Warum hat sich mein Livestream von selbst beendet?",
+    a: "Ein Livestream endet automatisch, wenn die streamende Person und alle Co-Hosts 30 Minuten lang am Stück abwesend waren (also niemand mit Host-Rechten mehr aktiv ist). Das ist eine Aufräummaßnahme, damit ein verlassener Livestream nicht endlos „live“ bleibt. Ein frisch erstellter Livestream hat immer einen Puffer von 30 Minuten, was auch passiert, sodass er nie endet, bevor jemand eine echte Gelegenheit hatte beizutreten.",
+  },
+  "people-comment-during-live-stream": {
+    q: "Kann man während eines Livestreams kommentieren?",
+    a: "Ja. Über dem Livestream selbst gibt es ein Feld „Schreib etwas...“; wer zuschaut, kann einen Kommentar schreiben, und alle anderen sehen ihn in Echtzeit darüber erscheinen.",
+  },
+  "keep-using-app-during-call": {
+    q: "Kann ich die App während eines Anrufs oder Livestreams weiter nutzen?",
+    a: "Ja. Tippe auf das Minimieren-Symbol (bei einem Anruf oben rechts, bei einem Livestream unten rechts), um ihn auf einen kleinen Videorahmen zu verkleinern, der in einer Ecke verankert bleibt, während du durch den Rest der App navigierst. Der Anruf oder Livestream läuft die ganze Zeit weiter; tippe auf das Vergrößern-Symbol des Rahmens, um zum Vollbild zurückzukehren, oder auf sein Auflegen-Symbol, um ihn zu beenden, ohne ihn vorher zu vergrößern.",
+  },
+
+  story: {
+    q: "Was ist eine Story?",
+    a: "Ein Foto, ein kurzes Video (bis zu 2 Minuten) oder ein geschriebener oder eingefügter Text, der in deinem Profil erscheint und nach 24 Stunden automatisch verschwindet. Tippe auf das „+“ an deinem eigenen Profilfoto („Deine Story“ auf Start oder in deinem Profil) und wähle „Story“, um eine hinzuzufügen; dasselbe „+“ bietet auch „Beitrag“ und „Muse“ an. Alle, die dein Profil sehen können, können deine Story sehen, solange sie aktiv ist. Im Story-Editor kannst du mit „Vom Gerät hochladen“ ein Foto oder Video auswählen, auch eine iPhone-Bildschirmaufnahme.",
+  },
+  "post-text-only-story": {
+    q: "Kann ich eine Story nur mit Text posten?",
+    a: "Ja. Wechsle beim Hinzufügen einer Story auf den Tab „Text“, statt ein Foto oder Video zu wählen. Schreibe oder füge ein, was du sagen möchtest, wähle eine Hintergrundfarbe und poste sie. Intern wird daraus ein Bild, sie funktioniert also genauso wie jede andere Story (sie läuft nach 24 Stunden ab und unterstützt Reaktionen, Antworten und Kommentare). Sie kann bis zu 2000 Zeichen lang sein. Wenn sie lang ist, zeigt das Bild nur den Anfang und der vollständige Text erscheint darunter mit „Mehr anzeigen“. Um mehrere Text-Stories auf einmal zu posten, tippe auf „Weitere hinzufügen“ (bis zu 10); jede wird in der Reihenfolge, in der du sie erstellt hast, als eigene Story geteilt.",
+  },
+  "post-more-than-one-story": {
+    q: "Kann ich am selben Tag mehr als eine Story posten?",
+    a: "Ja. Das kleine „+“ am Ring deiner Story (sowohl auf Start als auch in deinem Profil) ist immer da: Tippe darauf und wähle „Story“, um ohne Limit weitere hinzuzufügen. Wenn du eine aktive Story hast, siehst du beim Antippen des Rings die, die du bereits hast.",
+  },
+  "move-between-different-peoples-stories": {
+    q: "Wie wechsle ich von den Stories einer Person zu denen einer anderen?",
+    a: "Tippe beim Ansehen einer Story auf die rechte Seite des Bildschirms, um durch die Stories derselben Person vorwärts zu gehen, oder auf die linke Seite, um zurückzugehen. Um zu den Stories einer anderen Person zu springen, wische irgendwo auf dem Bildschirm nach links (nächste Person) oder nach rechts (vorherige Person): Wischen wechselt immer die Person, egal bei welcher ihrer Stories du gerade bist.",
+  },
+  "close-story": {
+    q: "Wie schließe ich eine Story?",
+    a: "Tippe oben bei einer beliebigen Story auf das X oder wische darauf nach unten (eine schnelle Geste genügt). Unter Android schließen auch die Zurück-Taste oder die Zurück-Geste sie, und am Computer die Esc-Taste. Wenn über der Story etwas geöffnet ist (die Kommentare, die Liste, wer sie gesehen hat, die Bestätigung zum Löschen, das Teilen-Blatt oder die Emoji-Auswahl), schließt Zurück oder Esc zuerst das, und die Story bleibt geöffnet. Wenn du in einer Story auf den Namen einer Person oder einen Link tippst, wird sie geschlossen und diese Seite geöffnet; wenn du von dort zurückgehst, landest du wieder dort, wo du warst, bevor du die Story geöffnet hast. Nach der letzten Story schließt sich die Ansicht von selbst.",
+  },
+  "people-react-reply-comment-story": {
+    q: "Kann man auf meine Story reagieren, antworten oder sie kommentieren?",
+    a: "Ja, alle drei, und sie sind verschieden: **Reagieren** ist ein schnelles Emoji (du siehst, wer reagiert hat, wenn du deine eigene Story öffnest); **Antworten** sendet eine private Direktnachricht und funktioniert nur zwischen Personen, die schon Kontakte sind, wie normale Nachrichten; **Kommentieren** postet einen öffentlichen Kommentar, den alle sehen können, die die Story ansehen, sichtbar über das Kommentarsymbol neben den Reaktionen, und du erhältst eine Benachrichtigung, wenn jemand deine kommentiert. Außerdem gibt es bei jeder Story ein **Teilen**-Symbol neben den Kommentaren: Alle, die die Story sehen können, nicht nur die Person, die sie gepostet hat, können darauf tippen, um sie an eine ihrer Direktnachrichten oder Gruppenchats weiterzuleiten. Wer sie erhält, sieht die echte Story im Chat und kann sie antippen, um sie im Vollbild zu öffnen, mit derselben Ansicht wie aus der Story-Leiste, statt einer bloßen Textnachricht darüber.",
+  },
+
+  "muse-2": {
+    q: "Was ist Muse?",
+    a: "Ein eigener Tab für kurze, lustige, kreative Videos: im Vollbild, eines nach dem anderen; scrolle nach unten für das nächste und nach oben für das vorherige (ein normaler Scroll-Feed, keine Wisch-Geste). Anders als eine Story läuft ein Muse nicht nach 24 Stunden ab, und anders als dein Start-Feed ist es nicht auf deine Kontakte beschränkt: Alle Muses sind für alle Personen auf YuKon3t sichtbar. Es ist ein Feed zum Entdecken, keiner nur für Kontakte.",
+  },
+  "post-muse": {
+    q: "Wie poste ich ein Muse?",
+    a: "Öffne dein eigenes Profil und tippe auf „Ein Muse posten“, oder tippe auf das „+“ an deinem eigenen Profilfoto (auf Start oder in deinem Profil) und wähle „Muse“. Wähle ein Video (bis zu 5 Minuten), füge nach Wunsch einen Text hinzu und poste es. Das war's, ohne weitere Bildschirme. Ein längeres Video (von mehr als etwa einer Minute) durchläuft eine zusätzliche automatische Sicherheitsprüfung, bevor es für andere sichtbar wird, was etwas länger dauern kann als bei einem kurzen Clip. Vor dem Posten kannst du außerdem „Eigenes Audio“ wählen, um eine separate Tondatei anzuhängen, die den Ton des Videos vollständig ersetzt (die „Sound hinzufügen“-Idee von TikTok). Wähle „Originalton“ (die Standardoption), um den Ton des Videos zu behalten.",
+  },
+  "delete-muse-after-ive-posted": {
+    q: "Kann ich ein Muse nach dem Posten löschen?",
+    a: "Ja. Öffne das Muse im Muse-Feed und tippe auf das Papierkorb-Symbol oben (nur bei deinen eigenen Muses sichtbar); tippe dann zur Bestätigung noch einmal darauf. Es wird sofort und endgültig gelöscht, für dich und für alle anderen.",
+  },
+  "share-reshare-follow-muse": {
+    q: "Kann ich auf Muse teilen, erneut teilen oder jemandem folgen?",
+    a: "Ja, alle drei Optionen befinden sich neben den Kommentar- und Gefällt-mir-Schaltflächen jedes Muse. Das Teilen-Symbol öffnet ein Fenster: Teile es auf deinem **Start**, füge es zu deiner **Story** hinzu (für Muses bis 2 Minuten), sende es an einen Freund oder eine Gruppe, nutze das Teilen-Menü deines Geräts oder kopiere den Link. Start, Story, Freunde und das Teilen-Menü des Geräts senden das echte Video, nicht nur einen Link. Das Symbol zum erneuten Teilen (ein kreisförmiger Pfeil) bringt das Video mit einem einzigen Tipp auf deinen Start: Es nennt die Urheberin oder den Urheber, sendet eine Benachrichtigung und entfernt es wieder, wenn du noch einmal tippst. „Abonnieren“ neben dem Namen der Urheberin oder des Urhebers dient dazu, dieser Person zu folgen und von ihren nächsten Beiträgen zu erfahren. Für nichts davon musst du die Person vorher in deinen Kontakten haben, genau wie beim Liken oder Kommentieren.",
+  },
+  "share-post-muse": {
+    q: "Kann ich einen Beitrag auf Muse teilen?",
+    a: "Ja. Jeder Beitrag mit einem Video (bis 5 Minuten) kann auf Muse geteilt werden: Öffne das Teilen-Menü dieses Beitrags und tippe auf „Auf Muse teilen“. Er wird zu einem neuen Muse unter deinem Namen, das das Original mit einem Link „Originalbeitrag ansehen“ nennt; wer das Original gepostet hat, erhält eine Benachrichtigung, und es zählt als einmal geteilt, genau wie beim Teilen in deiner Story oder in einem Circle. Beiträge ohne Video (Text, Foto, Link, eingebetteter Inhalt, GIF) können nicht auf Muse geteilt werden: Es gibt kein Muse-Format ohne Video.",
+  },
+  "muse-feed-copy-same-likes": {
+    q: "Wann teilen sich ein Muse und ein Beitrag mit demselben Video einen einzigen Gefällt-mir-Zähler?",
+    a: "Dein eigenes Muse und deine eigene Kopie davon im Feed teilen sich einen einzigen Gefällt-mir-Zähler: Wenn du dein Muse erneut auf Start teilst oder deinen eigenen Beitrag mit Video auf Muse teilst, zeigen beide dieselbe Zahl, nämlich die der verschiedenen Personen, denen eines von beiden gefallen hat, ohne jemanden doppelt zu zählen. Wenn du eines likest, erscheint es auch beim anderen (wo du es sehen kannst), und wenn du es entfernst, wird es bei beiden entfernt. Eine Kopie, die eine andere Person anfertigt (wenn sie dein Muse erneut teilt oder aus deinem Beitrag ein Muse erstellt), hat einen eigenen Zähler: Die Gefällt-mir-Angaben, die sie erhält, bleiben bei ihr, und die für deins bleiben bei deinem. Ein Muse hat eine Herz-Schaltfläche zum Liken; eine Emoji-Reaktion, die du früher bei einem Muse hinterlassen hast, zählt weiterhin als dein Gefällt mir (das Herz erscheint gefüllt), und ein Tipp auf das Herz entfernt sie. Wer gepostet hat, erhält nur beim ersten Mal, wenn du eine seiner beiden Kopien likest, eine Benachrichtigung. Normale erneute Beiträge eines Beitrags zählen ihre Gefällt-mir-Angaben bereits beim ursprünglichen Beitrag.",
+  },
+  "view-count-muse-mean": {
+    q: "Was bedeutet die Aufrufzahl bei einem Muse?",
+    a: "Das Augensymbol unter dem Text zählt, wie oft dieses Muse angesehen wurde, einschließlich der Male, die du es selbst gesehen hast. Das ist eine kumulierte Gesamtzahl, keine Zahl einzelner Zuschauer.",
+  },
+  "muse-play-sound": {
+    q: "Wird Muse mit Ton abgespielt?",
+    a: "Ja. Muse beginnt mit eingeschaltetem Ton, sobald es geöffnet wird; tippe auf das Lautsprechersymbol oben auf dem Bildschirm, um es stummzuschalten, und es bleibt stumm, wenn du zum nächsten Muse wechselst. Manche Browser spielen erst Ton ab, wenn du die Seite einmal antippst. Wenn deiner das tut, wird das Video stumm abgespielt, mit dem Hinweis „Tippen, um den Ton einzuschalten“, und dein nächster Tipp schaltet den Ton ein.",
+  },
+  "react-comment-muse": {
+    q: "Kann ich ein Muse liken oder kommentieren?",
+    a: "Ja. Tippe rechts auf das Herz, um ein Muse zu liken (es wird rot; tippe noch einmal, um es zu entfernen), und die Zahl darunter zeigt, wie vielen Personen es gefallen hat. Eine Emoji-Reaktion, die du bei einem Muse hinterlassen hast, bevor es das Herz gab, zählt weiterhin als dein Gefällt mir. Emojis und GIFs findest du in den Kommentaren: Das Kommentarfeld hat eine Reihe schneller Emojis, eine vollständige Emoji-Auswahl und eine GIF-Suche.\n\nHalte den Finger auf einem Muse-Video, um es pausiert zu halten, solange du hältst, oder tippe darauf, um es zu pausieren: Eine Leiste unten zeigt dann, wo das Video gerade ist und wie lang es insgesamt ist (zum Beispiel 0:12 / 0:45). Ziehe an der Leiste entlang, um an eine andere Stelle zu springen; das Video läuft von dort weiter, wenn es lief. Mit einer Tastatur lässt sich die Leiste fokussieren und mit den Pfeiltasten verschieben (jeweils 5 Sekunden). Die Leiste erscheint nicht bei Videos, die von einer anderen Website eingebettet sind (YouTube, TikTok und Ähnliches), deren eigener Player eigene Steuerelemente hat.\n\nTippe auf das Kommentarsymbol: Das Video läuft weiter in einer kleinen abgerundeten Karte oben, während die Kommentare den unteren Teil des Bildschirms einnehmen. Tippe auf das Video, ziehe die Leiste oben an den Kommentaren nach unten oder gehe zurück, um zum Video im Vollbild zurückzukehren. Wer das Muse erstellt hat, wer den Kommentar geschrieben hat oder ein Admin kann jeden Kommentar entfernen.",
+  },
+  "muse-comment-replies-likes-gifs": {
+    q: "Wie funktionieren Antworten, Gefällt-mir-Angaben, Emojis und GIFs in den Kommentaren eines Muse?",
+    a: "Tippe unter einem Kommentar auf **Antworten**, um darauf zu antworten: Das Feld zeigt „Antwort an“ mit dem Namen der Person und beginnt mit ihrem @Benutzernamen (du kannst die Antwort abbrechen). Antworten erscheinen unter dem Kommentar, auf den sie sich beziehen, auf einer einzigen Ebene: Wenn du auf eine Antwort antwortest, wird deine dem selben Thread hinzugefügt und erwähnt die Person, der du geantwortet hast, mit @. Tippe auf „Antworten ansehen“, um einen Thread zu öffnen, und auf „Antworten ausblenden“, um ihn zu schließen. Tippe auf das Herz neben einem Kommentar oder einer Antwort, um sie zu liken; die Zahl daneben zeigt, wie vielen Personen sie gefallen hat.\n\nNeben dem Kommentarfeld öffnet die Emoji-Schaltfläche statt der Tastatur eine vollständige Emoji-Auswahl, und die GIF-Schaltfläche öffnet eine GIF-Suche (die GIFs stammen von GIPHY). Ein Kommentar oder eine Antwort kann Text, ein GIF oder beides sein. Zuletzt verwendete Emojis erscheinen zuerst und werden nur auf deinem Gerät gespeichert. Die Person, der du geantwortet hast, erhält eine Benachrichtigung, und wer das Muse erstellt hat, erhält für jeden neuen Kommentar oder jede neue Antwort eine Benachrichtigung, nie zwei für dasselbe.\n\nDu kannst deine eigenen Kommentare und Antworten löschen, und wer das Muse erstellt hat, kann jeden Kommentar und jede Antwort bei seinem Muse löschen; wenn ein Kommentar gelöscht wird, werden auch seine Antworten gelöscht. Kommentare und Antworten von Konten, die du blockiert hast (oder die dich blockiert haben) oder die nicht mehr aktiv sind, werden nicht angezeigt, und Text, den unsere automatische Prüfung markiert, wird nicht gepostet. Kommentare bei einem Muse lassen sich nicht bearbeiten; um einen zu melden, melde die Person, die ihn geschrieben hat.",
+  },
+  "need-keep-scrolling-see-theres": {
+    q: "Muss ich weiterscrollen, um zu erfahren, ob es mehr gibt?",
+    a: "Nein. Muse lädt die nächste Gruppe von Videos im Hintergrund, wenn du dich dem Ende des bereits Geladenen näherst, sodass sich das Scrollen durchgehend anfühlt.",
+  },
+
+  "ambient-2": {
+    q: "Was ist Ambient?",
+    a: "Unter Einstellungen → „Ambient“ kannst du einen kleinen Inner Circle wählen (bis zu 8 Personen, die schon deine Kontakte sind) und ungezwungene „Momente“ als Foto teilen, die nur sie sehen können, statt eines aufwendigeren öffentlichen Beitrags. Ein Moment verschwindet nach 48 Stunden.",
+  },
+  "who-see-ambient-moments": {
+    q: "Wer kann meine Ambient-Momente sehen?",
+    a: "Nur Personen, die *dich* in ihren eigenen Inner Circle aufgenommen haben. Nie jemand anderes, und sie erscheinen nie in deinem öffentlichen Profil, im Feed oder auf Entdecken. Jemanden zu deinem Inner Circle hinzuzufügen geht nur in eine Richtung, wie beim Abonnieren: Diese Person muss dich nicht hinzufügen, damit du ihre siehst. Außerdem müsst ihr verbunden bleiben: Wenn einer von euch den anderen blockiert oder ihr nicht mehr verbunden seid, werden deine Momente dieser Person nicht mehr angezeigt (und beim Blockieren verlässt jeder den Inner Circle des anderen).",
+  },
+  "there-lock-screen-watch-widget": {
+    q: "Gibt es ein Widget für den Sperrbildschirm oder die Uhr?",
+    a: "Noch nicht. Dafür ist echte native Entwicklung für jede Plattform nötig. Bis dahin zeigt Einstellungen → „Ambient“ in der App eine Vorschau, wie dein Ambient-Feed aussehen würde, und du kannst schon ein Zugriffstoken für Widgets erstellen, für den Fall, dass es eines gibt.",
+  },
+} satisfies Partial<FaqItems>;

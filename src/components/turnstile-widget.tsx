@@ -83,8 +83,19 @@ declare global {
   }
 }
 
-// Cloudflare's own codes for the languages the account screens come in.
-const WIDGET_LANGUAGES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-br", ar: "ar" };
+// Cloudflare's own codes for the languages the account screens come in (its "Supported languages" list). Turnstile has
+// no Swahili, so a Swahili reader gets the widget in English.
+const WIDGET_LANGUAGES: Record<Locale, string> = {
+  en: "en",
+  es: "es",
+  fr: "fr",
+  pt: "pt-br",
+  ar: "ar",
+  de: "de",
+  it: "it",
+  hi: "hi",
+  sw: "en",
+};
 
 const SCRIPT_URL = `${TURNSTILE_ORIGIN}/turnstile/v0/api.js?render=explicit`;
 

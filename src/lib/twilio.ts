@@ -9,7 +9,19 @@ import type { Locale } from "@/lib/i18n/locales";
 import "@/lib/rate-limit-db-fallback";
 
 // Verify's own names for the languages this app has (it writes the text message itself, from its own templates).
-const VERIFY_LOCALES: Record<Locale, string> = { en: "en", es: "es", fr: "fr", pt: "pt-BR", ar: "ar" };
+// Verify has no default SMS template in Swahili (only a custom one we'd have to write and get approved), so a
+// Swahili reader's code arrives in English.
+const VERIFY_LOCALES: Record<Locale, string> = {
+  en: "en",
+  es: "es",
+  fr: "fr",
+  pt: "pt-BR",
+  ar: "ar",
+  de: "de",
+  it: "it",
+  hi: "hi",
+  sw: "en",
+};
 
 export function isPhoneVerificationConfigured() {
   return Boolean(

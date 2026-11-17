@@ -1,0 +1,123 @@
+import type { FaqItems } from "../ids";
+
+// Swahili FAQ, part 3: Connecting, messaging and calls; Hidden chats. These answers state what is and isn't private:
+// every number, time limit and caveat follows the English in ../page.tsx.
+export const sw3 = {
+  "message-someone": {
+    q: "Ninamtumiaje mtu ujumbe?",
+    a: "Kwanza unahitaji mtu huyo akubali kuwa mwasiliani wako: mtumie ombi kutoka kwenye wasifu wake au kutoka Gundua. Mkishakuwa wasiliani, mwandikie kutoka Wasiliani au anzisha mazungumzo mapya kwenye Ujumbe.",
+  },
+  "reply-specific-message": {
+    q: "Ninajibuje ujumbe mahususi?",
+    a: "Telezesha ujumbe kulia (au fungua menyu yake ya «⋯» na ugonge «Jibu» ukiwa kwenye kompyuta) ili kuunukuu kwenye jibu lako. Mtu mwingine huona hasa ujumbe gani unaujibu, jambo linalosaidia gumzo linapokuwa na mada kadhaa kwa wakati mmoja.",
+  },
+  "forward-message": {
+    q: "Naweza kusambaza ujumbe kwa gumzo lingine?",
+    a: "Ndiyo. Fungua menyu ya «⋯» ya ujumbe na ugonge «Sambaza», chagua hadi mazungumzo 5 yako (tafuta kwa jina au @jinalamtumiaji) kisha ugonge «Tuma». Maandishi, viungo, picha, video, GIF na ujumbe wa sauti vinaweza kusambazwa. Kila gumzo hupokea nakala kama ujumbe mpya kutoka kwako, ikiwa na lebo ndogo «Imesambazwa»; lebo haisemi nani aliyeuandika wala unatoka gumzo lipi, na watu wa gumzo hilo hupata arifa kama kwa ujumbe wowote. Nakala ni yako: kufuta wa asili hakuiondoi kwenye magumzo mengine, na unaweza kufuta nakala yako kama ujumbe wowote uliotuma. Baadhi ya ujumbe hauwezi kusambazwa: picha na video za kutazama mara moja, ujumbe uliofutwa, ujumbe unaokaguliwa, majibu ya Story na ujumbe wa gumzo la siri. Magumzo ya siri, magumzo yaliyofichwa na magumzo na mtu uliyemzuia (au aliyekuzuia) hayaonekani kama mahali pa kwenda, na hakuna kinachosambazwa kinachoingia kamwe kwenye gumzo la siri. Maandishi yaliyosambazwa, ikiwemo viungo, hukaguliwa tena kulingana na Kanuni zetu za jumuiya kabla ya kutumwa.",
+  },
+  "send-photos-videos-voice-notes": {
+    q: "Naweza kutuma picha, video, ujumbe wa sauti au GIF kwenye gumzo?",
+    a: "Ndiyo. Kisanduku cha ujumbe wa gumzo kina vitufe vya «Ongeza picha» na «Ongeza video» (kifaa, kamera au kurekodi papo hapo), kitufe cha GIF na ikoni ya maikrofoni ya kurekodi ujumbe wa sauti. Ujumbe wowote unaotuma unaweza kufutwa kwako, au kwa kila mtu ikiwa ulituma wewe.",
+  },
+  "send-shopping-list": {
+    q: "Naweza kutuma orodha ya manunuzi kwenye gumzo?",
+    a: "Ndiyo. Gusa kitufe cha kikapu chini ya kisanduku cha ujumbe wa gumzo, ipe orodha jina ukitaka na uandike bidhaa moja kwa kila safu (bonyeza Enter ili kwenda inayofuata); orodha inaruhusu hadi bidhaa 30. Gusa «Tuma orodha» na inafika kama orodha ya pamoja: kila mtu kwenye gumzo, ukiwemo wewe, anaweza kuweka alama kwenye bidhaa (na kuiondoa), kuongeza bidhaa na kuzibadilisha au kuziondoa, na kila mtu huona mabadiliko papo hapo. Bidhaa hukaguliwa kulingana na Kanuni zetu za jumuiya kama ujumbe wowote. Kwenye gumzo la siri, orodha hutumwa badala yake kama maandishi ya kawaida yaliyosimbwa, mstari mmoja kwa kila bidhaa wenye kisanduku tupu mbele, na visanduku hivyo haviwezi kuwekewa alama: hatuwezi kusoma gumzo la siri, kwa hiyo hatuwezi kuhifadhi orodha ya pamoja kwa ajili yake. Orodha za manunuzi haziwezi kusambazwa.",
+  },
+  "send-photo-video-disappears-after": {
+    q: "Naweza kutuma picha au video inayotoweka baada ya kutazamwa?",
+    a: "Ndiyo, kwenye magumzo ya watu wawili (si ya vikundi). Ambatisha picha au video, washa «Tazama mara moja» karibu na faili na uitume. Hutumwa bila maandishi, na video zina kikomo cha MB 64. Mtu mwingine huona taarifa ya kugusa ili kuitazama mara moja na anaweza kuifungua mara moja tu. Anapofanya hivyo, faili hufutwa kutoka kwenye hifadhi yetu: kwa kawaida wakati inapoonekana kwenye skrini yake, na kwa upeo ndani ya dakika chache ikiwa programu yake itafungwa au kupoteza muunganisho kabla ya hapo. Baada ya hapo hakuna anayeweza kuifungua tena: si mtu huyo, si wewe, si YuKon3t. Ikiwa haifunguliwi kamwe, huisha muda baada ya siku 14, na kufuta ujumbe kwa kila mtu kabla haujafunguliwa pia kunauondoa. Kinachohifadhiwa ni rekodi kwamba ujumbe wa kutazama mara moja ulitumwa na kama ulifunguliwa (na lini); upande wako utaona «Imefunguliwa».\n\nKisichoweza kufanya: kumzuia mtu kubaki na nakala. Picha za skrini na rekodi za skrini haziwezi kuzuiwa. Kwenye programu za simu unapata arifa picha ya skrini inapogunduliwa kwenye gumzo, lakini picha ya skrini iliyopigwa kwa kifaa kingine haiwezi kugunduliwa kwa njia yoyote. Tuma tu kile ambacho hungejali mtu mwingine akibaki nacho. Na kwa kuwa hakuna kinachohifadhiwa, wasimamizi wetu hawawezi kukagua ujumbe wa kutazama mara moja ambao tayari umetazamwa, mtu akiuripoti. Picha (na fremu moja ya kila video) hukaguliwa kiotomatiki zinapotumwa, kama faili nyingine yoyote inayopakiwa, na bado unaweza kuripoti na kumzuia aliyetuma.",
+  },
+  "see-photo-chat-full-screen": {
+    q: "Naweza kuona picha ya gumzo kwenye skrini nzima?",
+    a: "Ndiyo. Gusa picha yoyote kwenye ujumbe ili kuifungua kwenye skrini nzima, kwenye kitazamaji kilekile kinachotumika kwa picha za machapisho (bana au tumia gurudumu la kipanya kukuza; gusa nje au X kufunga).",
+  },
+  "when-open-chat-jump-straight": {
+    q: "Ninapofungua gumzo, huenda moja kwa moja kwenye ujumbe wa hivi karibuni?",
+    a: "Ndiyo. Unapofungua mazungumzo, au kubadilisha kwenda mengine, unawekwa kwenye ujumbe wa hivi karibuni, na mwonekano hufuata ujumbe mpya unaofika ukiwa kwenye gumzo hilo. Pia, kisanduku cha ujumbe huanza na ujumbe wa mwisho wa mazungumzo tayari umeandikwa, uwe umetumwa au umepokelewa, ili iwe haraka kuujibu au kutuma kilekile.",
+  },
+  "voice-video-calls-work": {
+    q: "Simu za sauti na za video hufanya kazi vipi?",
+    a: "Gusa ikoni ya simu au ya video kwenye wasifu wa mwasiliani au kwenye gumzo lako naye. Simu yake italia (kwa mlio uliouchagua; unaweza kuuchagua kwenye Mipangilio → «Simu») na ataweza kuipokea au kuikataa. Akikubali, anaingia kwenye simu mara moja, hata simu yake ikiwa imefungwa au programu ikiwa chinichini ilipolia. Kwenye iPhone (YuKon3t 1.2 au baadaye), kukubali kwenye skrini ya simu ya iPhone hupokea kwa hatua moja (gusa Kubali, au tumia kitelezi simu ikiwa imefungwa), bila Kubali ya pili ndani ya programu. Ikiwa umeingia kwenye zaidi ya iPhone moja, kupokea kwenye moja huzima mlio kwenye zingine. Ili kumaliza simu ya sauti wakati sauti inatoka kwenye kipokea sauti cha sikioni, unaweza pia kubonyeza kitufe cha pembeni. Ukitumia spika, au kwenye simu ya video, kitufe cha pembeni hufunga skrini tu na simu inaendelea, kwa hiyo tumia kitufe chekundu cha kukata simu ili kuimaliza. Unapoanzisha au kupokea simu, menyu, kichagua au orodha yoyote iliyokuwa wazi hufungwa, kwa hiyo simu huonekana daima juu.",
+  },
+  "add-more-people-call": {
+    q: "Naweza kuongeza watu zaidi kwenye simu?",
+    a: "Ndiyo. Simu ikishaunganishwa, gusa ikoni ya kuongeza mtu iliyo karibu na kitufe cha kukata simu na uchague mmoja wa wasiliani wako. Mtu huyo hupata simu inayoingia ya kawaida na, akikubali, anajiunga na simu hiyohiyo; wakati hajajibu, utaona «Inampigia …» juu ya simu. Yeyote aliye kwenye simu anaweza kuongeza mmoja wa wasiliani wake mwenyewe, hadi jumla ya watu 8. Huwezi kumwongeza mtu ambaye tayari yuko kwenye simu nyingine au ambaye ana kizuizi na yeyote aliye kwenye simu. Mtu mmoja anapokata simu, anatoka yeye tu na simu inaendelea kwa wengine; huisha anapobaki mtu mmoja. Ikiwa simu yako inaonyesha skrini ya simu ya mfumo, skrini hiyo humtaja tu aliyekuongeza.",
+  },
+  "put-call-hold": {
+    q: "Naweza kuweka simu kusubiri?",
+    a: "Ndiyo. Gusa ikoni ya kusitisha kwenye vidhibiti vya simu ili kuweka simu ya sauti au ya video kusubiri. Hilo husitisha maikrofoni na kamera yako na huacha kumsikia mtu mwingine, ambaye ataona kuwa umeweka simu kusubiri. Gusa kitufe kilekile (sasa ikoni ya kucheza) ili kuendelea: maikrofoni na kamera yako hurudi hasa kama zilivyokuwa kabla ya kuweka simu kusubiri.",
+  },
+  "live-translated-captions-call": {
+    q: "Naweza kuona manukuu yaliyotafsiriwa moja kwa moja wakati wa simu?",
+    a: "Ndiyo, kwenye simu ya sauti au ya video kati ya watu wawili. Gusa kitufe cha manukuu kwenye vidhibiti vya simu. Kabla ya chochote kuanza utaona kitakachotokea: unachosema hutumwa kwa huduma ya AI (OpenAI) ili kugeuzwa kuwa maandishi na kutafsiriwa. YuKon3t haihifadhi sauti wala maandishi; OpenAI inaweza kuhifadhi inachochakata kwa muda mfupi kulingana na masharti yake yenyewe. Kisha mtu mwingine huulizwa kama anaruhusu, na manukuu huanza tu wote wawili mnapokubali. Yakiwa yamewashwa, wote wawili bado mnasikia sauti halisi ya mwenzake, kila mmoja anaona manukuu ya anachosema mwenzake kwa lugha anayotumia YuKon3t (Kiingereza, Kihispania, Kifaransa, Kireno, Kiarabu, Kijerumani, Kiitaliano, Kihindi au Kiswahili) na «Manukuu ya moja kwa moja yamewashwa» huonekana juu ya skrini zote mbili; «Onyesha asili» huonyesha maneno kama yalivyosemwa. Yeyote kati yenu anaweza kuyazima wakati wowote kwa kitufe kilekile, na huzimwa kwa wote wawili kwa wakati mmoja; kwenye simu inayofuata yanakuwa tena yamezimwa, na huzimika yenyewe baada ya saa moja. Maikrofoni yako hunukuliwa tu ikiwa imewashwa: kuinyamazisha au kuweka simu kusubiri huisitisha. Kila mtu ana dakika 120 kwa mwezi za manukuu ya anachosema. Manukuu hayapatikani kwenye simu za zaidi ya watu wawili, yanaweza kuchelewa sekunde moja au mbili na yanaweza kuwa na makosa, hasa kwa lugha ambazo huduma hiyo inazitambua kwa shida zaidi (kwa mfano, Kiyoruba).",
+  },
+  "happens-call-switch-apps-lock": {
+    q: "Nini hutokea kwa simu nikibadilisha programu au kufunga simu?",
+    a: "Kwenye programu ya YuKon3t ya Android au iPhone, simu inaendelea: wewe na mtu mwingine mnaweza kuendelea kuzungumza programu ikiwa chinichini au skrini ikiwa imefungwa. Kamera yako husitishwa ukiwa mbali (simu haziruhusu programu ya chinichini kuendelea kurekodi), kwa hiyo kwenye simu ya video mtu mwingine huona taarifa kuwa kamera yako imesitishwa, na video yako huendelea unaporudi kwenye programu. Kwenye kivinjari cha wavuti cha simu ni tofauti: kivinjari husitisha ukurasa mara unapotoka, kwa hiyo huko simu haiwezi kuendelea chinichini. Mtu mwingine ataona kuwa muunganisho wako umekatika, na simu huisha usiporudi ndani ya takriban dakika moja na nusu. Kwa simu ambazo unahitaji kujitenga nazo, tumia programu.",
+  },
+  "happens-connection-drops-during-call": {
+    q: "Nini hutokea muunganisho wangu ukikatika wakati wa simu?",
+    a: "Simu haiishi mara moja. Utaona «Inaunganisha tena…» wakati YuKon3t inajaribu kukuunganisha tena, kwa takriban dakika moja kwa upeo. Inasaidia ukiwa kwenye lifti, handaki au unapohama kutoka wifi kwenda data ya simu. Wakati huo huo, mtu mwingine huona kuwa muunganisho wako umekatika na anaombwa asubiri. Ikiwa haiwezekani kukuunganisha tena ndani ya muda huo, simu huisha kwa wote wawili, na yeyote kati yenu anaweza kupiga tena tu.",
+  },
+  "there-limit-long-call-last": {
+    q: "Je, kuna kikomo cha muda wa simu?",
+    a: "Simu moja ya sauti au ya video inaweza kudumu hadi saa 12. Baada ya hapo huisha kiotomatiki, na unaweza kuanzisha mpya mara moja.",
+  },
+  "hear-ringing-sound-when-call": {
+    q: "Kwa nini nasikia mlio ninapompigia mtu simu?",
+    a: "Ni mlio wa simu inayoendelea kuita, ili ujue kuwa simu inapigwa kweli wakati unasubiri ajibu. Husimama mara mtu mwingine anapopokea au kukataa simu, au unapoighairi.",
+  },
+  "says-already-have-call-someone": {
+    q: "Inasema tayari nina simu na mtu na hainiruhusu kupiga tena. Nifanye nini?",
+    a: "Hutokea simu ya awali kwa mtu huyo inapoendelea kuwekwa alama kuwa inaita au iko hewani (kwa mfano, simu ilipokatika ghafla). Utaona dirisha linalokupa nafasi ya kughairi simu hiyo iliyokwama na kupiga mpya mara moja: gusa «Ighairi na upige tena».",
+  },
+  "group-chats-work": {
+    q: "Magumzo ya vikundi hufanya kazi vipi?",
+    a: "Unda moja kutoka Ujumbe → «Kikundi kipya»: chagua jina na angalau wasiliani wako 2. Vikundi vya umma pia vinaweza kupatikana kwenye «Gundua vikundi»: tafuta kwa jina na uombe kujiunga, au ufungue kiungo cha mwaliko cha kikundi cha umma. Kikundi kisichoonekana kwenye Gundua ni cha mwaliko tu: ni aliyekiunda tu anayeweza kuongeza watu na hakuna anayeweza kuomba kujiunga. Huwezi kujiunga na kikundi, wala kuongezwa, ikiwa wewe na mtu aliye kwenye kikundi mmezuiana. Ikiwa uliunda kikundi, kifungue na utumie «Ongeza wanachama» wakati wowote kuongeza wasiliani wako zaidi. Mwanachama yeyote anaweza kugusa «Ondoka kwenye kikundi» ili kuondoka mwenyewe (ikiwa aliyeunda kikundi ataondoka, umiliki hupita kwa mwanachama anayefuata). Aliyeunda kikundi pia ana chaguo la «Futa kikundi», linalofuta kikundi kizima, pamoja na ujumbe wote, kwa kila mtu kwa wakati mmoja, kisipohitajika tena. Wasimamizi wa YuKon3t pia wanaweza kufuta kikundi moja kwa moja (kwa barua taka, nakala rudufu au ukiukaji wa Kanuni), hata kama hawajawahi kujiunga nacho.",
+  },
+  "typed-message-but-didnt-send": {
+    q: "Niliandika ujumbe lakini sikuutuma. Je, unapotea nikitoka kwenye gumzo?",
+    a: "Hapana. Ulichoandika bila kutuma huhifadhiwa kama rasimu kwenye kifaa chako wakati huohuo unapoandika. Hamia mazungumzo mengine, funga programu au pakia upya ukurasa, na kitaendelea kuwa kwenye kisanduku cha ujumbe unaporudi kwenye gumzo hilo. Hufutwa tu unapoutuma kweli (au unapofuta maandishi mwenyewe).",
+  },
+  "secret-chats": {
+    q: "Magumzo ya siri ni nini?",
+    a: "Gumzo la siri ni mazungumzo kati ya watu wawili ambamo maandishi ya ujumbe wako yamesimbwa kutoka ncha hadi ncha: hufungwa kwenye simu yako na hufunguliwa tu kwenye simu ya mtu mwingine, kwa hiyo hata seva za YuKon3t haziwezi kuyasoma. Wote wawili lazima mliwashe (fungua gumzo, gusa ⋯ iliyo juu na uchague «Faragha ya gumzo»), na mara ya kwanza utachagua kauli ya urejeshaji. Hufanya kazi tu kwenye magumzo ya watu wawili, si ya vikundi. Ni vizuri kujua: *maandishi* ya ujumbe pekee ndiyo yanayosimbwa. Picha, video, ujumbe wa sauti na GIF bado hupakiwa na kukaguliwa kama kwingineko, na ujumbe uliotumwa kabla ya nyote kuliwasha haukusimbwa. Machapisho, Muse, Story, unachoshiriki kutoka programu nyingine na ujumbe uliosambazwa haviingii kamwe kwenye gumzo la siri (haviwezi kusimbwa kwenye simu yako), kwa hiyo magumzo ya siri hayaonekani unaposhiriki au kusambaza; ili kutuma kiungo huko, kibandike mwenyewe kwenye gumzo. Likishawashwa, hakuna kitu kwenye skrini kinachoonyesha kuwa gumzo ni la siri: hakuna lebo wala kufuli kwenye gumzo au kwenye orodha yako ya ujumbe, na arifa husema tu «Ujumbe mpya». Menyu ileile ya «Faragha ya gumzo» iko kwenye magumzo yote ya watu wawili, na ndiko unakothibitisha kuwa limewashwa, kuthibitisha msimbo au kulizima. (Orodha yako ya ujumbe huonyesha «Ujumbe» badala ya maandishi, kwa sababu hatuwezi kuyasoma ili kuonyesha onyesho la awali.) Magumzo ya siri hayana usiri wa mbele (forward secrecy): ufunguo wako unabaki uleule, kwa hiyo mtu atakayefikia simu yako ikiwa imefunguliwa anaweza kusoma historia iliyohifadhiwa ya gumzo hilo. Na kwa kuwa sisi ndio tunaompa kila mmoja ufunguo wa umma wa mwenzake, fungua «Faragha ya gumzo», gusa «Thibitisha msimbo» na ulinganishe msimbo wa usalama na mtu mwingine, ana kwa ana au kwenye simu: ukilingana kwenye simu zote mbili, hakuna aliyebadilisha ufunguo njiani na gumzo ni la faragha hata kwetu.",
+  },
+  "forget-recovery-passphrase-lose-phone": {
+    q: "Nini kitatokea nikisahau kauli yangu ya urejeshaji au nikipoteza simu yangu?",
+    a: "Kauli yako ya urejeshaji hufunga nakala ya akiba ya ufunguo wako ambayo sisi tunaihifadhi lakini hatuwezi kuisoma. Kwenye simu mpya, iandike ili kufungua magumzo yako ya siri ya awali. Ukiisahau *na pia* ukapoteza simu yako, hatuwezi kurejesha ujumbe wako wa siri: ndiyo gharama ya usimbaji ambao sisi hatuwezi kuufungua. Unaweza kuanza upya kwa funguo mpya, lakini basi ujumbe wa siri uliotumwa kwa ufunguo wa awali hautaweza kusomwa tena kamwe, si na wewe wala na mtu mwingine, na magumzo yako ya siri huzimwa hadi wote wawili myawashe tena.",
+  },
+  "moderators-read-secret-chats-report": {
+    q: "Je, wasimamizi wanaweza kusoma magumzo ya siri? Naripotije unyanyasaji kwenye moja?",
+    a: "Hapana. Kwa kuwa hatuwezi kusoma magumzo ya siri, hatuchambui maandishi yake kutafuta ukiukaji wa sera zetu, kama tunavyofanya kwa ujumbe wa kawaida, na wasimamizi hawawezi kuyafungua. Kanuni zetu bado zinatumika huko. Mtu akikutumia kitu cha matusi, gusa ⋯ ya ujumbe huo na uchague «Ripoti»: programu kwanza hukujulisha kuwa hilo linashiriki maandishi ya ujumbe huo mmoja na wasimamizi wetu ili waweze kuyakagua. Hatuwezi kuthibitisha wenyewe, kwa hiyo ripoti ina tu kile unachoamua kutuma. Picha na video za magumzo ya siri bado hukaguliwa. Unaweza kuzima gumzo la siri wakati wowote kwenye «Faragha ya gumzo»; kuanzia hapo, ujumbe mpya hukaguliwa tena.",
+  },
+  "birthday-reminders": {
+    q: "Vikumbusho na salamu za siku ya kuzaliwa hufanya kazi vipi?",
+    a: "Kushiriki siku yako ya kuzaliwa kumewashwa kwa chaguomsingi: siku hiyo wasiliani wako na wanachama wa Circles zako hukumbushwa. Siku na mwezi tu ndivyo vinavyoshirikiwa, kamwe si mwaka wala umri wako, na hakuna anayekumbushwa ikiwa umemzuia au amekuzuia; kwenye Circle ya faragha, ni wanachama wake tu. Inatumika tu kuanzia miaka 18 na ikiwa tarehe yako ya kuzaliwa iko kwenye akaunti yako. Ikiwa akaunti yako bado haina (baadhi ya akaunti za zamani hazina), unaweza kuiongeza kwenye Mipangilio → Faragha → Siku ya kuzaliwa: inaweza kuongezwa mara moja tu na baadaye haiwezi kubadilishwa, na wengine bado huona siku na mwezi tu. Kila mmoja wa watu hao hupata arifa moja isiyo na kelele usiku wa manane kwenye saa za eneo lake, bila sauti wala mtetemo (YuKon3t hutumia saa za eneo la kifaa anachotumia programu, na UTC hadi isipozijua), ambayo pia huonekana kwenye orodha yake ya arifa. Ikiwa watu kadhaa anaowajua wana siku ya kuzaliwa siku hiyo, arifa moja huwakusanya wote. Akiigusa, anaweza kukutumia salamu: mwitikio, ujumbe ulioandikwa tayari au maneno yake mwenyewe. Kila salamu hukufikia kama ujumbe wa moja kwa moja kutoka kwa mtu huyo, moja kwa upeo kwa kila mtu kwa mwaka, na unapata arifa moja inayozifupisha badala ya moja kwa kila salamu. Siku ya kuzaliwa kwako, kadi ya YuKon3t pia huonekana juu ya wasifu wako kwa siku nzima, tangu usiku wa manane hadi mwisho wa siku kwenye saa za eneo lako: wewe unaona salamu ya «Heri ya siku ya kuzaliwa kutoka YuKon3t!», na ni watu tu unaoshiriki nao siku yako ya kuzaliwa (kamwe si mtu uliyemzuia au aliyekuzuia) wanaoona hapo kuwa leo ni siku yako ya kuzaliwa, wakiwa na kitufe cha kukutumia salamu kikumbusho chao kikishawafikia. Kamwe haionyeshi tarehe, mwaka wala umri wako, na ukiacha kushiriki siku yako ya kuzaliwa hutoweka. Ikiwa ulizaliwa tarehe 29 Februari, siku yako ya kuzaliwa huadhimishwa tarehe 28 Februari katika miaka mingine. Ili kuchagua nani anakumbushwa, nenda kwenye Mipangilio → Faragha → Siku ya kuzaliwa na uchague wasiliani wako, wanachama wa Circles zako au wote wawili. Ili kuacha kuishiriki, gusa «Acha kushiriki siku yangu ya kuzaliwa» hapo: kuanzia hapo hakuna anayekumbushwa, ingawa vikumbusho vilivyokwisha tumwa havirudishwi. Umebadili mawazo? Mahali pale pale kuna «Shiriki siku yangu ya kuzaliwa». Ikiwa una chini ya miaka 18, unaweza kuacha mpangilio chaguomsingi au kuuzima, lakini ukishauzima utaweza kuuwasha tena ukiwa na miaka 18 au zaidi. Ukijiunga kabla ya kutimiza miaka 18, utapata arifa ya mara moja siku yako ya kuzaliwa itakapoanza kushirikiwa.",
+  },
+  "holiday-reminders": {
+    q: "Vikumbusho vya sikukuu hufanya kazi vipi?",
+    a: "Asubuhi ya sikukuu rasmi ya nchi yako, YuKon3t hukutumia arifa moja isiyo na kelele, kwa mfano «Leo ni Siku ya Uhuru nchini Kenya». Hutumia nchi iliyo kwenye wasifu wako (unaweza kuibadilisha kwenye Hariri wasifu) na hufika karibu 8:00 asubuhi kwenye saa za eneo la kifaa unachotumia programu (UTC hadi isipojulikana), bila sauti wala mtetemo. Pia huonekana kwenye orodha yako ya arifa, na ukiigusa hufunguka Mwanzo wako. Vikumbusho vinajumuisha sikukuu za kitaifa na siku zinazojulikana ambazo nchi yako huadhimisha, kama Siku ya Uhuru, Siku ya Wafanyakazi, Siku ya Mtoto, Siku ya Akina Mama na Siku ya Akina Baba. Ikiwa sikukuu inaangukia wikendi na siku ya mapumziko inahamishiwa tarehe nyingine, unakumbushwa mara moja tu, siku ya sikukuu. Sikukuu kadhaa zikiangukia siku moja, arifa moja huzikusanya. Majina ya sikukuu huonekana kwa lugha ya programu yako tunapokuwa nayo, na kama sivyo, kwa Kiingereza. Vikumbusho vya sikukuu vimewashwa kwa kila mtu kwa chaguomsingi; ili uache kuvipokea, ondoa alama kwenye «Sikukuu» kwenye Mipangilio → Arifa na ugonge Hifadhi. Kalenda ya sikukuu imejengwa ndani ya YuKon3t, kwa hiyo nchi yako haitumwi popote ili kuzikokotoa. Baadhi ya nchi bado hazijajumuishwa; ikiwa yako haipo, au wasifu wako unasema «Nyingine / Haipo kwenye orodha», hutapokea vikumbusho hivi.",
+  },
+
+  "hiding-chat": {
+    q: "Nini hutokea ninapoficha gumzo?",
+    a: "Fungua gumzo, gusa ⋯ iliyo juu na uchague «Ficha gumzo». Mara ya kwanza, unachagua PIN ya tarakimu 4 hadi 8. Kuanzia hapo, gumzo huondoka kwenye orodha yako ya Ujumbe, huacha kuhesabiwa kwenye viashiria vyako vya ujumbe ambao haujasomwa na kwenye kengele ya arifa, na halitolewi tena unaposhiriki kitu. Ikiwa ni gumzo la watu wawili, mtu mwingine pia hupotea kwenye orodha yako ya Wasiliani na kwenye vichagua vya kuunda kikundi, kuanzisha simu au kutuma mwaliko. Magumzo ya vikundi pia yanaweza kufichwa. Ujumbe mpya kwenye gumzo lililofichwa bado unakufikia, lakini arifa husema tu «Una arifa mpya», bila jina na bila onyesho la awali, na hufungua skrini ya Mwanzo. Simu inayoingia kutoka kwa mtu ambaye uliuficha gumzo lake huonekana kama «Simu ya faragha».",
+  },
+  "open-hidden-chat-unhide-one": {
+    q: "Ninafunguaje gumzo lililofichwa na ninaachaje kulificha?",
+    a: "Bonyeza na ushikilie neno «Ujumbe» juu ya skrini yako ya Ujumbe, au nenda Mipangilio, «Faragha», «Mazungumzo yaliyofichwa». Andika PIN yako na utaona orodha ya magumzo yako yaliyofichwa. Njia hizo mbili ziko daima kwa kila mtu, kwa hiyo hazifichui kama umeficha kitu. Eneo hufungwa tena lenyewe baada ya takriban dakika 10, mara unapotoka kwenye programu au kubadilisha kichupo ukiwa na gumzo lililofichwa kwenye skrini, unapogusa «Funga sasa» na unapotoka kwenye akaunti. Ukitoka ukiwa na gumzo lililofichwa kwenye skrini, skrini hufunikwa mara moja; ukirudi, unaandika PIN yako na unarudi kwenye gumzo hilo. Ili kuacha kuficha gumzo, lifungue, gusa ⋯ na uchague «Acha kuficha gumzo».",
+  },
+  "other-person-know-hid-our": {
+    q: "Je, mtu mwingine anajua kuwa nimeficha gumzo letu?",
+    a: "Hapana. Kuficha ni jambo linalotokea upande wako tu. Hajaarifiwa, hakuna kinachobadilika upande wake, na ujumbe na simu zake hufikishwa kama kawaida. Mtu huyo bado anakuona kwenye orodha zake mwenyewe.",
+  },
+  "forgot-pin-happens-hidden-chats": {
+    q: "Nimesahau PIN yangu. Nini kitatokea kwa magumzo yangu yaliyofichwa?",
+    a: "Kwenye skrini ya PIN, gusa «Umesahau PIN yako?» na uthibitishe kuwa ni wewe kwa nenosiri la akaunti yako. Ikiwa akaunti yako haina nenosiri (unaingia kwa kiungo cha barua pepe, Google au Apple), tunakutumia msimbo kwa barua pepe. Kisha, chagua PIN mpya. Magumzo yako yanabaki yamefichwa na hakuna kinachopotea ndani yake. Baada ya PIN 5 zisizo sahihi mfululizo lazima usubiri dakika 15, na muda mrefu zaidi kila hili linapotokea tena.",
+  },
+  "doesnt-hiding-chat": {
+    q: "Kuficha gumzo hakufanyi nini?",
+    a: "Huficha gumzo kwenye akaunti yako; halilisimbi. Ujumbe huhifadhiwa kama wa gumzo lingine lolote, na usimamizi wetu bado unatumika. Ukitaka maandishi ambayo hata sisi hatuwezi kusoma, hiyo ndiyo kazi ya «Faragha ya gumzo» (magumzo ya siri), na unaweza kutumia yote mawili kwenye gumzo lilelile. Arifa ambazo tayari zilikuwa kwenye simu yako kabla ya kuficha gumzo hazirudishwi, kwa hiyo zifute mwenyewe. Mtu huyo bado anaonekana kwenye maeneo ya umma: utafutaji, Gundua, wasifu wake na machapisho, maoni na Penda zake. Kugusa «Ujumbe» kwenye wasifu wake kunakuomba PIN yako. Na yeyote anayejua PIN yako na ana simu yako ikiwa imefunguliwa anaweza kufungua eneo lililofichwa.",
+  },
+} satisfies Partial<FaqItems>;

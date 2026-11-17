@@ -54,18 +54,28 @@ describe("detectLanguage", () => {
     expect(detectLanguage("Bonjour, je suis très content aujourd'hui")).toBe("fr");
     expect(detectLanguage("Olá, você está bem? Muito obrigado!")).toBe("pt");
     expect(detectLanguage("مرحبا كيف حالك اليوم")).toBe("ar");
+    expect(detectLanguage("Ich bin heute sehr müde, aber gut")).toBe("de");
+    expect(detectLanguage("Ciao amici, grazie di tutto oggi")).toBe("it");
+    expect(detectLanguage("Habari za asubuhi rafiki yangu")).toBe("sw");
+    expect(detectLanguage("नमस्ते आप कैसे हैं")).toBe("hi");
+    expect(detectLanguage("यह बहुत अच्छा है।")).toBe("hi");
   });
 
-  it("calls other scripts and Persian/Urdu letters 'other'", () => {
+  it("calls other scripts, Persian/Urdu letters and Marathi/Nepali words 'other'", () => {
     expect(detectLanguage("Привет, как дела?")).toBe("other");
     expect(detectLanguage("今日はとても良い天気です")).toBe("other");
-    expect(detectLanguage("नमस्ते आप कैसे हैं")).toBe("other");
+    expect(detectLanguage("सलाम, मी आज घरी आहे")).toBe("other");
+    expect(detectLanguage("तपाईंलाई कस्तो छ")).toBe("other");
     expect(detectLanguage("سلام، حال شما چطور است؟ خیلی ممنون")).toBe("other");
   });
 
   it("is 'unknown' for Latin text with no telling words (could be any language)", () => {
     expect(detectLanguage("Mo fe lo si oja lola")).toBe("unknown");
-    expect(detectLanguage("Ich gehe morgen nach Berlin")).toBe("unknown");
+    expect(detectLanguage("Ik ga morgen naar Amsterdam")).toBe("unknown");
+  });
+
+  it("is 'unknown' for Devanagari with no telling words either way", () => {
+    expect(detectLanguage("सुप्रभात दोस्तों")).toBe("unknown");
   });
 
   it("ignores words two languages share, so it doesn't guess between them", () => {
@@ -84,6 +94,9 @@ describe("shouldOfferTranslation", () => {
     expect(shouldOfferTranslation("Hola amigos, ¿qué tal está todo hoy?", "es")).toBe(false);
     expect(shouldOfferTranslation("I really love this, thank you all", "en")).toBe(false);
     expect(shouldOfferTranslation("Mo fe lo si oja lola", "en")).toBe(true);
+    expect(shouldOfferTranslation("नमस्ते आप कैसे हैं", "hi")).toBe(false);
+    expect(shouldOfferTranslation("नमस्ते आप कैसे हैं", "en")).toBe(true);
+    expect(shouldOfferTranslation("Ciao amici, grazie di tutto oggi", "it")).toBe(false);
     expect(shouldOfferTranslation("😂😂", "en")).toBe(false);
   });
 });

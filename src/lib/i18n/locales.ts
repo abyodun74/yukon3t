@@ -9,10 +9,10 @@
 // translated and stored in English (country-names.ts, language-names.ts, the vocab area); job titles are shown as
 // stored. Still English, each behind an EnglishOnly wrapper (src/components/english-only.tsx): legal and admin,
 // which stay English. So are every notification written for someone else, whose language isn't stored,
-// the native ring screens, and the call provider's own interface where it has no translation (Arabic).
+// the native ring screens, and the call provider's own interface where it has no translation (see PROVIDER_LANGUAGE in call-frame.tsx).
 // Pure and client-safe: the half that reads next/headers is in server.ts.
 
-export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "ar"] as const;
+export const SUPPORTED_LOCALES = ["en", "es", "fr", "pt", "ar", "de", "it", "hi", "sw"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 export const DEFAULT_LOCALE: Locale = "en";
@@ -27,6 +27,10 @@ export const LOCALE_NAMES: Record<Locale, string> = {
   fr: "Français",
   pt: "Português",
   ar: "العربية",
+  de: "Deutsch",
+  it: "Italiano",
+  hi: "हिन्दी",
+  sw: "Kiswahili",
 };
 
 /** The `dir` for anything written in `locale`. Goes on the same element as `lang` (<html>, or a block inside an English part). */

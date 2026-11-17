@@ -114,6 +114,19 @@ const TEXT_STORY_SIZE = { width: 1080, height: 1920 };
  * Greedy word wrap for <canvas> text. A word wider than maxWidth on its own is
  * split by character so nothing is ever drawn past the canvas edges.
  */
+function graphemes(word: string): string[] {
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    return Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(word), (s) => s.segment);
+  }
+  return Array.from(word);
+}
+
+// A canvas only uses the fonts it is told about plus the browser's own last-resort fallback, which is not
+// guaranteed for every script on every device. Name the system fonts that carry Devanagari (Hindi) and Arabic on
+// Android, iOS/macOS and Windows after the Latin ones, so a text Story in any of the app's languages draws its letters.
+const TEXT_STORY_FONT_FAMILY =
+  'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", "Kohinoor Devanagari", "Devanagari Sangam MN", "Nirmala UI", "Mangal", "Noto Sans Arabic", "Geeza Pro", "Segoe UI Arabic", sans-serif';
+
 function wrapCanvasText(ctx: CanvasRenderingContext2D, words: string[], maxWidth: number): string[] {
   const lines: string[] = [];
   let current = "";
@@ -131,8 +144,9 @@ function wrapCanvasText(ctx: CanvasRenderingContext2D, words: string[], maxWidth
       current = word;
       return;
     }
-    // Hard-break by code point (keeps emoji/surrogate pairs intact).
-    for (const ch of Array.from(word)) {
+    // Hard-break between user-perceived characters, so a Devanagari conjunct or vowel sign (and an emoji sequence)
+    // is never split across lines; by code point where Intl.Segmenter isn't available.
+    for (const ch of graphemes(word)) {
       if (current && ctx.measureText(current + ch).width > maxWidth) {
         lines.push(current);
         current = ch;
@@ -181,7 +195,7 @@ async function renderTextStoryImage(
   // fits, then hard-break whatever still doesn't (see wrapCanvasText).
   const words = text.split(/\s+/).filter(Boolean);
   const setFont = (px: number) => {
-    ctx.font = `700 ${px}px system-ui, -apple-system, sans-serif`;
+    ctx.font = `700 ${px}px ${TEXT_STORY_FONT_FAMILY}`;
   };
   setFont(fontSize);
   while (fontSize > 44 && words.some((w) => ctx.measureText(w).width > maxWidth)) {

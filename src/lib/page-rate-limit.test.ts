@@ -117,6 +117,7 @@ describe("rateLimitPage", () => {
     const html = rateLimitPage({ locale: "ar", path: "/home", nonce: "n", theme: "dark" });
     expect(html).toContain('<html lang="ar" dir="rtl" data-theme="dark">');
     expect(rateLimitPage({ locale: "fr", path: "/home", nonce: "n" })).toContain('<html lang="fr" dir="ltr">');
+    expect(rateLimitPage({ locale: "sw", path: "/home", nonce: "n" })).toContain('<html lang="sw" dir="ltr">');
   });
 });
 
@@ -124,6 +125,8 @@ describe("rateLimitPageLocale", () => {
   it("uses the language picker's cookie, then Accept-Language", () => {
     expect(rateLimitPageLocale("a=1; yukon3t.locale=ar; b=2", "fr")).toBe("ar");
     expect(rateLimitPageLocale("a=1", "pt-BR,pt;q=0.9")).toBe("pt");
+    expect(rateLimitPageLocale("a=1; yukon3t.locale=hi", "en")).toBe("hi");
+    expect(rateLimitPageLocale(null, "de-DE,de;q=0.9")).toBe("de");
     expect(rateLimitPageLocale(null, null)).toBe("en");
   });
 });

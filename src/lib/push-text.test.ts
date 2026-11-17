@@ -29,7 +29,9 @@ describe("storedLocale", () => {
     expect(storedLocale("pt")).toBe("pt");
     expect(storedLocale(null)).toBe("en");
     expect(storedLocale(undefined)).toBe("en");
-    expect(storedLocale("de")).toBe("en");
+    expect(storedLocale("de")).toBe("de");
+    expect(storedLocale("sw")).toBe("sw");
+    expect(storedLocale("ja")).toBe("en");
     expect(storedLocale("AR")).toBe("en");
   });
 });

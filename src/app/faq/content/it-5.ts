@@ -1,0 +1,45 @@
+import type { FaqItems } from "../ids";
+
+// Italian FAQ, part 5: Gifts and challenges.
+export const it5 = {
+  "what-are-gifts-can-i-use": {
+    q: "Cosa sono i regali e posso già usarli?",
+    a: "I regali sono piccoli oggetti digitali che puoi inviare a qualcuno: **sticker**, **cornici del profilo** (un anello attorno alla foto profilo), **badge** (che compaiono accanto al nome) ed **effetti live** (una breve animazione sopra una diretta). Una **scatola regalo** ne riunisce diversi, e il selettore mostra sempre ciò che contiene prima di inviarla. I regali sono raggruppati in cinque sezioni: Amore ed emozioni, Festeggia e ispira, Arena gamer, Universo lusso, e Cultura e community.\n\nI regali vengono attivati poco alla volta, quindi potresti non vederli ancora: un regalo si può inviare solo tra due persone che hanno i regali attivati. I regali a pagamento non sono ancora disponibili: oggi non c'è modo di comprare un regalo, e tutti i regali sono gratuiti durante la fase di prova. Aggiungeremo qui i dettagli quando si aprirà l'acquisto.",
+  },
+  "who-can-send-receive-gifts": {
+    q: "Chi può inviarmi un regalo e a chi posso inviarne uno?",
+    a: "Per inviare un regalo devi avere 18 anni o più; un account senza data di nascita registrata conta come minore di 18. Una persona con meno di 18 anni può ricevere regali solo dai propri contatti accettati, e mai durante una diretta. Nessuno può inviare un regalo a qualcuno che lo ha bloccato o che ha bloccato.\n\nIn Impostazioni → Regali scegli **chi può inviarmi regali**: Tutti, I miei contatti (l'opzione iniziale) o Nessuno. Puoi aggiungere una nota facoltativa di massimo 140 caratteri a un regalo che invii. La nostra moderazione automatica controlla la nota prima di inviare qualsiasi cosa, e una nota che viola le nostre Linee guida della community viene rifiutata, quindi il regalo non viene inviato finché non la cambi.",
+  },
+  "who-sees-who-sent-gift": {
+    q: "Chi può vedere chi mi ha inviato un regalo?",
+    a: "Solo tu. Quando apri un regalo, compare sul tuo profilo, ma chi visita il tuo profilo vede il regalo, mai chi l'ha inviato. Un regalo inviato da una chat singola compare anche come scheda in quella chat, che vedete solo voi due. I regali che non hai ancora aperto li vedi solo tu, e nessuno che hai bloccato (o che ti ha bloccato) vede i tuoi regali.",
+  },
+  "kind-words-free-thank-you": {
+    q: "Cosa sono le parole gentili e il Grazie gratuito?",
+    a: "Le **parole gentili** sono quattro regali gratuiti: Grazie, Ti apprezzo, Faccio il tifo per te e Che orgoglio. Puoi inviarle da un profilo o da una chat singola (non in una diretta), con le stesse regole di qualsiasi regalo, fino a 20 al giorno in totale e fino a 3 al giorno alla stessa persona.\n\nQuando ricevi un regalo, puoi restituire un **Grazie** gratuito, una volta per ogni regalo ricevuto. Arriva nella chat da cui è venuto il regalo quando è ancora possibile; altrimenti, tra i regali di chi l'ha inviato. A un Grazie non si può rispondere con un altro Grazie.",
+  },
+  "gift-picker-suggests-first": {
+    q: "Perché il selettore dei regali suggerisce per primi alcuni regali?",
+    a: "In certi giorni, il selettore mette per primi i regali adatti a un'occasione, in uno scaffale **In questo momento**, con un breve motivo come «Oggi è il suo compleanno»; in una chat singola può comparire anche una piccola idea regalo che puoi ignorare. Le occasioni sono: il compleanno della persona (solo se lo condivide con te), l'anniversario del giorno in cui è entrata in YuKon3t, l'anniversario del vostro contatto (solo se entrambi l'avete attivato in Impostazioni → Regali), l'anniversario di quando è entrata in un Circle in cui siete entrambi, una festività del paese del suo profilo (solo se ha attivati i promemoria delle festività e «Suggerimenti per occasioni culturali»), in prossimità di uno dei suoi eventi di Circle che puoi vedere, una sfida che ha vinto (per 72 ore) e qualcosa che ha condiviso su di sé.\n\nIn Impostazioni → Regali → Le mie occasioni puoi condividere una laurea, un nuovo lavoro, un traguardo o una tappa importante: uno per tipo ogni 30 giorni, visibile per 7 giorni, e puoi toglierlo quando vuoi. Non vengono mai mostrate date né età. Le occasioni cambiano solo l'ordine del selettore: non inviano mai una notifica a nessuno. Puoi disattivare i suggerimenti di occasioni culturali in Impostazioni → Regali, e non cerchiamo mai di dedurre la religione di nessuno: le festività vengono solo dal paese indicato in un profilo.",
+  },
+  "open-hide-wear-showcase-gifts": {
+    q: "Cosa posso fare con un regalo che ho ricevuto?",
+    a: "I tuoi regali sono nella sezione Regali del tuo profilo. Puoi **aprire** un regalo (da quel momento compare sul tuo profilo), **nasconderlo** dal tuo profilo (ciò che ti ha dato resta tuo), **indossare** una cornice o un badge che possiedi (uno di ciascuno alla volta) e **fissare** fino a 3 regali aperti in una vetrina del tuo profilo. Puoi anche **segnalare** un regalo: solo chi lo ha ricevuto può farlo, e il nostro team di moderazione può ritirare un regalo che viola le regole, il che toglie anche qualsiasi cornice o badge che ti ha dato.",
+  },
+  "numbered-gifts-no-cash-value": {
+    q: "Cosa significa il numero di un regalo e i regali valgono denaro?",
+    a: "Alcuni regali sono edizioni numerate: ogni copia riceve il numero successivo in base all'ordine in cui è stata consegnata (n. 1, n. 2, ecc.), mai a caso. Il numero è solo decorativo e lo vedi solo tu; chi visita il tuo profilo vede il regalo senza il suo numero.\n\nI regali non hanno valore in denaro. Non si possono trasferire, scambiare, vendere né convertire in denaro, e un regalo numerato non vale più di un altro. Consulta i nostri [Termini di servizio](/legal/terms) (in inglese).",
+  },
+  "gifts-during-live-stream": {
+    q: "Cosa succede quando qualcuno invia un regalo durante una diretta?",
+    a: "Chi sta guardando una diretta può inviare al suo host un regalo che abbia un effetto live (lì non vengono offerte le parole gentili né i regali di Amore ed emozioni). Devi già essere a guardarla, quindi inviare un regalo non occupa un posto nel limite di spettatori della diretta. L'effetto si riproduce sopra la diretta per qualche secondo per tutti quelli che la guardano e hanno i regali attivati, uno alla volta, e non dice mai chi l'ha inviato né a chi. Gli effetti non lampeggiano. Un host con meno di 18 anni non può ricevere regali in una diretta.",
+  },
+  "challenges-arena-champion": {
+    q: "Cosa sono le sfide e il badge Campione dell'Arena?",
+    a: "Una **sfida** è qualcosa che il creatore o i co-admin di un Circle propongono nel loro Circle, o che un host propone durante la propria diretta (per esempio, «Il tiro più bello della serata»). I membri, o chi sta guardando, partecipano, e l'host dichiara da 1 a 10 vincitori tra chi ha partecipato, tutti alla pari: devono avere partecipato almeno 2 persone oltre all'host, e l'host non può scegliere se stesso. L'host può cambiare i vincitori o annullare la sfida nelle 24 ore successive alla dichiarazione; dopo, il risultato resta fisso. Ogni dichiarazione e ogni modifica vengono registrate.\n\nOgni vincitore riceve il badge gratuito **Campione dell'Arena** e una notifica. Un risultato è la dichiarazione dell'host stesso: non ci sono punteggi, classifiche né graduatorie, né premi di valore. Non sono ammessi risultati falsi o fabbricati, e uno stesso host può nominare vincitrice la stessa persona al massimo 3 volte in 7 giorni. Chiunque abbia partecipato può segnalare una sfida, e il nostro team di moderazione può annullare un risultato, il che ritira i suoi badge.",
+  },
+  "gift-animations-reduced-motion": {
+    q: "Le animazioni dei regali rispettano la riduzione del movimento?",
+    a: "Sì. Con l'opzione di riduzione del movimento del tuo dispositivo attiva, i regali e gli effetti live vengono mostrati come immagini fisse invece che come animazioni. Le animazioni dei regali sono brevi, gli effetti live durano qualche secondo, nulla lampeggia e i regali non riproducono mai suoni. Quando apri un regalo, il lettore di schermo annuncia ciò che c'era dentro.",
+  },
+} satisfies Partial<FaqItems>;

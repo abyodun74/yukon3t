@@ -1,0 +1,48 @@
+import type { sharedEn } from "@/lib/i18n/en/shared";
+import { passwordInput, multiSelect } from "@/lib/i18n/de/common";
+
+export const shared: typeof sharedEn = {
+  passwordInput,
+  submitButton: { offline: "Du bist offline. Prüfe deine Verbindung und versuche es noch einmal." },
+  turnstile: {
+    verify: "Bestätige, dass du ein Mensch bist",
+    wait: "Tippe auf „Bestätige, dass du ein Mensch bist“, um die Sicherheitsprüfung abzuschließen, und versuche es dann noch einmal.",
+    checkingDevice: "Dein Gerät wird überprüft…",
+    stillChecking: "Die Sicherheitsprüfung läuft noch. Warte, bis sie fertig ist, und versuche es dann noch einmal.",
+    slow: "Wir prüfen noch… bei einer langsamen Verbindung kann das bis zu einer Minute dauern.",
+    retry: "Erneut versuchen",
+    interactive: "Tippe auf das Kästchen oben, um die Sicherheitsprüfung abzuschließen.",
+    expired: "Die Sicherheitsprüfung ist abgelaufen. Tippe noch einmal auf „Bestätige, dass du ein Mensch bist“.",
+    blocked: "Die Sicherheitsprüfung konnte nicht geladen werden. Möglicherweise blockiert ein Inhaltsblocker, ein privates DNS mit Werbeblocker, ein VPN oder das Netzwerk challenges.cloudflare.com. Schalte es aus oder wechsle zwischen WLAN und mobilen Daten und tippe auf „Erneut versuchen“.",
+    stalled: "Die Sicherheitsprüfung wurde nicht abgeschlossen. Tippe auf „Erneut versuchen“. Wenn das weiter passiert, wechsle zwischen WLAN und mobilen Daten oder schalte VPN, privates DNS und Inhaltsblocker aus.",
+    network: "Die Sicherheitsprüfung konnte Cloudflare nicht erreichen. Prüfe deine Verbindung und tippe auf „Erneut versuchen“. Auch ein VPN, ein privates DNS oder ein Inhaltsblocker können das verursachen.",
+    config: "Die Sicherheitsprüfung funktioniert gerade wegen eines Problems auf unserer Seite nicht. Versuche es später noch einmal.",
+    unsupported: "Dieser Browser kann die Sicherheitsprüfung nicht ausführen. Aktualisiere Chrome und Android System WebView (oder deinen Browser) oder probiere einen anderen Browser aus.",
+    clock: "Datum und Uhrzeit deines Handys scheinen falsch zu sein, deshalb kann die Prüfung nicht abgeschlossen werden. Aktiviere in den Einstellungen die automatische Einstellung von Datum und Uhrzeit und tippe auf „Erneut versuchen“.",
+    failed: "Die Sicherheitsprüfung wurde nicht bestanden. Tippe auf „Erneut versuchen“.",
+  },
+  phoneField: { countryCode: "Ländervorwahl", placeholder: "Telefonnummer" },
+  birthDate: {
+    monthLabel: "Geburtsmonat",
+    dayLabel: "Geburtstag",
+    yearLabel: "Geburtsjahr",
+    month: "Monat",
+    day: "Tag",
+    year: "Jahr",
+    months: [
+      "Januar",
+      "Februar",
+      "März",
+      "April",
+      "Mai",
+      "Juni",
+      "Juli",
+      "August",
+      "September",
+      "Oktober",
+      "November",
+      "Dezember",
+    ],
+  },
+  multiSelect,
+};

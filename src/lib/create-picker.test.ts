@@ -18,6 +18,10 @@ import { feed as feedEs } from "./i18n/es/feed";
 import { feed as feedFr } from "./i18n/fr/feed";
 import { feed as feedPt } from "./i18n/pt/feed";
 import { feed as feedAr } from "./i18n/ar/feed";
+import { feed as feedDe } from "./i18n/de/feed";
+import { feed as feedIt } from "./i18n/it/feed";
+import { feed as feedHi } from "./i18n/hi/feed";
+import { feed as feedSw } from "./i18n/sw/feed";
 
 const src = (file: string) => readFileSync(path.resolve(import.meta.dirname, "..", file), "utf8");
 
@@ -34,8 +38,8 @@ describe("create picker", () => {
     expect(src("app/u/[userId]/page.tsx")).toContain(`id="${PROFILE_COMPOSER_ID}"`);
   });
 
-  it("has every label in all five languages", () => {
-    for (const dict of [feedEn, feedEs, feedFr, feedPt, feedAr]) {
+  it("has every label in every language", () => {
+    for (const dict of [feedEn, feedEs, feedFr, feedPt, feedAr, feedDe, feedIt, feedHi, feedSw]) {
       for (const value of Object.values(dict.createPicker)) expect(value.trim()).not.toBe("");
     }
   });

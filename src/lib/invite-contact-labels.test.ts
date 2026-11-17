@@ -5,8 +5,22 @@ import { invite as inviteEs } from "@/lib/i18n/es/invite";
 import { invite as inviteFr } from "@/lib/i18n/fr/invite";
 import { invite as invitePt } from "@/lib/i18n/pt/invite";
 import { invite as inviteAr } from "@/lib/i18n/ar/invite";
+import { invite as inviteDe } from "@/lib/i18n/de/invite";
+import { invite as inviteIt } from "@/lib/i18n/it/invite";
+import { invite as inviteHi } from "@/lib/i18n/hi/invite";
+import { invite as inviteSw } from "@/lib/i18n/sw/invite";
 
-const ALL = { en: inviteEn, es: inviteEs, fr: inviteFr, pt: invitePt, ar: inviteAr };
+const ALL = {
+  en: inviteEn,
+  es: inviteEs,
+  fr: inviteFr,
+  pt: invitePt,
+  ar: inviteAr,
+  de: inviteDe,
+  it: inviteIt,
+  hi: inviteHi,
+  sw: inviteSw,
+};
 
 describe("invite contact-row labels and hint", () => {
   for (const [lang, d] of Object.entries(ALL)) {

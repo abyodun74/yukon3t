@@ -14,6 +14,10 @@ import { invite as inviteEs } from "@/lib/i18n/es/invite";
 import { invite as inviteFr } from "@/lib/i18n/fr/invite";
 import { invite as invitePt } from "@/lib/i18n/pt/invite";
 import { invite as inviteAr } from "@/lib/i18n/ar/invite";
+import { invite as inviteDe } from "@/lib/i18n/de/invite";
+import { invite as inviteIt } from "@/lib/i18n/it/invite";
+import { invite as inviteHi } from "@/lib/i18n/hi/invite";
+import { invite as inviteSw } from "@/lib/i18n/sw/invite";
 
 const APP = "https://apps.apple.com/app/id6813083874";
 const PLAY = "https://play.google.com/store/apps/details?id=com.yukon3t.app";
@@ -50,7 +54,7 @@ describe("buildInviteMessage", () => {
   });
 
   it("has the same shape in every language", () => {
-    for (const t of [inviteEn, inviteEs, inviteFr, invitePt, inviteAr]) {
+    for (const t of [inviteEn, inviteEs, inviteFr, invitePt, inviteAr, inviteDe, inviteIt, inviteHi, inviteSw]) {
       const text = buildInviteMessage(t.message);
       const lines = text.split("\n");
       expect(lines).toHaveLength(3);
@@ -65,7 +69,7 @@ describe("buildInviteMessage", () => {
   });
 
   it("no longer carries the web sign-up link", () => {
-    for (const t of [inviteEn, inviteEs, inviteFr, invitePt, inviteAr]) {
+    for (const t of [inviteEn, inviteEs, inviteFr, invitePt, inviteAr, inviteDe, inviteIt, inviteHi, inviteSw]) {
       expect(buildInviteMessage(t.message)).not.toContain("yukon3t.com");
       expect(t.message).not.toContain("sign-up");
     }

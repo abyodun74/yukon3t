@@ -244,7 +244,10 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  /* Geist, Arial and Helvetica have no Devanagari: Hindi letters come from the device's own fonts (named here so the
+     choice doesn't rest on the browser's last-resort fallback alone). No web font is fetched for them. */
+  font-family: var(--font-sans), Arial, Helvetica, "Noto Sans Devanagari", "Kohinoor Devanagari", "Nirmala UI",
+    sans-serif;
   overscroll-behavior-y: contain;
   overflow-x: clip; /* not `hidden` — see html's comment above */
   /* Lets a long unbroken string (a URL, hashtag, or username with no

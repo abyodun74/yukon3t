@@ -16,8 +16,8 @@ function strings(value: unknown, out: string[] = []): string[] {
   return out;
 }
 
-// Countdowns, "only N left", "hurry", "last chance", "limited time", sold-out pressure and leaderboards, in all five
-// languages.
+// Countdowns, "only N left", "hurry", "last chance", "limited time", sold-out pressure and leaderboards, in every
+// language.
 const PRESSURE = [
   /\bonly\s+\{?\w*\}?\s*left\b/i,
   /\b\d+\s+left\b/i,
@@ -34,6 +34,10 @@ const PRESSURE = [
   /plus que \d|dépêchez|dernière chance|durée limitée|compte à rebours/i,
   /restam apenas|corra|última chance|tempo limitado|contagem regressiva/i,
   /لم يتبق سوى|أسرع|الفرصة الأخيرة|لفترة محدودة|العد التنازلي/,
+  /nur noch \d|beeil|letzte chance|begrenzte zeit|rangliste|bestenliste/i,
+  /solo \d+ rimast|sbrigati|ultima occasione|tempo limitato|conto alla rovescia|classifica/i,
+  /सिर्फ़ \d+ बच|जल्दी करें|आख़िरी मौका|आखिरी मौका|सीमित समय|उलटी गिनती|लीडरबोर्ड/,
+  /zimebaki \d|harakisha|nafasi ya mwisho|kwa muda mfupi tu|kuhesabu kurudi nyuma|orodha ya washindi/i,
 ];
 
 describe("gift wording", () => {
@@ -49,7 +53,7 @@ describe("gift wording", () => {
 
   it.each(SUPPORTED_LOCALES)("never names a religion or a religious festival in %s (Culture stays neutral)", (locale) => {
     const all = strings(DICTIONARIES[locale].gifts).join("\n");
-    expect(all).not.toMatch(/christmas|easter|eid|ramadan|diwali|hanukkah|navidad|noël|natal|páscoa|pascua|عيد الفطر|رمضان|الميلاد المجيد/i);
+    expect(all).not.toMatch(/christmas|easter|eid|ramadan|diwali|hanukkah|navidad|noël|natal|páscoa|pascua|weihnacht|ostern|natale|pasqua|krismasi|pasaka|\bidd\b|दिवाली|दीवाली|ईद|क्रिसमस|होली|रमज़ान|عيد الفطر|رمضان|الميلاد المجيد/i);
   });
 });
 

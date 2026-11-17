@@ -39,6 +39,30 @@ const TEXT: Record<Locale, { title: string; body: string; retry: string; home: s
     retry: "إعادة المحاولة",
     home: "العودة إلى الرئيسية",
   },
+  de: {
+    title: "Bei YuKon3t ist etwas schiefgelaufen",
+    body: "Beim Laden der App ist etwas schiefgegangen. Versuche es noch einmal; wenn es weiter passiert, hilft meist, die App zu schließen und neu zu öffnen.",
+    retry: "Erneut versuchen",
+    home: "Zum Start",
+  },
+  it: {
+    title: "YuKon3t ha avuto un problema",
+    body: "Qualcosa è andato storto nel caricare l'app. Riprova; se continua, chiudere e riaprire l'app di solito risolve.",
+    retry: "Riprova",
+    home: "Vai alla Home",
+  },
+  hi: {
+    title: "YuKon3t में कोई दिक्कत आ गई",
+    body: "ऐप लोड करते समय कुछ गड़बड़ हो गई। फिर कोशिश करें; अगर ऐसा बार-बार हो, तो ऐप बंद करके दोबारा खोलने से आमतौर पर ठीक हो जाता है।",
+    retry: "फिर कोशिश करें",
+    home: "होम पर जाएँ",
+  },
+  sw: {
+    title: "YuKon3t imekumbwa na tatizo",
+    body: "Kuna kitu kimeharibika wakati wa kupakia programu. Jaribu tena; likiendelea kutokea, kufunga na kufungua tena programu kwa kawaida hulitatua.",
+    retry: "Jaribu tena",
+    home: "Nenda mwanzo",
+  },
 };
 
 const noSubscription = () => () => {};

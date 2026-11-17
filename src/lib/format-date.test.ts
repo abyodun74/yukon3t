@@ -5,7 +5,11 @@ import { uiEn } from "@/lib/i18n/en/ui";
 import { ui as uiEs } from "@/lib/i18n/es/ui";
 import { ui as uiFr } from "@/lib/i18n/fr/ui";
 import { ui as uiPt } from "@/lib/i18n/pt/ui";
-import type { Locale } from "@/lib/i18n/locales";
+import { ui as uiDe } from "@/lib/i18n/de/ui";
+import { ui as uiIt } from "@/lib/i18n/it/ui";
+import { ui as uiHi } from "@/lib/i18n/hi/ui";
+import { ui as uiSw } from "@/lib/i18n/sw/ui";
+import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales";
 
 const NOW = new Date("2026-10-31T12:00:00.000Z");
 const SECOND = 1_000;
@@ -73,7 +77,7 @@ describe("formatTimeAgo", () => {
 
   describe("invalid dates", () => {
     it("reads justNow instead of throwing", () => {
-      for (const locale of ["en", "es", "fr", "pt", "ar"] as const) {
+      for (const locale of SUPPORTED_LOCALES) {
         expect(formatTimeAgo(new Date("not a date"), locale, "JN")).toBe("JN");
       }
     });
@@ -140,6 +144,62 @@ describe("formatTimeAgo", () => {
         [3 * 365 * DAY, "قبل 3 سنوات"],
       ],
     },
+    de: {
+      justNow: uiDe.time.justNow,
+      expected: [
+        [90 * SECOND, "vor 1 Minute"],
+        [5 * MINUTE, "vor 5 Minuten"],
+        [HOUR, "vor 1 Stunde"],
+        [2 * HOUR + 40 * MINUTE, "vor 2 Stunden"],
+        [3 * DAY, "vor 3 Tagen"],
+        [9 * DAY, "vor 1 Woche"],
+        [45 * DAY, "vor 1 Monat"],
+        [200 * DAY, "vor 6 Monaten"],
+        [3 * 365 * DAY, "vor 3 Jahren"],
+      ],
+    },
+    it: {
+      justNow: uiIt.time.justNow,
+      expected: [
+        [90 * SECOND, "1 minuto fa"],
+        [5 * MINUTE, "5 minuti fa"],
+        [HOUR, "1 ora fa"],
+        [2 * HOUR + 40 * MINUTE, "2 ore fa"],
+        [3 * DAY, "3 giorni fa"],
+        [9 * DAY, "1 settimana fa"],
+        [45 * DAY, "1 mese fa"],
+        [200 * DAY, "6 mesi fa"],
+        [3 * 365 * DAY, "3 anni fa"],
+      ],
+    },
+    hi: {
+      justNow: uiHi.time.justNow,
+      expected: [
+        [90 * SECOND, "1 मिनट पहले"],
+        [5 * MINUTE, "5 मिनट पहले"],
+        [HOUR, "1 घंटे पहले"],
+        [2 * HOUR + 40 * MINUTE, "2 घंटे पहले"],
+        [3 * DAY, "3 दिन पहले"],
+        [9 * DAY, "1 सप्ताह पहले"],
+        [45 * DAY, "1 माह पहले"],
+        [200 * DAY, "6 माह पहले"],
+        [3 * 365 * DAY, "3 वर्ष पहले"],
+      ],
+    },
+    sw: {
+      justNow: uiSw.time.justNow,
+      expected: [
+        [90 * SECOND, "dakika 1 iliyopita"],
+        [5 * MINUTE, "dakika 5 zilizopita"],
+        [HOUR, "saa 1 iliyopita"],
+        [2 * HOUR + 40 * MINUTE, "saa 2 zilizopita"],
+        [3 * DAY, "siku 3 zilizopita"],
+        [9 * DAY, "wiki 1 iliyopita"],
+        [45 * DAY, "mwezi 1 uliopita"],
+        [200 * DAY, "miezi 6 iliyopita"],
+        [3 * 365 * DAY, "miaka 3 iliyopita"],
+      ],
+    },
   };
 
   describe.each(Object.entries(samples))("%s", (locale, { justNow, expected }) => {
@@ -151,6 +211,10 @@ describe("formatTimeAgo", () => {
     it.each(expected)("%i ms ago reads %s", (ms, text) => {
       expect(formatTimeAgo(ago(ms), locale as Locale, justNow)).toBe(text);
     });
+  });
+
+  it("writes Hindi with Western digits, as Intl does by default", () => {
+    expect(formatTimeAgo(ago(5 * MINUTE), "hi", uiHi.time.justNow)).toBe("5 मिनट पहले");
   });
 
   it("writes Arabic with Western digits, like the rest of the app", () => {

@@ -1,0 +1,173 @@
+import type { FaqItems } from "../ids";
+
+// German FAQ, part 1: Getting around, The Android app, Posts and media. Conventions as in src/lib/i18n/de: standard
+// German, informal "du"; names of buttons and screens exactly as the app shows them, in „…“; product names (YuKon3t,
+// Circles, Collab Boards, Muse, Story) as they are.
+export const de1 = {
+  "who-join-yukon3t": {
+    q: "Wer kann bei YuKon3t mitmachen?",
+    a: "Alle ab 16 Jahren. Bei der Registrierung fragen wir nach deinem Geburtsdatum. Wenn du 16 oder 17 Jahre alt bist, darfst du YuKon3t nur mit der Beteiligung und Zustimmung deiner Mutter, deines Vaters oder deiner gesetzlichen Vertretung nutzen.",
+  },
+  "try-without-signing-up": {
+    q: "Kann ich YuKon3t ausprobieren, ohne mich zu registrieren?",
+    a: "Wenn die Gastansicht aktiviert ist, ja: Auf yukon3t.com/try gibt es die Schaltfläche „YuKon3t als Gast erkunden“, ohne E-Mail und ohne Passwort. Ein Gast sieht dasselbe wie ein neues Mitglied: die Beiträge, die ihre Autoren für Alle freigegeben haben, öffentliche Circles und deren öffentliche Kanäle, Muse-Videos, Collab Boards, Entdecken und die Profile der Personen (Name, Profilfoto, Bio, Land und ihre Beiträge für Alle), dazu die Kommentare, die Anzahl der Gefällt-mir-Angaben und die Liste, wem diese Beiträge gefallen. Ein Gast sieht nie etwas, das ein neues Mitglied nicht sehen könnte: keine Beiträge, die auf Kontakte beschränkt sind, keine privaten Circles oder Kanäle, keine Nachrichten und keine Stories (die sind für Kontakte). Gäste können nicht posten, kommentieren, liken oder reagieren, sich vernetzen, abonnieren, Nachrichten senden, anrufen, beitreten, einen Livestream ansehen, abstimmen, auf Events antworten oder etwas melden; wenn du eine dieser Optionen antippst, wird dir angeboten, ein kostenloses Konto zu erstellen. Ein Gastbesuch dauert höchstens 2 Stunden und endet dann von selbst. Gäste erscheinen nie in der Suche, auf Entdecken, in Mitgliederlisten oder bei „Wer ist online“, und niemand wird benachrichtigt, wenn ein Gast sein Profil oder seine Beiträge angesehen hat. Was ein Gastbesuch speichert, steht in der Datenschutzerklärung.",
+  },
+  "where-find-everything": {
+    q: "Wo finde ich was?",
+    a: "Am Computer enthält die obere Leiste Links zu „Start“, „Entdecken“, „Circles“, „Collab Boards“, „Muse“, „Kontakte“, „Nachrichten“ und deinem „Profil“. Auf dem Handy befinden sich die sechs meistgenutzten Bereiche („Start“, „Circles“, „Collab“, „Muse“, „Nachrichten“, „Profil“) in einer Tab-Leiste unten, und „Kontakte“ ist das Personensymbol in der oberen Leiste. Tippe oben rechts auf das Menü ☰, um zu „Entdecken“, „Freunde einladen“, „Einstellungen“ und, wenn du Admin bist, zu den Moderationswerkzeugen zu gelangen.",
+  },
+  "swipe-between-tabs-instead-tapping": {
+    q: "Kann ich zwischen Tabs wischen, statt zu tippen?",
+    a: "Ja, auf dem Handy: Wische irgendwo auf dem Bildschirm nach rechts, um dich durch Start → Circles → Collab → Muse → Nachrichten → Profil zu bewegen und von dort wieder zu Start. Wische nach links, um dieselben Tabs rückwärts durchzugehen und in der anderen Richtung wieder von vorn zu beginnen.",
+  },
+  "difference-between-home-discover-connections": {
+    q: "Was ist der Unterschied zwischen Start, Entdecken und Kontakten?",
+    a: "**Start** ist dein Feed: Beiträge deiner Kontakte und aller, die öffentlich posten, einschließlich der Beiträge öffentlicher Circles. Beiträge eines privaten Circles bleiben in diesem Circle und erscheinen hier nie. **Entdecken** hilft dir, neue Leute nach Land, Sprache oder Interesse zu finden. **Kontakte** ist deine Liste angenommener Kontakte sowie die offenen Anfragen, die du gesendet oder erhalten hast.",
+  },
+  "switch-between-light-dark-mode": {
+    q: "Wie wechsle ich zwischen hellem und dunklem Modus?",
+    a: "Nutze die Designauswahl neben „Einstellungen“ in der oberen Leiste (oder im Menü ☰ auf dem Handy). Standardmäßig folgt sie den Einstellungen deines Geräts, aber du kannst sie auf hell oder dunkel festlegen.",
+  },
+  "yukon3t-work-iphones-accessibility-settings": {
+    q: "Funktioniert YuKon3t mit den Bedienungshilfen meines iPhones?",
+    a: "Ja. Die iPhone-App funktioniert mit Sprachsteuerung und berücksichtigt die Textgröße deines iPhones: Vergrößere sie unter Einstellungen → Bedienungshilfen → Anzeige & Textgröße → Größerer Text, und der Text in YuKon3t wächst mit, bis auf etwas mehr als das Doppelte seiner normalen Größe. Die obere Leiste und die Tab-Leiste unten wachsen nur ein wenig, damit alle Symbole und Tabs weiter auf den Bildschirm passen. Die App berücksichtigt auch „Bewegung reduzieren“, und der dunkle Modus folgt deinem Gerät, solange du ihn nicht selbst festlegst.",
+  },
+  "megaphone-icon-next-bell": {
+    q: "Was ist das Megafon-Symbol neben der Glocke?",
+    a: "Das sind die „Neuigkeiten“: Tippe darauf, um die Liste der Funktionen und Verbesserungen zu sehen, die wir veröffentlichen. Es leuchtet auf, wenn es etwas gibt, das du noch nicht gesehen hast, und sobald eine Neuigkeit erscheint, wird eine echte Benachrichtigung an dein Handy gesendet, du musst also nicht daran denken, nachzusehen.",
+  },
+  "search-app": {
+    q: "Wie suche ich in der App?",
+    a: "Tippe auf das Lupensymbol neben der Benachrichtigungsglocke. Ein einziges Suchfeld deckt Personen, Circles, Gruppenchats und Collabs gleichzeitig ab. Du kannst die Ergebnisse nach Relevanz, neueste, älteste, „aktuell“ (mit Aktivität in den letzten zwei Wochen) oder nach einem bestimmten Land filtern.",
+  },
+  "click-someones-name-almost-everywhere": {
+    q: "Warum kann ich fast überall auf den Namen einer Person klicken?",
+    a: "Jeder Name und jedes Profilfoto, das du siehst (in einem Chat, einem Kommentar, einer Kontaktliste, der Mitgliederliste eines Circles usw.), führt direkt zum Profil dieser Person. Das funktioniert absichtlich überall gleich, damit du nie nach einer Schaltfläche „Profil ansehen“ suchen musst.",
+  },
+  "some-people-disappear-from-discover": {
+    q: "Warum verschwinden manche Personen von Entdecken?",
+    a: "Entdecken zeigt nur Personen, mit denen du noch keinerlei Kontaktinteraktion hattest: Sobald du eine Kontaktanfrage sendest oder erhältst, erscheint diese Person nicht mehr in den Ergebnissen von Entdecken (ob sie noch offen oder schon angenommen ist). Wenn eine Anfrage abgelehnt wird, kann die Person für einen neuen Versuch wieder auf Entdecken erscheinen. Das Suchsymbol oben auf Entdecken findet sie weiterhin.",
+  },
+  "search-people-discover": {
+    q: "Wie finde ich auf Entdecken eine bestimmte Person und vernetze mich mit ihr?",
+    a: "Tippe oben auf Entdecken auf das Lupensymbol und gib mindestens zwei Buchstaben ihres Namens oder ihres @Benutzernamens ein. Die Ergebnisse erscheinen während der Eingabe, jeweils mit einer Schaltfläche, die zeigt, wo ihr gerade steht: „Vernetzen“, „Anfrage gesendet“, „Annehmen“ (sie hat dir schon eine Anfrage gesendet) oder „Verbunden“, dazu „Nachricht“. Hier findest du nur Personen, die auf Entdecken erscheinen: verifizierte Konten, die „Mein Profil auf Entdecken anzeigen“ nicht ausgeschaltet haben, und nie jemanden, den du blockiert hast oder der dich blockiert hat. Eine Suche zeigt höchstens 60 Personen, wenn du also die gesuchte Person nicht siehst, gib mehr von ihrem Namen ein. Gesucht wird nur nach Namen und Benutzernamen; E-Mail-Adressen, Telefonnummern und Geburtstage werden nie durchsucht oder angezeigt.",
+  },
+  "new-member-alerts": {
+    q: "Warum habe ich eine Benachrichtigung bekommen, dass jemand gerade YuKon3t beigetreten ist?",
+    a: "Wenn jemand Neues sein Profil fertig eingerichtet und sein Konto verifiziert hat, benachrichtigt YuKon3t die Personen, die Entdecken nutzen, damit Neuankömmlinge Personen zum Vernetzen finden. Es wird nur bei Personen angekündigt, die auf Entdecken erscheinen: nicht bei jemandem, der „Mein Profil auf Entdecken anzeigen“ ausgeschaltet hat, nicht bei jemandem, dessen Beiträge nur für Kontakte sichtbar sind, und nie bei jemandem, den du blockiert hast oder der dich blockiert hat. Jede Person wird nur einmal angekündigt, kurz nach dem Beitritt. Dein Handy erhält höchstens alle 12 Stunden eine solche Benachrichtigung; wenn mehr Personen beitreten, fassen deine Benachrichtigungen sie in einem einzigen Eintrag zusammen („Ada und 3 weitere Personen sind gerade YuKon3t beigetreten“), der Entdecken mit den neuesten Personen zuerst öffnet. Um sie nicht mehr zu erhalten, entferne unter Einstellungen → Benachrichtigungen das Häkchen bei Neue Mitglieder. Damit du bei deinem Beitritt nicht angekündigt wirst, schalte direkt nach der Registrierung unter Einstellungen → Privatsphäre „Mein Profil auf Entdecken anzeigen“ aus.",
+  },
+  "home-split-into-sections-like": {
+    q: "Warum ist Start in Bereiche wie Beruf, Unterhaltung, Politik und Sport aufgeteilt?",
+    a: "Beiträge werden nach dem Feed-Bereich gruppiert, den ihre Autoren beim Schreiben gewählt haben (standardmäßig Allgemein), damit du leichter siehst, was dich interessiert. Solange du auf der Seite bist, fügt jeder Bereich neue Beiträge automatisch oben hinzu, meist innerhalb weniger Sekunden und in etwa einer halben Minute, wenn gerade viel gepostet wird. Du musst nicht aktualisieren.",
+  },
+  "update-the-app": {
+    q: "Wie aktualisiere ich die App und warum werde ich dazu aufgefordert?",
+    a: "Die meisten Verbesserungen kommen von selbst: Die App lädt bei jedem Öffnen die neueste Version von YuKon3t. Manche Änderungen brauchen eine neue Version der App selbst bei Google Play oder im App Store, und wenn eine erscheint, siehst du möglicherweise den Hinweis „Update verfügbar“: Tippe auf **Aktualisieren**, um den Store zu öffnen, und tippe dort auf Aktualisieren. „Jetzt nicht“ blendet den Hinweis 3 Tage lang aus. In seltenen Fällen, wenn eine ältere Version nicht mehr richtig funktionieren kann, siehst du stattdessen den Bildschirm „Update erforderlich“; von dort aus kannst du weiter diese häufigen Fragen öffnen oder dich abmelden, und alles funktioniert wieder, sobald du aktualisierst. Du kannst auch jederzeit selbst aktualisieren: Öffne Google Play oder den App Store, suche YuKon3t und tippe auf Aktualisieren. Damit wir diese Hinweise senden können, werden die Version und die Build-Nummer der App sowie die Plattform deines Handys (Android oder iPhone) zusammen mit seinem Push-Benachrichtigungs-Token gespeichert.",
+  },
+  "links-open-in-app": {
+    q: "Öffnen sich Links in der YuKon3t-App?",
+    a: "Innerhalb der App, ja. In der YuKon3t-App für Android oder iPhone öffnet sich eine Seite, wenn du in einem Chat, einem Beitrag, einem Kommentar oder einer Benachrichtigung auf einen Link zu einer YuKon3t-Seite (yukon3t.com) tippst, gleich dort in der App. Links zu jeder anderen Website öffnen sich im Browser deines Handys. Auf der Website öffnet sich ein YuKon3t-Link im selben Tab und andere Websites in einem neuen Tab.\n\nAlle Links, die YuKon3t zum Teilen erstellt (ein Beitrag, ein Muse, ein Circle, eine Collab, der Link zu einem Gruppenchat oder ein Link, den du durch langes Drücken kopierst), sind eine echte Adresse https://yukon3t.com und funktionieren daher überall, wohin du sie schickst. Ein YuKon3t-Link, den du in einer anderen App antippst, etwa in einer SMS, bei WhatsApp oder in einer E-Mail, öffnet vorerst die Website in deinem Browser: Damit solche Links direkt in der App öffnen, braucht es eine neuere Version der App, die noch nicht erschienen ist.",
+  },
+  "app-opens-where-left-off": {
+    q: "Warum öffnet sich die App dort, wo ich aufgehört habe?",
+    a: "Wenn du in der YuKon3t-App für Android oder iPhone zu einer anderen App wechselst und zurückkommst, bist du wieder auf demselben Bildschirm: dem Chat, dem Profil, dem Circle oder der Seite „Einstellungen“, auf der du warst, oder dem Beitrag, den du gerade geschrieben hast. Neue Nachrichten eines geöffneten Chats werden geladen, sobald du zurückkommst, und wenn du 2 Minuten oder länger weg warst, wird der Bildschirm, auf dem du bist, an Ort und Stelle aktualisiert, ohne dass du verlierst, was du geschrieben hast. Wenn du auf eine Benachrichtigung tippst, geht die App zu dem, worum es in der Benachrichtigung geht. Wenn die App ganz geschlossen war (du hast sie weggewischt oder dein Handy hat sie beendet, um Speicher freizugeben), beginnt sie auf Start, wie jeder Neustart.\n\nVerborgene Chats bleiben geschützt: Sobald du die App mit einem verborgenen Chat auf dem Bildschirm verlässt, wird er gesperrt und der Bildschirm abgedeckt. Beim Zurückkommen wirst du nach deiner PIN gefragt, und sobald du sie eingibst, bist du wieder im Chat. Wenn YuKon3t aktualisiert wurde, während du weg warst, wird die App auf derselben Seite neu geladen.",
+  },
+  "slow-connection-data-saver": {
+    q: "Funktioniert YuKon3t bei einer langsamen oder instabilen Verbindung?",
+    a: "Ja. Wenn deine Verbindung langsam ist (3G, 4G oder 5G mit schwachem Signal, ein überlastetes WLAN) oder der Datensparmodus deines Handys aktiv ist, passt sich YuKon3t von selbst an: Videos im Feed warten, bis du auf Abspielen tippst, statt beim Scrollen zu starten, Muse lädt nur das Video, das du gerade siehst, der Feed lädt weniger Beiträge auf einmal und die Sitzung wird nicht für Statistiken aufgezeichnet. Du kannst es auch selbst unter Einstellungen → **„Datensparmodus“** wählen: „Automatisch“ (Standard), „An“ oder „Aus“. Die Einstellung wird nur auf diesem Gerät gespeichert.\n\nWenn etwas nicht lädt, versucht YuKon3t es von selbst erneut und zeigt währenddessen einen kleinen Hinweis „Langsame Verbindung. Neuer Versuch…“. Ohne Verbindung siehst du einen Hinweis, und was nicht geladen wurde, geht weiter, sobald du wieder verbunden bist. Einiges liegt nicht in der Hand von YuKon3t und kann weiter langsam sein: das Signal deines Anbieters, eingebettete Videos anderer Websites und die Qualität eines Anrufs bei sehr schwacher Verbindung (Anrufe passen ihre eigene Videoqualität an die Verbindung an).",
+  },
+
+  "app-opens-chrome-instead-full": {
+    q: "Die App öffnet sich in Chrome statt im Vollbild. Wie behebe ich das?",
+    a: "Wenn du in einer anderen App (einer SMS, WhatsApp, einer E-Mail) auf einen YuKon3t-Link getippt hast und yukon3t.com sich in Chrome geöffnet hat, ist das vorerst zu erwarten: Links, die außerhalb der App angetippt werden, öffnen die Website. Damit sie direkt in der App öffnen, braucht es eine neuere Version der App, die noch nicht erschienen ist. Um die App im Vollbild zu nutzen, öffne sie über ihr Symbol auf dem Startbildschirm oder in deiner App-Liste. Links zu YuKon3t-Seiten, die du innerhalb der App antippst, öffnen sich bereits in der App.",
+  },
+  "still-get-calls-phone-asleep": {
+    q: "Bekomme ich weiter Anrufe, wenn mein Handy im Ruhezustand oder gesperrt ist?",
+    a: "Ja. Ein eingehender Anruf klingelt und schaltet den Bildschirm über dem Sperrbildschirm ein, auch wenn das Handy im Ruhezustand oder in einem Energiesparmodus (Doze) ist, genau wie ein normaler Telefonanruf. Du kannst ihn direkt auf diesem Bildschirm annehmen oder ablehnen oder darauf tippen, um die App zu öffnen. Dafür muss bei YuKon3t die Berechtigung für Benachrichtigungen aktiviert sein (Android fragt danach, wenn du dich zum ersten Mal anmeldest). Wenn Anrufe dein Handy nicht einschalten, prüfe Einstellungen → Apps → YuKon3t → Benachrichtigungen. Wenn du auf mehr als einem Handy angemeldet bist, hört das Klingeln auf den anderen auf, sobald du auf einem annimmst oder ablehnst, auch bei gesperrten iPhones.",
+  },
+  "shows-up-notification-phone": {
+    q: "Was kommt als Benachrichtigung auf mein Handy?",
+    a: "Eingehende Anrufe, verpasste Anrufe (mit dem Namen der anrufenden Person), Nachrichten (einschließlich Antworten auf deine Story), Gefällt-mir-Angaben, Kommentare und das Teilen oder erneute Teilen deiner Beiträge und deiner Muse-Videos, Kontaktanfragen, Event-Erinnerungen, jemand, der einen Livestream nur mit dir startet, eine wiederkehrende Sitzung einer Collab, die bald beginnt, und allgemeine Hinweise zu neuen Funktionen. All das kommt als echte Benachrichtigungen auf dein Handy (Android oder iPhone), auch wenn die App nicht geöffnet ist, nicht nur über das Glockensymbol in der App. Wenn du auf eine tippst (oder auf eine Benachrichtigung in der Liste in der App), öffnet sich genau das, worum es geht: der Beitrag, das Muse, die Story, der Chat, das Event, der Circle, der Livestream, die Collab oder die Kontaktliste (bei einem verpassten Anruf das Profil der anrufenden Person), auch wenn die App im Hintergrund war oder sich beim Öffnen mit einer neueren Version neu lädt. Wenn das inzwischen gelöscht wurde oder in einem privaten Circle ist, dem du nicht mehr angehörst, siehst du eine Seite „nicht gefunden“. Das Öffnen der App (über eine Benachrichtigung, ihr Symbol oder beim Zurückkehren aus einer anderen App) entfernt alle Benachrichtigungen dieser Art automatisch aus dem Benachrichtigungsbereich. Die einzige Ausnahme ist ein klingelnder Anruf oder ein verpasster Anruf, die bleiben, bis du dich um den Anruf gekümmert hast. Die Benachrichtigungsliste in der App funktioniert anders: Eine Benachrichtigung wird als gelesen markiert, wenn du sie aus der Liste öffnest, wenn du ihre Benachrichtigung auf dem Handy antippst oder wenn du das öffnest, worum es geht (die Unterhaltung, den Beitrag, das Muse, den Circle usw.). Die übrigen bleiben ungelesen, und der rote Zähler an der Glocke zählt sie weiter, bis dahin oder bis du auf „Alle als gelesen markieren“ tippst.",
+  },
+  "turning-up-phones-volume-unmutes": {
+    q: "Wenn ich die Lautstärke meines Handys erhöhe, wird der Ton eines Videos in meinem Feed eingeschaltet. Ist das normal?",
+    a: "Ja, das ist Absicht. Die Videos im Feed teilen sich eine einzige Toneinstellung für die ganze App (tippe auf das Lautsprechersymbol eines beliebigen Videos oder erhöhe die Lautstärke des Handys): Wenn du den Ton einschaltest, ist er für alle Videos in deinem Feed an, auch für die, die du später beim Scrollen siehst, genau wie im Instagram-Feed.",
+  },
+
+  post: {
+    q: "Was kann ich posten?",
+    a: "Text, Fotos und Videos von deinem Gerät oder der Kamera, ein Bild von einer URL oder einen eingebetteten Link von YouTube oder Vimeo. Tippe im Editor auf die Kamera- und Fotosymbole: Jedes öffnet ein kleines Menü mit Gerät, Kamera oder Link, sodass es eine Schaltfläche für Fotos und eine für Videos gibt statt einer Reihe einzelner Schaltflächen.",
+  },
+  "which-video-formats-upload-everyone": {
+    q: "Welche Videoformate kann ich hochladen? Können alle sie sehen?",
+    a: "MP4, WebM und QuickTime (.mov, was ein iPhone aufnimmt), bis zu 2 GB. Eine .mov-Datei wird im Hintergrund als Standard-MP4 neu kodiert, damit sie in allen Browsern abgespielt wird, nicht nur in Safari. Das dauert meist ein paar Minuten, und bis es fertig ist, wird das Original für alle abgespielt, die einen kompatiblen Browser nutzen. Wenn ein Video nicht konvertiert werden kann, bleibt das Original unverändert.",
+  },
+  "was-photo-video-rejected": {
+    q: "Warum wurde mein Foto oder Video abgelehnt oder wird geprüft?",
+    a: "Alles, was hochgeladen wird, durchläuft eine automatische Prüfung, bevor es jemand anderes sieht, und Inhalte, die gegen unsere [Community-Richtlinien](/legal/guidelines) verstoßen (am häufigsten sexuell explizites Material), werden nie veröffentlicht. Wenn die Prüfung einen Beitrag mit Foto oder Video markiert, wird der Beitrag gespeichert, ist aber für alle außer dir verborgen, und unsere Moderatoren prüfen ihn: Sie veröffentlichen ihn so, wie du ihn gepostet hast, oder löschen ihn. Du siehst einen Hinweis, dass er auf Prüfung wartet, und musst ihn nicht noch einmal hochladen. Solange er auf die Prüfung wartet, lässt sich sein Text nicht bearbeiten. Ein zurückgehaltener Beitrag, den innerhalb von 14 Tagen niemand geprüft hat, wird zusammen mit seinen Fotos oder seinem Video gelöscht. Wenn unsere automatische Videoprüfung ein Video nicht verarbeiten kann, bleibt das Video auf dieselbe Weise verborgen, bis ein Moderator es prüft, und wird während des Wartens nicht gelöscht. Was in die schwersten Kategorien fällt (wie sexuelle Inhalte mit Minderjährigen), wird abgelehnt und sofort gelöscht und nie zur Prüfung aufbewahrt. Wenn ein Upload wegen eines Problems auf unserer Seite fehlschlägt, zeigt die App das an, und es genügt, es noch einmal zu versuchen.",
+  },
+  "photo-video-upload-failed": {
+    q: "Mein Foto oder Video wurde nicht hochgeladen. Was tun?",
+    a: "Wenn ein Beitrag nicht gesendet werden kann, kehrt er mit deinem Text, deiner Zielgruppe und deinen Anhängen in den Editor zurück, dazu eine Meldung, was schiefgelaufen ist, und eine Schaltfläche **Erneut versuchen**. „Erneut versuchen“ wiederholt nur, was nicht abgeschlossen wurde: Ein Foto oder Video, das schon hochgeladen wurde, wird nicht noch einmal hochgeladen, und wenn der Beitrag möglicherweise schon gepostet wurde, postet ein erneuter Versuch ihn nie doppelt. Wenn die Meldung sagt, dass das Foto oder Video nicht mehr gelesen werden kann, wähle es erneut aus und tippe auf „Posten“. Im Story-Editor zeigt ein Foto oder Video, das nicht gepostet werden kann, eine eigene Meldung mit dem Grund und dem, was du versuchen kannst (zum Beispiel eine JPEG- oder PNG-Kopie eines Fotos, das sich nicht öffnen lässt). iPhone-Bildschirmaufnahmen, .MP4-Videos und HEIC-Fotos werden unterstützt.\n\nWenn ein Upload fehlschlägt, sendet uns die App eine kurze technische Notiz, damit wir die Ursache finden können: welcher Schritt fehlgeschlagen ist, den Fehlercode, den Dateityp, die ungefähre Größe oder Dauer und ob du auf Android, iPhone oder im Web warst. Sie enthält nie die Datei, ihren Namen oder ihren Inhalt.",
+  },
+  "delete-post-report-someone-elses": {
+    q: "Wie lösche ich einen Beitrag oder Kommentar oder melde den Beitrag einer anderen Person?",
+    a: "Öffne das Menü „⋯“ eines beliebigen Beitrags, um ihn zu löschen (wenn er von dir ist) oder zu melden (egal von wem). Meldungen gehen in unsere Moderationswarteschlange und werden geprüft; bei beiden Ergebnissen wird der Grund genannt. Das Löschen eines Kommentars oder einer Antwort, bei einem Beitrag, einem Muse oder einer Story, verlangt immer zuerst deine Bestätigung („Diesen Kommentar löschen?“) und zeigt an, ob die Antworten darauf mitgelöscht werden. „Abbrechen“ ist die Standardoption, und es wird nichts gelöscht, bis du auf „Löschen“ tippst. Das gilt auch für Kommentare, die du von deinem eigenen Beitrag oder deinem Muse entfernst.",
+  },
+  "share-post": {
+    q: "Wie teile ich einen Beitrag?",
+    a: "Tippe bei einem beliebigen Beitrag auf das Teilen-Symbol, um ein Menü zu öffnen: den Link kopieren, über das Teilen-Menü deines Geräts teilen, ihn zu deiner Story hinzufügen, ihn auf Muse teilen (nur Beiträge mit Video bis 5 Minuten), ihn direkt als Nachricht an einen Freund senden oder ihn in einem Circle teilen. Beim Teilen über das Gerät wird nach Möglichkeit das Foto oder Video selbst angehängt (nicht nur ein Link), mit einem kleinen yukon3t-Logo, damit Apps wie WhatsApp oder Nachrichten den echten Beitrag mit der Marke seiner Herkunft zeigen. Unter „An einen Freund senden“ kannst du bis zu 5 Chats auswählen und es an alle gleichzeitig senden; dasselbe funktioniert beim Teilen eines Muse, einer Story oder von etwas, das du aus einer anderen App teilst. Geheime Chats erscheinen in dieser Liste nicht: Was du teilst, landet nie in einem geheimen Chat, weil es sich auf deinem Handy nicht verschlüsseln lässt. Das Teilen-Symbol erscheint nur bei Beiträgen, die mit Allen geteilt sind: Ein Beitrag „Nur Freunde“ oder „Privat“ kann nicht erneut gepostet, zur Story einer anderen Person hinzugefügt oder auf Muse oder in einem Circle geteilt werden.",
+  },
+  "share-photo-video-from-another": {
+    q: "Kann ich ein Foto oder Video aus einer anderen App (Instagram, TikTok, WhatsApp usw.) direkt auf YuKon3t teilen?",
+    a: "Ja: Wähle im Teilen-Menü dieser App (deiner Galerie oder direkt nach einem Screenshot) YuKon3t als Ziel. Sofort öffnet sich ein kleines Fenster mit einer Vorschau und einem optionalen Text, mit dem du es zu deiner Story hinzufügen, auf Muse posten, in deinem Start-Feed posten, in einem deiner Circles posten oder an bis zu 5 Chats senden kannst. Wähle eine Option und es wird sofort gepostet (nachdem es dieselbe automatische Inhaltsprüfung und dieselben Regeln wie beim Posten aus der App durchlaufen hat), ohne weitere Tipps und ohne extra zum Editor zu gehen. Mehrere Fotos oder Screenshots auf einmal werden zu einem einzigen Album auf Start oder in einem Circle und zu einer Nachricht pro Foto in einem Chat. Die Circle-Liste zeigt nur Circles und Kanäle, in denen du posten kannst; der Inhaber und die Co-Admins eines Circles sehen dort auch ihre privaten Kanäle. Es funktioniert am besten, wenn die andere App die echte Datei des Fotos oder Videos liefert. Die Teilen-Funktion mancher Apps sendet nur einen Link zu ihrem eigenen Beitrag (das ist eine Entscheidung der jeweiligen App, nicht etwas, das YuKon3t steuert; Instagram und TikTok unter anderem geben die Datei in der Regel nur an wenige Partner-Apps heraus). Wenn das passiert und der Link von einer bekannten Videoplattform stammt (YouTube, Vimeo, TikTok, Instagram, Facebook, Dailymotion), bietet YuKon3t dir trotzdem Story, Muse und Feed an: Das echte Video wird direkt dort abgespielt, wie wenn du einen dieser Links direkt in den Feed-Editor einfügst, nur dass es von dieser Plattform moderiert wird und nicht von YuKon3t. Bei jedem anderen Link weist YuKon3t dich darauf hin, und du kannst ihn trotzdem aus demselben Fenster an einen Freund senden. Es funktioniert in der Android-App und auf dem iPhone (YuKon3t 1.2 oder neuer) mit Fotos, Screenshots, Videos und Links. Unter Android öffnet sich das Fenster sofort. Auf dem iPhone wird nach der Auswahl von YuKon3t im Teilen-Menü gespeichert, was du geteilt hast, und es erscheint „Gespeichert. Öffne YuKon3t, um zu wählen, wohin du es teilst.“. Öffne YuKon3t, und dasselbe Fenster erscheint, in dem du das Ziel wählst: deinen Start-Feed, einen Circle, in dem du Mitglied bist (die Kanäle, in denen du posten kannst), eine Nachricht an einen Freund oder deine Story oder Muse.",
+  },
+  "react-post-something-other-than": {
+    q: "Kann ich auf einen Beitrag mit etwas anderem als einem Herz reagieren?",
+    a: "Ja. Das Smiley-Symbol neben dem Herz bei einem beliebigen Beitrag (oder einer Nachricht) öffnet zuerst eine schnelle Reihe gängiger Reaktionen, dazu ein „+“, um die vollständige Emoji-Auswahl zu öffnen, wenn du etwas anderes möchtest. Wenn du dasselbe Emoji noch einmal wählst, wird es entfernt, und wenn du ein anderes wählst, wird es geändert. Das ist unabhängig von der Herz- oder „Gefällt mir“-Schaltfläche, du kannst also einem Beitrag „Gefällt mir“ geben und zusätzlich eine Emoji-Reaktion hinzufügen. Die vollständige Auswahl (bei Beiträgen, Kommentaren und Chats) versteht auch umgangssprachliche und nicht englische Suchbegriffe: Wenn du „pray“, „amen“/„ameen“/„aameen“ oder „sad“ eintippst, erscheint über den normalen Ergebnissen eine kleine Reihe „Vorgeschlagen“ mit passenden Emojis.",
+  },
+  "change-emoji-look-throughout-app": {
+    q: "Kann ich ändern, wie Emojis in der ganzen App aussehen?",
+    a: "Ja. Wähle unter Einstellungen → „Emoji-Stil“ zwischen dem Systemstil, dem von Apple, Google, Facebook oder Twitter/X. Was du wählst, gilt überall, wo Emojis erscheinen: Reaktionen, die Auswahl und Nachrichten.",
+  },
+  "send-gif": {
+    q: "Kann ich ein GIF senden?",
+    a: "Ja. Die GIF-Schaltfläche (neben der Emoji-Schaltfläche) im Beitragseditor, in einem Chat oder in einem Kommentarfeld öffnet eine Suche. Wähle eines aus, um es anzuhängen, so wie du ein Foto anhängen würdest.",
+  },
+  "videos-feed-play-automatically-no": {
+    q: "Warum werden die Videos in meinem Feed von selbst und ohne Ton abgespielt?",
+    a: "Videos im Feed werden automatisch stumm abgespielt, wenn du beim Scrollen zu ihnen kommst, und pausiert, wenn du sie hinter dir lässt. Tippe auf das Lautsprechersymbol des Videos, um den Ton einzuschalten (siehe „Wenn ich die Lautstärke meines Handys erhöhe, wird der Ton eines Videos in meinem Feed eingeschaltet“ weiter oben), oder tippe auf das Video, um es zu pausieren oder fortzusetzen. Auf Start öffnet das Antippen eines kurzen Videos (bis 5 Minuten) es im Vollbild auf Muse, mit Ton: Scrolle weiter, um mehr Muses zu sehen, und schließe es oder gehe zurück, um an dieselbe Stelle deines Feeds zurückzukehren. Die Abspielen-Schaltfläche des Videos pausiert es weiterhin direkt dort. Wenn du in dieser Vollbildansicht auf einen Namen oder Link tippst, wird sie zuerst geschlossen und erst dann die Seite geöffnet, sodass du beim Zurückgehen von dort wieder in deinem Feed landest.",
+  },
+  "zoom-back-out-photo-without": {
+    q: "Wie hebe ich den Zoom eines Fotos auf, ohne die Ansicht zu schließen?",
+    a: "Tippe einmal auf das vergrößerte Foto (ein einfaches Tippen, kein Doppeltippen), damit es wieder seine ursprüngliche Größe hat. Doppeltippen zoomt weiterhin hinein und hinaus wie bisher; das hier ist nur ein schnellerer Weg zurück zur normalen Größe, ohne die Ansicht zu verlassen.",
+  },
+  "dictate-post": {
+    q: "Kann ich einen Beitrag diktieren, statt ihn zu tippen?",
+    a: "Ja. Tippe im Beitragseditor (oder im Nachrichtenfeld eines Chats) auf das Mikrofonsymbol, um ein kurzes Audio aufzunehmen; es wird transkribiert und erscheint im Textfeld, damit du es vor dem Posten oder Senden prüfen und bearbeiten kannst. Das ist nicht dasselbe wie die runde Mikrofon-/Senden-Schaltfläche eines Chats, die die Aufnahme unverändert als Sprachnotiz sendet: Das Diktier-Mikrofon befindet sich neben der Emoji-Schaltfläche und erzeugt immer bearbeitbaren Text. Sprich in deiner Sprache: Deutsch, Spanisch, Französisch, Portugiesisch, Arabisch und viele weitere werden automatisch erkannt, egal in welcher Sprache du die App siehst.",
+  },
+  "difference-between-connect-subscribe": {
+    q: "Was ist der Unterschied zwischen Vernetzen und Abonnieren?",
+    a: "**Vernetzen** ist die übliche gegenseitige Kontaktanfrage: Du wählst, warum du dich vernetzen möchtest (Freundschaft, Kulturaustausch, beruflich, Community oder Reisetipps), die andere Person muss annehmen, und das schaltet Nachrichten und Anrufe zwischen euch frei. **Abonnieren** geht nur in eine Richtung und braucht keine Zustimmung: Wenn du jemanden abonnierst, erhältst du jedes Mal eine Benachrichtigung, wenn die Person postet, eine Story hinzufügt, etwas erneut postet, live streamt, ihre Teilnahme an einem Event bestätigt, ein Muse hochlädt, eine Collab startet oder einen Circle erstellt oder einem beitritt. Du kannst jemanden abonnieren, ohne ihn als Kontakt zu haben, und umgekehrt. Die Ausnahme: Wenn du eine Kontaktanfrage annimmst, abonnieren sich beide automatisch gegenseitig, du musst also jemanden, mit dem du dich bereits vernetzt hast, nicht zusätzlich abonnieren. Danach kannst du das Abo beenden, ohne dass sich das auf den Kontakt selbst auswirkt. Die beiden Symbole befinden sich neben dem Teilen-Symbol bei allen Beiträgen, die du siehst: auf Start, im Feed eines Circles, in den Suchergebnissen und bei Beiträgen der Collab Boards. Beiträge eines öffentlichen Circles benachrichtigen deine Abonnenten und Kontakte wie jeder öffentliche Beitrag. Die eines privaten Circles sind nur für seine Mitglieder, benachrichtigen also niemanden außerhalb und können nicht außerhalb davon erneut gepostet oder geteilt werden.",
+  },
+  "see-who-im-subscribed-whos": {
+    q: "Wie sehe ich, wen ich abonniert habe oder wer mich abonniert hat?",
+    a: "Öffne das Profil einer beliebigen Person, auch deines eigenen, und tippe auf die Zahl der Abonnenten oder Abos in der Nähe des Namens, um die vollständige Liste zu sehen. Aus diesen Listen kannst du jede Person direkt abonnieren oder das Abo beenden, nicht nur über einen Beitrag.",
+  },
+  "people-you-may-know-discover": {
+    q: "Was ist „Personen, die du vielleicht kennst“ auf Entdecken?",
+    a: "Eine Reihe von Vorschlägen oben auf Entdecken, sortiert nach gemeinsamen Kontakten: Personen, mit denen du dich noch nicht vernetzt hast und die Kontakte mit dir teilen, mit der Anzahl gemeinsamer Kontakte. Das sind nur Vorschläge: Dort zu erscheinen benachrichtigt niemanden und bewirkt von selbst nichts; es ist einfach ein schnellerer Weg, Leute zu finden, die du wahrscheinlich schon kennst, als die ganze Liste von Entdecken zu filtern. Sie erscheint nur, wenn du bereits mindestens einen Kontakt hast.",
+  },
+  "long-post-get-cut-off": {
+    q: "Warum wird ein langer Beitrag mit einem Link „Mehr anzeigen“ abgeschnitten?",
+    a: "Beiträge, die eine bestimmte Länge überschreiten, werden in den Feeds gekürzt, damit ein einzelner langer Beitrag nicht alles andere nach unten schiebt. Tippe auf „Mehr anzeigen“, um den Rest direkt dort zu lesen, und auf „Weniger anzeigen“, um ihn wieder einzuklappen. Das gilt überall, wo Beiträge aufgelistet werden, und auch für den eigenen Text eines erneut geposteten Beitrags. Für die Länge eines Beitrags gibt es keine nennenswerte Grenze: Schreib so viel, wie du brauchst, wer ihn liest, kann ihn immer aufklappen.",
+  },
+  "got-message-saying-new-version": {
+    q: "Beim Posten wurde mir gesagt, es gebe eine neue Version der App und ich solle die Seite aktualisieren, um fortzufahren.",
+    a: "Das erscheint, wenn dein Tab schon geöffnet war, bevor wir ein Update veröffentlicht haben. Das ist kein Verbindungsproblem, nur eine veraltete Seite. Aktualisiere die Seite und versuche es noch einmal: Durch den erneuten Versuch geht nichts von dem verloren, was du posten wolltest.",
+  },
+  "there-way-see-older-posts": {
+    q: "Kann ich ältere Beiträge in einem Profil, in einem Circle oder in den Suchergebnissen ansehen?",
+    a: "Ja. Überall in YuKon3t werden ältere Einträge beim Scrollen von selbst nachgeladen, ob auf **Start**, bei den Beiträgen eines Profils, im Feed eines Circle-Kanals, in den Suchergebnissen, bei Kontakten oder in den Listen der Abonnenten und Abos. Du musst nichts antippen. (Davon unabhängig fügt Start frisch geposte Beiträge automatisch oben hinzu, meist wenige Sekunden nach dem Posten; das ist etwas anderes als das Nachladen dessen, was weiter hinten im Feed liegt.)",
+  },
+} satisfies Partial<FaqItems>;

@@ -131,7 +131,9 @@ export function languageName(
     const name = new Intl.DisplayNames([tag], { type: "language", languageDisplay: "standard" }).of(code);
     // A code the runtime has no name for comes back as the code itself.
     if (!name || name.toLowerCase() === code.toLowerCase()) return englishName;
-    // Spanish, French and Portuguese write language names in lower case; at the start of a list entry they take a capital.
+    // Spanish, French, Portuguese and Italian write language names in lower case; at the start of a list entry they
+    // take a capital. German and Swahili names already start with one and Hindi/Arabic have no case, so it changes
+    // nothing for them (German nouns are never lower-cased here).
     return name.charAt(0).toLocaleUpperCase(tag) + name.slice(1);
   } catch {
     return englishName;

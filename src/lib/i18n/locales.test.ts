@@ -26,7 +26,8 @@ describe("resolveLocale", () => {
   });
 
   it("ignores a cookie that isn't a supported language", () => {
-    expect(resolveLocale("de", "es")).toBe("es");
+    expect(resolveLocale("ja", "es")).toBe("es");
+    expect(resolveLocale("DE", "es")).toBe("es");
     expect(resolveLocale("ES", "fr")).toBe("fr");
     expect(resolveLocale("pt-BR", "fr")).toBe("fr");
     expect(resolveLocale("../../etc", null)).toBe("en");
@@ -42,11 +43,17 @@ describe("resolveLocale", () => {
     expect(resolveLocale(null, "ar")).toBe("ar");
     expect(resolveLocale(null, "ar-SA")).toBe("ar");
     expect(resolveLocale(null, "ar-EG,ar;q=0.9,en;q=0.8")).toBe("ar");
+    expect(resolveLocale(null, "de-AT")).toBe("de");
+    expect(resolveLocale(null, "it-CH")).toBe("it");
+    expect(resolveLocale(null, "hi-IN")).toBe("hi");
+    expect(resolveLocale(null, "sw-KE")).toBe("sw");
+    expect(resolveLocale(null, "sw-TZ,sw;q=0.9,en;q=0.8")).toBe("sw");
   });
 
   it("honours q-values over header order", () => {
     expect(resolveLocale(null, "en;q=0.5, fr;q=0.9")).toBe("fr");
-    expect(resolveLocale(null, "de-DE,de;q=0.9,pt;q=0.8,en;q=0.7")).toBe("pt");
+    expect(resolveLocale(null, "ja-JP,ja;q=0.9,pt;q=0.8,en;q=0.7")).toBe("pt");
+    expect(resolveLocale(null, "en;q=0.5,hi;q=0.9")).toBe("hi");
     expect(resolveLocale(null, "es;q=0.8,fr")).toBe("fr");
   });
 
@@ -56,7 +63,7 @@ describe("resolveLocale", () => {
   });
 
   it("skips languages it doesn't have, q=0 and malformed entries", () => {
-    expect(resolveLocale(null, "de,ja;q=0.9")).toBe("en");
+    expect(resolveLocale(null, "nl,ja;q=0.9")).toBe("en");
     expect(resolveLocale(null, "es;q=0,fr;q=0.1")).toBe("fr");
     expect(resolveLocale(null, "es;q=abc,pt;q=0.2")).toBe("pt");
     expect(resolveLocale(null, "*")).toBe("en");
@@ -82,7 +89,12 @@ describe("isLocale", () => {
   it("accepts only the supported codes", () => {
     expect(isLocale("es")).toBe(true);
     expect(isLocale("ar")).toBe(true);
-    expect(isLocale("de")).toBe(false);
+    expect(isLocale("de")).toBe(true);
+    expect(isLocale("it")).toBe(true);
+    expect(isLocale("hi")).toBe(true);
+    expect(isLocale("sw")).toBe(true);
+    expect(isLocale("ja")).toBe(false);
+    expect(isLocale("de-DE")).toBe(false);
     expect(isLocale(undefined)).toBe(false);
     expect(isLocale("toString")).toBe(false);
   });
@@ -91,7 +103,7 @@ describe("isLocale", () => {
 describe("localeDirection", () => {
   it("is right-to-left for Arabic only", () => {
     expect(localeDirection("ar")).toBe("rtl");
-    for (const locale of ["en", "es", "fr", "pt"] as const) expect(localeDirection(locale)).toBe("ltr");
+    for (const locale of ["en", "es", "fr", "pt", "de", "it", "hi", "sw"] as const) expect(localeDirection(locale)).toBe("ltr");
   });
 });
 
@@ -142,6 +154,9 @@ describe("intlLocale", () => {
   it("leaves English to the device and asks Arabic for Western digits", () => {
     expect(intlLocale("en")).toBeUndefined();
     expect(intlLocale("fr")).toBe("fr");
+    expect(intlLocale("hi")).toBe("hi");
+    // Hindi already writes Western digits by default.
+    expect(new Intl.NumberFormat(intlLocale("hi")).format(25)).toBe("25");
     expect(intlLocale("ar")).toBe("ar-u-nu-latn");
     expect(new Intl.NumberFormat(intlLocale("ar")).format(25)).toBe("25");
   });

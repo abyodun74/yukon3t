@@ -1589,7 +1589,8 @@ const sections: Section[] = [
             once both of you have agreed. While they&apos;re on, both of you
             keep hearing each other&apos;s real voice, each of you sees
             subtitles of what the other says in the language you use
-            YuKon3t in (English, Spanish, French, Portuguese or Arabic), and
+            YuKon3t in (English, Spanish, French, Portuguese, Arabic, German,
+            Italian, Hindi or Swahili), and
             &ldquo;Live captions on&rdquo; shows at the top of both screens;
             &ldquo;Show original&rdquo; switches to the words as they were
             said. Either of you can turn them off at any time with the same
@@ -2866,10 +2867,12 @@ const sections: Section[] = [
         a: (
           <>
             Yes. YuKon3t is available in English, Spanish, French,
-            Portuguese and Arabic: the home page and sign-up, the whole app
-            once you&apos;re signed in, this FAQ, and the emails and
-            verification texts we send for your account. It opens in your
-            phone or browser&apos;s language when it is one of the five; to
+            Portuguese, Arabic, German, Italian, Hindi and Swahili: the home
+            page and sign-up, the whole app once you&apos;re signed in, this
+            FAQ, and the emails and verification texts we send for your
+            account (in Swahili, the verification text arrives in English).
+            It opens in your phone or browser&apos;s language when it is one
+            of the nine; to
             switch, use the Language menu at the top corner of the home page
             (below Sign in) or at the bottom of the other account screens,
             or Settings → Language once you&apos;re signed in — the choice
@@ -2895,7 +2898,8 @@ const sections: Section[] = [
           <>
             Yes. When a post, comment or chat message is written in a
             language other than the one you use YuKon3t in (English,
-            Spanish, French, Portuguese or Arabic), a Translate button
+            Spanish, French, Portuguese, Arabic, German, Italian, Hindi or
+            Swahili), a Translate button
             appears under it. Tap it to read it in your language; the
             translation is labelled (for example &ldquo;Translated from
             Spanish&rdquo;) and &ldquo;Show original&rdquo; switches back.

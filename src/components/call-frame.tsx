@@ -59,8 +59,19 @@ function isSpeakerDevice(device: MediaDeviceInfo) {
  * disconnected control outside the call UI.
  */
 // The call provider's own interface (its tray, menus and prompts, inside its iframe) comes in these languages of
-// ours; it has no Arabic. Where it has none, it stays English, and so do the buttons this file adds to its tray.
-const PROVIDER_LANGUAGE: Record<Locale, DailyLanguage | null> = { en: "en", es: "es", fr: "fr", pt: "pt-BR", ar: null };
+// ours (DailyLanguage in the installed daily-js); it has no Arabic, Hindi or Swahili. Where it has none, it stays
+// English, and so do the buttons this file adds to its tray.
+const PROVIDER_LANGUAGE: Record<Locale, DailyLanguage | null> = {
+  en: "en",
+  es: "es",
+  fr: "fr",
+  pt: "pt-BR",
+  ar: null,
+  de: "de",
+  it: "it",
+  hi: null,
+  sw: null,
+};
 
 export function CallFrame({
   roomUrl,

@@ -27,12 +27,25 @@ const CODE_BY_APP_NAME: Record<string, string> = {
 // is "Palestinian Territories"), and the entry that is not a country. Kept in this file, not in the dictionaries,
 // because client components call countryName() too and never import a dictionary.
 const WORDED_HERE: Record<string, Record<Exclude<Locale, "en">, string>> = {
-  Palestine: { es: "Palestina", fr: "Palestine", pt: "Palestina", ar: "فلسطين" },
+  Palestine: {
+    es: "Palestina",
+    fr: "Palestine",
+    pt: "Palestina",
+    ar: "فلسطين",
+    de: "Palästina",
+    it: "Palestina",
+    hi: "फ़िलिस्तीन",
+    sw: "Palestina",
+  },
   "Other / Not listed": {
     es: "Otro / No está en la lista",
     fr: "Autre / Absent de la liste",
     pt: "Outro / Não está na lista",
     ar: "بلد آخر / غير مدرج",
+    de: "Andere / Nicht aufgeführt",
+    it: "Altro / Non in elenco",
+    hi: "अन्य / सूची में नहीं",
+    sw: "Nyingine / Haipo kwenye orodha",
   },
 };
 

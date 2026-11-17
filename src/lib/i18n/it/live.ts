@@ -1,0 +1,78 @@
+import type { liveEn } from "@/lib/i18n/en/live";
+import { newVersionAvailable } from "@/lib/i18n/it/common";
+
+// A live stream is a "diretta", a co-host "co-host" and a guest "ospite"; the stage is "il palco".
+// Home stays "Home", the label the nav gives it.
+export const live: typeof liveEn = {
+  errors: {
+    not_configured: "Le dirette non sono ancora disponibili.",
+    not_a_member: "Unisciti prima a quel Circle per guardare questa diretta.",
+    not_found: "Questa diretta è già terminata.",
+    rate_limited: "Vai un po' più piano e riprova.",
+    unavailable: "Impossibile connettersi. Controlla la connessione e riprova.",
+    network: "Impossibile connettersi. Controlla la connessione e riprova.",
+    stale_deployment: newVersionAvailable,
+    stream_full: "Questa diretta è al completo in questo momento. Riprova fra un po'.",
+    other: "Impossibile entrare nella diretta. Riprova.",
+  },
+  refresh: "Aggiorna",
+  tryAgain: "Riprova",
+  backHome: "Torna alla Home",
+  starting: "Avvio della tua diretta…",
+  joining: "Ingresso nella diretta…",
+  choosing: {
+    spots: "{filled}/{capacity} posti da co-host/ospite occupati",
+    watch: "Guarda",
+    askGuest: "Chiedi di partecipare come ospite",
+    askCohost: "Chiedi di partecipare come co-host",
+    stageFull: "Il palco è pieno al momento, ma puoi chiedere lo stesso: potrebbe liberarsi un posto.",
+    approval: "Chi trasmette approva le richieste di ospite e co-host prima che tu vada in diretta sul palco.",
+  },
+  badge: "LIVE",
+  watching: "Stanno guardando",
+  onStage: "Sul palco",
+  record: "Registra",
+  stopRecording: "Interrompi registrazione",
+  recordAndPost: "Registra e pubblica",
+  recordAndPostLabel: "Registra e pubblica nel feed della Home",
+  screenshot: "Screenshot",
+  dismiss: "Chiudi",
+  autoPost: {
+    failed: "Impossibile programmare la pubblicazione automatica di questa registrazione. La registrazione continua.",
+    set: "Questa registrazione verrà pubblicata al termine dell'elaborazione.",
+    recordFailed: "Impossibile avviare la registrazione. Riprova.",
+  },
+  recordings: {
+    title: "Registrazioni",
+    count: "Registrazioni ({count})",
+    loading: "Caricamento...",
+    getLink: "Ottieni link",
+  },
+  stage: {
+    waiting: "In attesa di salire sul palco",
+    someone: "Qualcuno",
+    roles: { COHOST: "co-host", GUEST: "ospite" },
+    approve: "Approva",
+    approveName: "Approva {name}",
+    approveRequest: "Approva questa richiesta",
+    decline: "Rifiuta",
+    declineName: "Rifiuta {name}",
+    declineRequest: "Rifiuta questa richiesta",
+    pending: {
+      COHOST: "In attesa dell'approvazione della tua richiesta di co-host…",
+      GUEST: "In attesa dell'approvazione della tua richiesta di ospite…",
+    },
+    cancel: "Annulla",
+    turnOnMedia: "Sei sul palco: tocca per attivare fotocamera e microfono",
+    cameraFailed: "Impossibile avviare la fotocamera. Controlla la connessione e riprova.",
+    declined: "La tua richiesta di salire sul palco è stata rifiutata.",
+  },
+  chat: {
+    someone: "Qualcuno",
+    placeholder: "Scrivi qualcosa...",
+    label: "Scrivi un commento",
+    send: "Invia commento",
+  },
+  react: "Reagisci",
+  reactWith: "Reagisci con {emoji}",
+};

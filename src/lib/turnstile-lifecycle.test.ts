@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SUPPORTED_LOCALES } from "@/lib/i18n/locales";
 import {
   INITIAL_TURNSTILE_STATE,
   autoRetryDelay,
@@ -126,7 +127,7 @@ describe("messages", () => {
 
   it("has every sentence in every language", async () => {
     const keys = Object.keys(strings).sort();
-    for (const locale of ["es", "fr", "pt", "ar"] as const) {
+    for (const locale of SUPPORTED_LOCALES.filter((l) => l !== "en")) {
       const { shared } = await import(`@/lib/i18n/${locale}/shared`);
       expect(Object.keys(shared.turnstile).sort()).toEqual(keys);
       for (const value of Object.values(shared.turnstile)) expect(String(value).length).toBeGreaterThan(0);

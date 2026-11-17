@@ -1,0 +1,78 @@
+import type { liveEn } from "@/lib/i18n/en/live";
+import { newVersionAvailable } from "@/lib/i18n/de/common";
+
+// A live stream is a "Livestream", a co-host "Co-Host" and a guest "Gast" (the generic forms, as on the Home strip);
+// the stage is "die Bühne". Home is "Start", the label the nav gives it.
+export const live: typeof liveEn = {
+  errors: {
+    not_configured: "Livestreams sind noch nicht verfügbar.",
+    not_a_member: "Tritt zuerst diesem Circle bei, um diesen Livestream zu sehen.",
+    not_found: "Dieser Livestream ist bereits beendet.",
+    rate_limited: "Geh es etwas ruhiger an und versuche es noch einmal.",
+    unavailable: "Die Verbindung hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.",
+    network: "Die Verbindung hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.",
+    stale_deployment: newVersionAvailable,
+    stream_full: "Dieser Livestream ist gerade voll. Versuche es in einer Weile noch einmal.",
+    other: "Du konntest dem Livestream nicht beitreten. Versuche es noch einmal.",
+  },
+  refresh: "Aktualisieren",
+  tryAgain: "Erneut versuchen",
+  backHome: "Zurück zum Start",
+  starting: "Dein Livestream wird gestartet…",
+  joining: "Du trittst dem Livestream bei…",
+  choosing: {
+    spots: "{filled}/{capacity} Plätze für Co-Hosts und Gäste belegt",
+    watch: "Zuschauen",
+    askGuest: "Anfragen, als Gast beizutreten",
+    askCohost: "Anfragen, als Co-Host beizutreten",
+    stageFull: "Die Bühne ist gerade voll, aber du kannst trotzdem anfragen: Vielleicht wird ein Platz frei.",
+    approval: "Wer streamt, bestätigt Anfragen von Gästen und Co-Hosts, bevor du live auf die Bühne kommst.",
+  },
+  badge: "LIVE",
+  watching: "Zuschauer",
+  onStage: "Auf der Bühne",
+  record: "Aufnehmen",
+  stopRecording: "Aufnahme beenden",
+  recordAndPost: "Aufnehmen und posten",
+  recordAndPostLabel: "Aufnehmen und auf dem Start-Feed posten",
+  screenshot: "Screenshot",
+  dismiss: "Schließen",
+  autoPost: {
+    failed: "Das automatische Posten dieser Aufnahme konnte nicht eingerichtet werden. Die Aufnahme läuft weiter.",
+    set: "Diese Aufnahme wird gepostet, sobald sie fertig verarbeitet ist.",
+    recordFailed: "Die Aufnahme konnte nicht gestartet werden. Versuche es noch einmal.",
+  },
+  recordings: {
+    title: "Aufnahmen",
+    count: "Aufnahmen ({count})",
+    loading: "Wird geladen...",
+    getLink: "Link abrufen",
+  },
+  stage: {
+    waiting: "Warten darauf, auf die Bühne zu kommen",
+    someone: "Jemand",
+    roles: { COHOST: "Co-Host", GUEST: "Gast" },
+    approve: "Annehmen",
+    approveName: "{name} annehmen",
+    approveRequest: "Diese Anfrage annehmen",
+    decline: "Ablehnen",
+    declineName: "{name} ablehnen",
+    declineRequest: "Diese Anfrage ablehnen",
+    pending: {
+      COHOST: "Warten darauf, dass deine Anfrage als Co-Host angenommen wird…",
+      GUEST: "Warten darauf, dass deine Anfrage als Gast angenommen wird…",
+    },
+    cancel: "Abbrechen",
+    turnOnMedia: "Du bist auf der Bühne: Tippe, um Kamera und Mikrofon einzuschalten",
+    cameraFailed: "Deine Kamera konnte nicht gestartet werden. Prüfe deine Verbindung und versuche es noch einmal.",
+    declined: "Deine Anfrage, auf die Bühne zu kommen, wurde abgelehnt.",
+  },
+  chat: {
+    someone: "Jemand",
+    placeholder: "Schreib etwas...",
+    label: "Kommentar schreiben",
+    send: "Kommentar senden",
+  },
+  react: "Reagieren",
+  reactWith: "Mit {emoji} reagieren",
+};

@@ -701,13 +701,17 @@ class ShareViewController: UIViewController {
         finish()
     }
 
-    /// The app's five languages (src/lib/i18n); anything else reads English.
+    /// The app's nine languages (src/lib/i18n); anything else reads English.
     private func openAppNoticeText() -> (message: String, ok: String) {
         switch Self.languageCode() {
         case "es": return ("Guardado. Abre YuKon3t para elegir dónde compartirlo.", "OK")
         case "fr": return ("Enregistré. Ouvrez YuKon3t pour choisir où le partager.", "OK")
         case "pt": return ("Salvo. Abra o YuKon3t para escolher onde compartilhar.", "OK")
         case "ar": return ("تم الحفظ. افتح YuKon3t لتختار مكان مشاركته.", "حسنًا")
+        case "de": return ("Gespeichert. Öffne YuKon3t, um auszuwählen, wo du es teilen möchtest.", "OK")
+        case "it": return ("Salvato. Apri YuKon3t per scegliere dove condividerlo.", "OK")
+        case "hi": return ("सेव हो गया। इसे कहाँ शेयर करना है, यह चुनने के लिए YuKon3t खोलें।", "ठीक है")
+        case "sw": return ("Imehifadhiwa. Fungua YuKon3t ili uchague mahali pa kuishiriki.", "Sawa")
         default: return ("Saved. Open YuKon3t to choose where to share it.", "OK")
         }
     }
@@ -718,6 +722,10 @@ class ShareViewController: UIViewController {
         case "fr": return ("Impossible de partager ceci sur YuKon3t. Réessayez.", "OK")
         case "pt": return ("Não foi possível compartilhar isto no YuKon3t. Tente novamente.", "OK")
         case "ar": return ("تعذّرت مشاركة هذا على YuKon3t. حاول مرة أخرى.", "حسنًا")
+        case "de": return ("Das konnte nicht auf YuKon3t geteilt werden. Versuche es noch einmal.", "OK")
+        case "it": return ("Non è stato possibile condividerlo su YuKon3t. Riprova.", "OK")
+        case "hi": return ("इसे YuKon3t पर शेयर नहीं किया जा सका। फिर कोशिश करें।", "ठीक है")
+        case "sw": return ("Haikuwezekana kushiriki hiki kwenye YuKon3t. Jaribu tena.", "Sawa")
         default: return ("Couldn't share this to YuKon3t. Please try again.", "OK")
         }
     }

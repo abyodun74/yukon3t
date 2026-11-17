@@ -1,0 +1,48 @@
+import type { sharedEn } from "@/lib/i18n/en/shared";
+import { passwordInput, multiSelect } from "@/lib/i18n/sw/common";
+
+export const shared: typeof sharedEn = {
+  passwordInput,
+  submitButton: { offline: "Huna mtandao. Angalia muunganisho wako kisha ujaribu tena." },
+  turnstile: {
+    verify: "Thibitisha kuwa wewe ni binadamu",
+    wait: "Gusa «Thibitisha kuwa wewe ni binadamu» ili ukamilishe ukaguzi wa usalama, kisha ujaribu tena.",
+    checkingDevice: "Inakagua kifaa chako…",
+    stillChecking: "Ukaguzi wa usalama bado unaendelea. Subiri umalizike kisha ujaribu tena.",
+    slow: "Bado inathibitisha… kwa muunganisho wa polepole inaweza kuchukua hadi dakika moja.",
+    retry: "Jaribu tena",
+    interactive: "Gusa kisanduku kilicho juu ili kukamilisha ukaguzi wa usalama.",
+    expired: "Muda wa ukaguzi wa usalama umeisha. Gusa tena «Thibitisha kuwa wewe ni binadamu».",
+    blocked: "Ukaguzi wa usalama haukuweza kupakia. Huenda kizuizi cha maudhui, DNS ya faragha inayozuia matangazo, VPN au mtandao unazuia challenges.cloudflare.com. Kizime au badilisha kati ya wifi na data ya simu, kisha ugonge Jaribu tena.",
+    stalled: "Ukaguzi wa usalama haukukamilika. Gusa Jaribu tena. Ikiendelea kutokea, badilisha kati ya wifi na data ya simu, au zima VPN, DNS ya faragha au kizuizi chochote cha maudhui.",
+    network: "Ukaguzi wa usalama haukuweza kufikia Cloudflare. Angalia muunganisho wako kisha ugonge Jaribu tena. VPN, DNS ya faragha au kizuizi cha maudhui vinaweza pia kusababisha hili.",
+    config: "Ukaguzi wa usalama haufanyi kazi kwa sasa kwa sababu ya tatizo upande wetu. Tafadhali jaribu tena baadaye.",
+    unsupported: "Kivinjari hiki hakiwezi kuendesha ukaguzi wa usalama. Sasisha Chrome na Android System WebView (au kivinjari chako), au jaribu kivinjari kingine.",
+    clock: "Tarehe na saa ya simu yako zinaonekana si sahihi, kwa hiyo ukaguzi wa usalama hauwezi kukamilika. Washa tarehe na saa za kiotomatiki kwenye mipangilio, kisha ugonge Jaribu tena.",
+    failed: "Ukaguzi wa usalama haukufaulu. Gusa Jaribu tena.",
+  },
+  phoneField: { countryCode: "Msimbo wa nchi", placeholder: "Nambari ya simu" },
+  birthDate: {
+    monthLabel: "Mwezi wa kuzaliwa",
+    dayLabel: "Siku ya kuzaliwa",
+    yearLabel: "Mwaka wa kuzaliwa",
+    month: "Mwezi",
+    day: "Siku",
+    year: "Mwaka",
+    months: [
+      "Januari",
+      "Februari",
+      "Machi",
+      "Aprili",
+      "Mei",
+      "Juni",
+      "Julai",
+      "Agosti",
+      "Septemba",
+      "Oktoba",
+      "Novemba",
+      "Desemba",
+    ],
+  },
+  multiSelect,
+};

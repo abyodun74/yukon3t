@@ -1,0 +1,48 @@
+import type { sharedEn } from "@/lib/i18n/en/shared";
+import { passwordInput, multiSelect } from "@/lib/i18n/it/common";
+
+export const shared: typeof sharedEn = {
+  passwordInput,
+  submitButton: { offline: "Sei offline. Controlla la connessione e riprova." },
+  turnstile: {
+    verify: "Verifica di essere umano",
+    wait: "Tocca «Verifica di essere umano» per completare la verifica di sicurezza e riprova.",
+    checkingDevice: "Verifica del dispositivo in corso…",
+    stillChecking: "La verifica di sicurezza è ancora in corso. Aspetta che finisca e riprova.",
+    slow: "Stiamo ancora verificando… con una connessione lenta può volerci fino a un minuto.",
+    retry: "Riprova",
+    interactive: "Tocca la casella qui sopra per completare la verifica di sicurezza.",
+    expired: "La verifica di sicurezza è scaduta. Tocca di nuovo «Verifica di essere umano».",
+    blocked: "Impossibile caricare la verifica di sicurezza. Un blocco dei contenuti, un DNS privato che blocca le pubblicità, una VPN o la rete potrebbero bloccare challenges.cloudflare.com. Disattivalo o passa dal wifi ai dati mobili, poi tocca Riprova.",
+    stalled: "La verifica di sicurezza non è stata completata. Tocca Riprova. Se continua, passa dal wifi ai dati mobili oppure disattiva eventuali VPN, DNS privati o blocchi dei contenuti.",
+    network: "La verifica di sicurezza non è riuscita a connettersi a Cloudflare. Controlla la connessione e tocca Riprova. Anche una VPN, un DNS privato o un blocco dei contenuti possono esserne la causa.",
+    config: "La verifica di sicurezza al momento non funziona per un problema nostro. Riprova più tardi.",
+    unsupported: "Questo browser non può eseguire la verifica di sicurezza. Aggiorna Chrome e Android System WebView (o il tuo browser), oppure prova con un altro browser.",
+    clock: "La data e l'ora del telefono sembrano sbagliate, quindi la verifica non può essere completata. Attiva data e ora automatiche nelle impostazioni e tocca Riprova.",
+    failed: "La verifica di sicurezza non è andata a buon fine. Tocca Riprova.",
+  },
+  phoneField: { countryCode: "Prefisso internazionale", placeholder: "Numero di telefono" },
+  birthDate: {
+    monthLabel: "Mese di nascita",
+    dayLabel: "Giorno di nascita",
+    yearLabel: "Anno di nascita",
+    month: "Mese",
+    day: "Giorno",
+    year: "Anno",
+    months: [
+      "gennaio",
+      "febbraio",
+      "marzo",
+      "aprile",
+      "maggio",
+      "giugno",
+      "luglio",
+      "agosto",
+      "settembre",
+      "ottobre",
+      "novembre",
+      "dicembre",
+    ],
+  },
+  multiSelect,
+};
