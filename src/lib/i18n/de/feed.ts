@@ -16,6 +16,11 @@ export const feed: typeof feedEn = {
     MOTIVATIONAL: "Motivation",
     GENERAL: "Allgemein",
   },
+  feedOrder: {
+    latest: "Neueste",
+    homeHint: "Aus: Start zeigt alle 15 Minuten eine neue Mischung, neuere Beiträge landen dabei eher oben. An: neueste Beiträge zuerst.",
+    museHint: "Aus: Muse zeigt alle 15 Minuten eine neue Mischung, neuere Videos landen dabei eher oben. An: neueste Videos zuerst.",
+  },
   intents: {
     FRIENDSHIP: "Freundschaft",
     CULTURAL_EXCHANGE: "Kulturaustausch",

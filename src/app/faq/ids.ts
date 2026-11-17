@@ -36,6 +36,7 @@ export const FAQ_IDS = [
   "search-people-discover",
   "new-member-alerts",
   "home-split-into-sections-like",
+  "feed-muse-fresh-mix-latest",
   "update-the-app",
   "links-open-in-app",
   "app-opens-where-left-off",

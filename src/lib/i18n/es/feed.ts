@@ -16,6 +16,11 @@ export const feed: typeof feedEn = {
     MOTIVATIONAL: "Motivación",
     GENERAL: "General",
   },
+  feedOrder: {
+    latest: "Lo último",
+    homeHint: "Desactivado: Inicio muestra una mezcla nueva cada 15 minutos, y las publicaciones más nuevas tienen más probabilidades de salir arriba. Activado: primero las publicaciones más recientes.",
+    museHint: "Desactivado: Muse muestra una mezcla nueva cada 15 minutos, y los videos más nuevos tienen más probabilidades de salir arriba. Activado: primero los videos más recientes.",
+  },
   intents: {
     FRIENDSHIP: "Amistad",
     CULTURAL_EXCHANGE: "Intercambio cultural",

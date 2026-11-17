@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 16, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 17, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -76,6 +76,7 @@ export default function PrivacyPage() {
         <li>To create and operate your account, and to authenticate sign-ins via emailed magic links or, if you choose, a username and password.</li>
         <li>To confirm you meet our minimum age requirement before your account is created.</li>
         <li>To operate core features: Circles, Channels, Collab Boards, Stories, Discover matching, connections, messaging, and voice/video calls and live sessions.</li>
+        <li>To order Home and Muse. By default each shows a fresh mix every 15 minutes, with newer posts and videos more likely near the top, and with what was posted since the mix began and your own posts from the last 24 hours on top. The mix is worked out only from your account ID, which feed or Home section it is, the current time and each post&apos;s own publication time. It does not use what you view, like, watch or search for, and we record nothing new about you to make it. Turning on the &ldquo;Latest&rdquo; switch at the top of Home or Muse shows newest first instead; that choice is kept in a cookie on your device (see section 10).</li>
         <li>To let a Circle&apos;s owner invite that Circle&apos;s members to a private collaboration: being a member of a Circle means its owner can send you a collaboration invite even if you aren&apos;t connected, which you can decline.</li>
         <li>To let the organizer or a co-admin of a private collaboration, when they start its live session, notify the collaboration&apos;s participants that the session is live and invite the members of Circles they created (the same collaboration invite described above, which you can decline).</li>
         <li>To let a private Circle&apos;s owner or co-admins invite you to join it: if you&apos;re connected with one of them, they can send you an invite to that Circle, which you can decline. A private Circle is shown only to its members: its name, picture, description, member list and everything posted in it are hidden from everyone else, except that a person with a pending invite sees its name, picture and description so they can decide. Our administrators can still review any Circle to enforce our Community Guidelines.</li>
@@ -358,7 +359,8 @@ export default function PrivacyPage() {
         120 days after you signed in, so you will be asked to sign in again at
         least every 120 days, even if you use YuKon3t every day. We also use a
         small, non-sensitive cookie to remember your light/dark/system theme
-        preference. We do not use third-party advertising or tracking
+        preference, and another to remember whether you turned on the
+        &ldquo;Latest&rdquo; (newest first) switch on Home and Muse. We do not use third-party advertising or tracking
         cookies on YuKon3t. If you complete a paid ad booking, Stripe&apos;s
         hosted checkout page (on stripe.com, outside YuKon3t) may set its own
         cookies under Stripe&apos;s own privacy policy.

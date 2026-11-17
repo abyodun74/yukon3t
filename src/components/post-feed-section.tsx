@@ -12,6 +12,7 @@ import { fetchWithRetryClient, getNetworkQuality } from "@/lib/network-quality-c
 import { feedPageSize } from "@/lib/network-quality";
 import { MuseViewerOverlay } from "@/components/muse-viewer-overlay";
 import type { MuseSeedPost } from "@/lib/muse-from-feed";
+import { newerPostsAfter, prependNewer } from "@/lib/feed-newer";
 
 // JSON round-trips turn Date fields into strings — revive them so PostCard
 // (and anything reading post.createdAt/eventAt as a Date) keeps working the
@@ -79,6 +80,8 @@ export function PostFeedSection({
   category,
   initialPosts,
   initialHasMore,
+  initialCursor = null,
+  servedAt = null,
   allPostsScope = false,
   viewerId,
   viewerIsAdmin,
@@ -88,6 +91,13 @@ export function PostFeedSection({
   category: string;
   initialPosts: PostCardData[];
   initialHasMore: boolean;
+  /**
+   * Set when Home is in its default rotated order (src/lib/feed-rotation.ts): "Load more" sends this cursor back for
+   * the next page of the same 15-minute mix instead of `before`. Null for the Latest switch and the admin view.
+   */
+  initialCursor?: string | null;
+  /** When the rotated first page was served (ISO): every post up to then is already in the list somewhere. */
+  servedAt?: string | null;
   // Forwarded to the "Load more" fetch as `&scope=all` — the API route
   // re-checks isAdmin itself server-side, this is just so the right query
   // gets requested (see src/app/home/page.tsx's own allPostsScope).
@@ -99,6 +109,11 @@ export function PostFeedSection({
   const { t: shell } = useShellText();
   const [posts, setPosts] = useState(initialPosts);
   const [hasMore, setHasMore] = useState(initialHasMore);
+  // Fixed for this mount, like `posts`: a router.refresh() mid-scroll never swaps in a new mix (see the `key` in
+  // src/app/home/page.tsx).
+  const [rotationCursor, setRotationCursor] = useState(initialCursor);
+  const rotated = initialCursor !== null || servedAt !== null;
+  const [servedAtMark] = useState(servedAt);
   const [loadingMore, setLoadingMore] = useState(false);
   // The last load-more failed even after its retries (offline, or a link too
   // weak to finish): shows a Retry button instead of silently stopping at
@@ -117,11 +132,12 @@ export function PostFeedSection({
   }, []);
 
   const refetchNewer = useCallback(async () => {
-    const latest = posts[0]?.createdAt;
-    if (!latest) return;
+    // Not posts[0]: in the rotated order the top post isn't the newest (newerPostsAfter).
+    const after = newerPostsAfter(posts, servedAtMark);
+    if (!after) return;
     try {
       const res = await fetchWithRetryClient(
-        `/api/feed/${category}/latest?after=${encodeURIComponent(new Date(latest).toISOString())}`,
+        `/api/feed/${category}/latest?after=${encodeURIComponent(after.toISOString())}`,
         {},
         { attempts: 2, silent: true },
       );
@@ -129,16 +145,13 @@ export function PostFeedSection({
       const data = await res.json();
       const fresh: PostCardData[] = (data.posts ?? []).map(reviveDates);
       if (fresh.length === 0) return;
-      setPosts((prev) => {
-        const existingIds = new Set(prev.map((p) => p.id));
-        const toAdd = fresh.filter((p) => !existingIds.has(p.id));
-        return toAdd.length ? [...toAdd, ...prev] : prev;
-      });
+      // Newer posts only ever go on top: the rotated list below them never reshuffles while it is being read.
+      setPosts((prev) => prependNewer(prev, fresh));
     } catch {
       // A failed refetch should not be visible to the user — the next
       // realtime signal (or tab-focus resync) tries again.
     }
-  }, [category, posts]);
+  }, [category, posts, servedAtMark]);
 
   // Always points at the latest refetchNewer (which changes identity every
   // time `posts` does) so the throttle and effects below can call it
@@ -190,16 +203,22 @@ export function PostFeedSection({
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     const last = posts[posts.length - 1];
-    if (!last) return;
+    // The rotated order pages by its own cursor; newest first (Latest, the admin view) by the last post's id.
+    const query = rotated
+      ? rotationCursor
+        ? `cursor=${encodeURIComponent(rotationCursor)}`
+        : null
+      : last
+        ? `before=${encodeURIComponent(last.id)}${allPostsScope ? "&scope=all" : ""}`
+        : null;
+    if (!query) return;
     setLoadingMore(true);
     setLoadMoreFailed(false);
     try {
       // Half-size pages on a slow connection: the first posts arrive sooner,
       // and the next page is only fetched once the reader gets near it.
       const limit = feedPageSize(getNetworkQuality());
-      const res = await fetchWithRetryClient(
-        `/api/feed/${category}/latest?before=${encodeURIComponent(last.id)}&limit=${limit}${allPostsScope ? "&scope=all" : ""}`,
-      );
+      const res = await fetchWithRetryClient(`/api/feed/${category}/latest?${query}&limit=${limit}`);
       if (!res.ok) {
         setLoadMoreFailed(true);
         return;
@@ -211,7 +230,13 @@ export function PostFeedSection({
         const toAdd = older.filter((p) => !existingIds.has(p.id));
         return [...prev, ...toAdd];
       });
-      setHasMore(Boolean(data.hasMore));
+      if (rotated) {
+        const next: string | null = typeof data.nextCursor === "string" ? data.nextCursor : null;
+        setRotationCursor(next);
+        setHasMore(next !== null);
+      } else {
+        setHasMore(Boolean(data.hasMore));
+      }
     } catch {
       // Leave hasMore as-is so it can be retried (the button below, scrolling
       // again, or the connection coming back).
@@ -219,7 +244,7 @@ export function PostFeedSection({
     } finally {
       setLoadingMore(false);
     }
-  }, [category, posts, hasMore, loadingMore, allPostsScope]);
+  }, [category, posts, hasMore, loadingMore, allPostsScope, rotated, rotationCursor]);
 
   // Always points at the latest loadMore (which itself changes identity
   // every time `posts` grows) without needing to tear down and recreate the

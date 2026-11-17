@@ -27,6 +27,9 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { parseVideoEmbedUrl } from "@/lib/video-embed";
 import { captureError } from "@/lib/error-tracking";
+import { isRotationCursor, loadRotatedPage, orderByIds } from "@/lib/feed-rotation";
+import { museRotationSource } from "@/lib/feed-rotation-sources";
+import { getFeedOrder } from "@/lib/feed-order-server";
 import {
   inheritGroupLikers,
   isGroupLiker,
@@ -234,31 +237,60 @@ export async function createMuse(formData: FormData) {
 
 const MUSE_FEED_PAGE_SIZE = 10;
 
+const museFeedInclude = (viewerId: string) =>
+  ({
+    author: { select: { id: true, name: true, avatarUrl: true } },
+    reactions: { where: { userId: viewerId }, select: { emoji: true } },
+    reposts: { where: { userId: viewerId }, select: { id: true } },
+  }) as const;
+
 /**
- * The /muse public discovery feed — newest first, cursor-paginated (no
- * existing precedent for this in the codebase: Post/Story feeds are always
- * Circle/Connection-scoped, never a global cross-author stream). Excludes
- * authors the caller has blocked or been blocked by, same helper already
- * used to filter Discover.
+ * The /muse public discovery feed, cursor-paginated (no existing precedent for this in the codebase: Post/Story feeds
+ * are always Circle/Connection-scoped, never a global cross-author stream). Excludes authors the caller has blocked or
+ * been blocked by, same helper already used to filter Discover.
+ *
+ * Order: by default a fresh recency-weighted mix every 15 minutes (src/lib/feed-rotation.ts); with the Latest switch
+ * (getFeedOrder) newest first. The cursor says which: a rotation cursor ("r1.") continues that mix whatever the switch
+ * says now, a plain Muse id continues newest first, and no cursor starts in the reader's chosen order.
  */
-export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
+export async function getMuseFeed({ cursor }: { cursor?: string | null } = {}) {
   const user = await requireVerifiedViewer();
   const blockedIds = await getBlockedEitherWayIds(user.id);
+  const where = {
+    moderationStatus: "PUBLISHED" as const,
+    authorId: { notIn: [...blockedIds] },
+  };
 
-  const items = await prisma.muse.findMany({
-    where: {
-      moderationStatus: "PUBLISHED",
-      authorId: { notIn: [...blockedIds] },
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: MUSE_FEED_PAGE_SIZE,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
-      reactions: { where: { userId: user.id }, select: { emoji: true } },
-      reposts: { where: { userId: user.id }, select: { id: true } },
-    },
-  });
+  const rotated = cursor ? isRotationCursor(cursor) : (await getFeedOrder()) === "mixed";
+  let items;
+  let nextCursor: string | null;
+  if (rotated) {
+    const page = await loadRotatedPage(museRotationSource(where), {
+      viewerId: user.id,
+      feedKey: "muse",
+      nowMs: Date.now(),
+      cursor: cursor ?? null,
+      pageSize: MUSE_FEED_PAGE_SIZE,
+    });
+    const rows = page.ids.length
+      ? await prisma.muse.findMany({
+          // The same rules again: an id from the list grants nothing by itself.
+          where: { AND: [where, { id: { in: page.ids } }] },
+          include: museFeedInclude(user.id),
+        })
+      : [];
+    items = orderByIds(page.ids, rows);
+    nextCursor = page.nextCursor;
+  } else {
+    items = await prisma.muse.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: MUSE_FEED_PAGE_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: museFeedInclude(user.id),
+    });
+    nextCursor = items.length === MUSE_FEED_PAGE_SIZE ? items[items.length - 1].id : null;
+  }
 
   const authorIds = [...new Set(items.map((m) => m.authorId).filter((id) => id !== user.id))];
   const followingIds = authorIds.length
@@ -272,7 +304,6 @@ export async function getMuseFeed({ cursor }: { cursor?: string } = {}) {
       )
     : new Set<string>();
 
-  const nextCursor = items.length === MUSE_FEED_PAGE_SIZE ? items[items.length - 1].id : null;
   return {
     items: items.map((m) => ({
       id: m.id,

@@ -274,6 +274,28 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "feed-muse-fresh-mix-latest",
+        q: "Why does the order of Home and Muse change, and how do I see the newest first?",
+        a: (
+          <>
+            By default, Home (each of its sections) and Muse show a fresh mix
+            every 15 minutes instead of strictly newest first. Newer posts and
+            videos are much more likely to be near the top, and older ones
+            from the past week still turn up, so coming back later shows you
+            something different. Anything posted since the current mix began,
+            and your own posts from the last 24 hours, stay at the top, newest
+            first. The order never changes while you&apos;re scrolling: a new
+            mix only appears when you open or reload the page. The mix is
+            worked out only from your account, the feed and the time, not
+            from what you view, like or watch, and nothing new is recorded
+            about you to make it. To go back to newest first, turn on the{" "}
+            <strong>Latest</strong> switch at the top of Home or Muse. It
+            applies to both and is remembered on that device until you turn
+            it off.
+          </>
+        ),
+      },
+      {
         id: "update-the-app",
         q: "How do I update the app, and why am I asked to update?",
         a: (

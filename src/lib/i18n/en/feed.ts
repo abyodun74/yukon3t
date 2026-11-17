@@ -22,6 +22,12 @@ export const feedEn = {
     MOTIVATIONAL: "Motivational",
     GENERAL: "General",
   },
+  // The Latest switch on Home and Muse (FeedOrderToggle). Off: a fresh mix every 15 minutes; on: newest first.
+  feedOrder: {
+    latest: "Latest",
+    homeHint: "Off: Home shows a fresh mix every 15 minutes, with newer posts more likely near the top. On: newest posts first.",
+    museHint: "Off: Muse shows a fresh mix every 15 minutes, with newer videos more likely near the top. On: newest videos first.",
+  },
   // What someone is open to (validation-constants.ts intentTagValues), as shown on a person or a connection.
   intents: {
     FRIENDSHIP: "Friendship",

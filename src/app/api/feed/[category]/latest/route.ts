@@ -6,6 +6,8 @@ import { getListablePostsWhere, NOT_MEMBERS_ONLY, LEAD_POST_ONLY } from "@/lib/p
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
 import { parseFeedPageSize } from "@/lib/network-quality";
+import { decodeRotationCursor } from "@/lib/feed-rotation";
+import { loadHomeRotatedPage } from "@/lib/home-feed-rotation";
 
 const LATEST_PAGE_SIZE = 10;
 // Load-more pages are FEED_PAGE_SIZE (20), Home's own PAGE_SIZE
@@ -25,6 +27,10 @@ const LATEST_PAGE_SIZE = 10;
  * posts this way instead of Home's old `?before=` full-page navigation lets
  * PostFeedSection append them to its existing `posts` state in place, so
  * the page never re-renders/scrolls back to the top.
+ *
+ * With rotation on (the default, src/lib/feed-rotation.ts) Home's first page carries a rotation cursor instead, and
+ * "Load more" sends it back as `cursor`: the next page of the same 15-minute mix, answered with `nextCursor`. `after`
+ * (newer posts) and `before` (the Latest switch, and the admin view) stay newest first.
  */
 export async function GET(
   request: Request,
@@ -54,11 +60,15 @@ export async function GET(
     return NextResponse.json({ posts: [] }, { status: 400 });
   }
   const before = searchParams.get("before");
+  const rotationCursor = searchParams.get("cursor");
+  if (rotationCursor !== null && !decodeRotationCursor(rotationCursor)) {
+    return NextResponse.json({ posts: [] }, { status: 400 });
+  }
   // Same admin-only bypass as Home's own `allPostsScope` — never trust the
   // query param alone, only branch when the signed-in user is actually an
   // admin (see src/app/home/page.tsx).
   const allPostsScope = searchParams.get("scope") === "all" && user.isAdmin;
-  const pageSize = before ? parseFeedPageSize(searchParams.get("limit")) : LATEST_PAGE_SIZE;
+  const pageSize = before || rotationCursor ? parseFeedPageSize(searchParams.get("limit")) : LATEST_PAGE_SIZE;
 
   const where = allPostsScope
     ? {
@@ -73,6 +83,19 @@ export async function GET(
   const categoryFilter = isValidCategory
     ? await buildCategoryFilter(category as (typeof feedCategoryValues)[number])
     : undefined;
+  // The admin view is always newest first, so a rotation cursor is only followed outside it.
+  if (rotationCursor && !allPostsScope && !afterDate) {
+    const page = await loadHomeRotatedPage({
+      where: categoryFilter ? { AND: [where, categoryFilter] } : where,
+      viewerId: user.id,
+      category: isValidCategory ? category : null,
+      cursor: rotationCursor,
+      pageSize,
+    });
+    const posts = await attachViewerState(page.rows, user.id);
+    return NextResponse.json({ posts, hasMore: page.nextCursor !== null, nextCursor: page.nextCursor });
+  }
+
   const rawPosts = await prisma.post.findMany({
     where: {
       AND: [
@@ -81,7 +104,8 @@ export async function GET(
         ...(afterDate ? [{ createdAt: { gt: afterDate } }] : []),
       ],
     },
-    orderBy: { createdAt: "desc" },
+    // id breaks ties, so `before` paging is stable across posts made in the same millisecond.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: pageSize,
     ...(before ? { cursor: { id: before }, skip: 1 } : {}),
     include: postCardInclude,

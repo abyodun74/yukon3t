@@ -391,7 +391,7 @@ The owner has approved this design but asked that it **not be implemented yet**.
 
 Decided:
 - **Version 1 only: stated interests.** Rank posts by similarity between the post's embedding and the user's own (`User.embedding`: name, username, bio, interests), blended with recency. No behavioural signals (likes, watch time, impressions) and no new tracking tables; that was "Version 2" and is not approved.
-- **A separate "For you" tab** on Home. The newest-first feed stays as it is and stays the default.
+- **A separate "For you" tab** on Home. When this was decided the newest-first feed was the default; since 2026-11-17 the default for Home and Muse is the 15-minute recency-weighted rotation (no personalisation; see "Home / Muse rotation" below), and newest first remains one tap away via the Latest switch. "For you" would be a third, personalised option alongside both, not a replacement for either.
 - **An off switch in Settings** that removes the tab for that user.
 
 Still open (ask before building): posts only, or suggested Circles and people as well.
@@ -401,6 +401,13 @@ Constraints agreed in the same discussion:
 - Mix in some recent or unrelated posts so the tab doesn't narrow to one topic.
 - Use the nearest-neighbour helpers in `src/lib/search-embeddings.ts`, never a bare `ORDER BY "embedding" <=>`; `User.embedding` deliberately has no HNSW index. Cache per user so Home doesn't slow down (see the Moderation page timeouts fixed in `2307211`).
 - Ships with a Privacy Policy and FAQ explanation of how suggestions are chosen and how to turn them off, and the App Store / Play Store data forms need "personalisation" declared (no native build needed). Whether EU DSA or US state rules on feeds for minors apply was left for the owner to check with a lawyer.
+
+## Home / Muse rotation (2026-11-17)
+
+Owner decision: Home (every category tab) and Muse default to a fresh recency-weighted mix every 15 minutes; the "Latest" switch (`FeedOrderToggle`, cookie `yukon3t.feed-order` = `latest`, read during SSR by `getFeedOrder` in `src/lib/feed-order-server.ts`) gives exactly the old newest-first behaviour. The admin "include private posts" view is always newest first. Pure rules and paging: `src/lib/feed-rotation.ts` (read its header); Prisma id sources: `feed-rotation-sources.ts`; Home hydration: `home-feed-rotation.ts`.
+- **List per (viewer, feed key, bucket)**, bucket = floor(now / 15 min), S = its start: fresh head (created in [S, t], t = first page served, plus the viewer's own posts from [S - 24h, S), newest first), then the rotated body (ids created in [S - 7d, S), at most 500, keyed by Efraimidis-Spirakis ln(u)/w with u = hash(viewer:feed:bucket:id) and w = 2^(-age/36h)), then a newest-first (createdAt, id) keyset tail. Seed is viewer id + feed + clock only: no behavioural data, nothing stored, no cache (Upstash deliberately not used for this).
+- **Cursor** (`r1.` + base64url JSON): `{m:"r", b, t, i, l, la, lo, x}` inside the list (a deleted last item `l` is put back where its key placed it, else offset `i`) or `{m:"c", b, at, id, x}` in the tail. A bucket in the future or begun > 6h ago restarts from the top. Home's route takes `cursor` (rotated) or `before` (newest first); `getMuseFeed` treats an `r1.` cursor as rotated and a plain id as newest first, and with no cursor follows the switch. `/muse/[id]` starts the mix without that Muse (`permalinkRotationCursor`, `x`).
+- **Every id query and the card query use the feed's existing where** (`getListablePostsWhere` + category; Muse PUBLISHED + `getBlockedEitherWayIds`), so nothing listable changes. Never reshuffle mid-scroll: `PostFeedSection`/`MuseFeed` keys include the order, never the bucket; `refetchNewer` asks for posts after `newerPostsAfter(posts, servedAt)` (not posts[0]) and only prepends. FAQ `feed-muse-fresh-mix-latest`; privacy policy sections 2 and 10.
 
 ## Guest preview ("Explore YuKon3t as a guest", /try)
 

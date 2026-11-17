@@ -16,6 +16,11 @@ export const feed: typeof feedEn = {
     MOTIVATIONAL: "Kutia moyo",
     GENERAL: "Kwa ujumla",
   },
+  feedOrder: {
+    latest: "Mapya zaidi",
+    homeHint: "Imezimwa: Mwanzo huonyesha mchanganyiko mpya kila baada ya dakika 15, na machapisho mapya zaidi yana uwezekano mkubwa wa kuwa juu. Imewashwa: machapisho mapya zaidi kwanza.",
+    museHint: "Imezimwa: Muse huonyesha mchanganyiko mpya kila baada ya dakika 15, na video mpya zaidi zina uwezekano mkubwa wa kuwa juu. Imewashwa: video mpya zaidi kwanza.",
+  },
   intents: {
     FRIENDSHIP: "Urafiki",
     CULTURAL_EXCHANGE: "Kubadilishana tamaduni",

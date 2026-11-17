@@ -16,6 +16,9 @@ import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
 import { getDictionary } from "@/lib/i18n/server";
 import { isAccountVerified } from "@/lib/account-verification";
+import { getFeedOrder } from "@/lib/feed-order-server";
+import { loadHomeRotatedPage } from "@/lib/home-feed-rotation";
+import { FeedOrderToggle } from "@/components/feed-order-toggle";
 
 const PAGE_SIZE = 20;
 
@@ -25,7 +28,11 @@ export default async function HomePage({
   searchParams: Promise<{ scope?: string; category?: string }>;
 }) {
   const me = await getOnboardedUserOrRedirect();
-  const [dictionary, { scope, category: categoryParam }] = await Promise.all([getDictionary(), searchParams]);
+  const [dictionary, { scope, category: categoryParam }, feedOrder] = await Promise.all([
+    getDictionary(),
+    searchParams,
+    getFeedOrder(),
+  ]);
   const t = dictionary.pages.home;
   // Admin-only "include private posts" view — never trust the query param
   // alone, only branch the query when the signed-in user is actually an
@@ -37,6 +44,9 @@ export default async function HomePage({
   const category = (feedCategoryValues as readonly string[]).includes(categoryParam ?? "")
     ? (categoryParam as (typeof feedCategoryValues)[number])
     : null;
+  // Default: a fresh recency-weighted mix every 15 minutes (src/lib/feed-rotation.ts); the Latest switch brings back
+  // newest first. The admin "include private posts" view always stays newest first.
+  const rotated = feedOrder === "mixed" && !allPostsScope;
 
   // The Story tray and the post feed don't depend on each other: both are loaded at once.
   const loadFeed = async () => {
@@ -65,16 +75,32 @@ export default async function HomePage({
     ]);
     const where = categoryFilter ? { AND: [baseWhere, categoryFilter] } : baseWhere;
 
+    if (rotated) {
+      const page = await loadHomeRotatedPage({ where, viewerId: me.id, category, cursor: null, pageSize: PAGE_SIZE });
+      return {
+        posts: await attachViewerState(page.rows, me.id),
+        hasMore: page.nextCursor !== null,
+        cursor: page.nextCursor,
+        servedAt: page.servedAt.toISOString(),
+      };
+    }
+
     const rawPosts = await prisma.post.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      // id breaks ties so posts made in the same millisecond page in one stable order.
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: PAGE_SIZE,
       include: postCardInclude,
     });
-    return { posts: await attachViewerState(rawPosts, me.id), hasMore: rawPosts.length === PAGE_SIZE };
+    return {
+      posts: await attachViewerState(rawPosts, me.id),
+      hasMore: rawPosts.length === PAGE_SIZE,
+      cursor: null,
+      servedAt: null,
+    };
   };
 
-  const [{ groups: storyGroups }, { posts, hasMore }] = await Promise.all([
+  const [{ groups: storyGroups }, { posts, hasMore, cursor, servedAt }] = await Promise.all([
     // getConnectionsStories throws for an account that hasn't verified its email or phone (requireVerifiedUser), which
     // would take the whole page down with it. Password sign-in never lets such an account in, but an OAuth sign-up can
     // arrive with neither (Auth.js stores emailVerified as null for OAuth), so the tray is simply empty for it instead.
@@ -102,22 +128,30 @@ export default async function HomePage({
         <CategoryTabs category={category} allPostsScope={allPostsScope} />
       </div>
 
-      {me.isAdmin && (
-        <div className="mt-4 flex w-fit overflow-hidden rounded-lg border border-line text-xs font-medium">
-          <Link
-            href={`/home${category ? `?category=${category}` : ""}`}
-            className={`px-3 py-1.5 ${!allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
-          >
-            {t.standard}
-          </Link>
-          <Link
-            href={`/home?scope=all${categoryQuery}`}
-            className={`px-3 py-1.5 ${allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
-          >
-            {t.adminAll}
-          </Link>
-        </div>
-      )}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {me.isAdmin && (
+          <div className="flex w-fit overflow-hidden rounded-lg border border-line text-xs font-medium">
+            <Link
+              href={`/home${category ? `?category=${category}` : ""}`}
+              className={`px-3 py-1.5 ${!allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
+            >
+              {t.standard}
+            </Link>
+            <Link
+              href={`/home?scope=all${categoryQuery}`}
+              className={`px-3 py-1.5 ${allPostsScope ? "bg-accent-soft text-accent" : "text-foreground-soft"}`}
+            >
+              {t.adminAll}
+            </Link>
+          </div>
+        )}
+        {/* The admin "include private posts" view is always newest first, so the switch has nothing to change there. */}
+        {!allPostsScope && (
+          <div className="ms-auto">
+            <FeedOrderToggle order={feedOrder} surface="home" />
+          </div>
+        )}
+      </div>
 
       <div className="mt-6">
         <AdSlot />
@@ -134,10 +168,14 @@ export default async function HomePage({
         // no longer changes any of these, so it no longer needs to be part
         // of this key — see PostFeedSection's own loadMore, which appends
         // in place instead of triggering a fresh SSR render.
-        key={`${category ?? "all"}-${allPostsScope}`}
+        // The order is part of it too (the Latest switch), but never the rotation bucket: a new mix only replaces the
+        // list on a fresh load, not when router.refresh() hands down new initialPosts mid-scroll.
+        key={`${category ?? "all"}-${allPostsScope}-${feedOrder}`}
         category={category ?? "all"}
         initialPosts={posts}
         initialHasMore={hasMore}
+        initialCursor={cursor}
+        servedAt={servedAt}
         allPostsScope={allPostsScope}
         viewerId={me.id}
         viewerIsAdmin={me.isAdmin}

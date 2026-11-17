@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import { useReducedMotion } from "motion/react";
 // The small `m` components: animation code is loaded lazily by MotionProvider (root layout).
 import * as m from "motion/react-m";
@@ -130,6 +139,7 @@ export function MuseFeed({
   onClose,
   onNavigate,
   focusCommentId = null,
+  headerAccessory = null,
 }: {
   initialItems: MuseItem[];
   initialCursor: string | null;
@@ -145,6 +155,11 @@ export function MuseFeed({
   onNavigate?: (href: string) => void;
   /** /muse/<id>?comment=<commentId> (a comment or reply notification): open the first Muse's comments on that thread. */
   focusCommentId?: string | null;
+  /**
+   * /muse only: a control pinned top-left over the cards, level with each card's own top controls (the Latest switch,
+   * FeedOrderToggle). Hidden while comments are open.
+   */
+  headerAccessory?: ReactNode;
 }) {
   const router = useRouter();
   const { t } = useMuseText();
@@ -535,6 +550,14 @@ export function MuseFeed({
         ))}
         <div ref={sentinelRef} aria-hidden className="h-px w-full" />
       </div>
+
+      {headerAccessory && !commentsOpenForId && (
+        // Above the cards (z-10), below nav.tsx's header (z-40) and tab bar; the cards' own top row keeps its controls
+        // on the other side, so nothing overlaps.
+        <div className="fixed start-4 top-[calc(var(--top-bar-height)+max(env(safe-area-inset-top),var(--status-bar-inset-top,0px)))] z-20">
+          {headerAccessory}
+        </div>
+      )}
 
       {toast && (
         <div
@@ -1082,17 +1105,6 @@ function MuseCard({
 
             {!isSeedPost && (
               <div className="flex shrink-0 flex-col items-center gap-3">
-                <button
-                  type="button"
-                  onClick={onOpenComments}
-                  className="flex flex-col items-center gap-0.5 text-white"
-                  aria-label={format(t.commentsCount, { count: item.commentCount })}
-                >
-                  <span className="rounded-full bg-black/40 p-2">
-                    <MessageCircle size={20} />
-                  </span>
-                  <span className="text-[0.6875rem]">{item.commentCount}</span>
-                </button>
                 {/* The heart: a like, nothing else (the emoji and GIF pickers are in the comments composer). Filled red
                     once liked by any reaction, old emoji ones included; colour and fill tween, no pop. */}
                 <button
@@ -1115,6 +1127,17 @@ function MuseCard({
                     />
                   </span>
                   <span className="text-[0.6875rem]">{item.likeCount}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenComments}
+                  className="flex flex-col items-center gap-0.5 text-white"
+                  aria-label={format(t.commentsCount, { count: item.commentCount })}
+                >
+                  <span className="rounded-full bg-black/40 p-2">
+                    <MessageCircle size={20} />
+                  </span>
+                  <span className="text-[0.6875rem]">{item.commentCount}</span>
                 </button>
                 <button
                   type="button"
