@@ -7,6 +7,16 @@ import { uploadFileDirect, captureVideoFrameFromFile, resizeImageFile, withRetry
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { markNativePickerInactive, openFilePicker } from "@/lib/native-picker-activity";
 import { normalizeVideoFile } from "@/lib/video-file";
+import { AnnouncementTranslationsFields } from "@/components/announcement-translations-fields";
+import {
+  ANNOUNCEMENT_TRANSLATION_LOCALES,
+  isAnnouncementTranslationLocale,
+  translationFieldState,
+  translationsForSubmit,
+  type AnnouncementTranslationLocale,
+  type TranslationFields,
+} from "@/lib/announcement-translations";
+import { TARGET_LANGUAGE_NAMES } from "@/lib/translation";
 
 // Not imported from storage.ts — that module pulls in node:crypto/the AWS
 // SDK (server-only), which a "use client" component importing it drags into
@@ -24,12 +34,14 @@ const MAX_VIDEO_SECONDS = 120;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
-function errorMessage(code: string) {
+function errorMessage(code: string, locale?: string | null) {
   switch (code) {
     case "too_large":
       return "That file is too large.";
     case "invalid":
       return "Please fill in a title (3+ chars) and body (10+ chars).";
+    case "invalid_translation":
+      return `${isAnnouncementTranslationLocale(locale) ? TARGET_LANGUAGE_NAMES[locale] : "A translation"} needs both a title (3+ chars) and a body (10+ chars), or leave both empty.`;
     default:
       return "Couldn't post that — try again.";
   }
@@ -41,6 +53,12 @@ export function CreateAnnouncementForm() {
   const [error, setError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<"IMAGE" | "VIDEO" | null>(null);
+  // The English (base) version is controlled so "Draft translations" can read it.
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [translations, setTranslations] = useState<TranslationFields>({});
+  const [drafted, setDrafted] = useState<AnnouncementTranslationLocale[]>([]);
+  const [activeLocale, setActiveLocale] = useState<AnnouncementTranslationLocale>(ANNOUNCEMENT_TRANSLATION_LOCALES[0]);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +141,14 @@ export function CreateAnnouncementForm() {
 
   function handleSubmit(formData: FormData) {
     setError(null);
+    // A half-filled language is refused before anything is uploaded (the server checks again).
+    const partial = ANNOUNCEMENT_TRANSLATION_LOCALES.find((l) => translationFieldState(translations[l]) === "partial");
+    if (partial) {
+      setActiveLocale(partial);
+      setError(errorMessage("invalid_translation", partial));
+      return;
+    }
+    formData.set("translations", JSON.stringify(translationsForSubmit(translations)));
     startTransition(async () => {
       if (file && mediaType) {
         let media: { mediaUrl: string; mediaThumbnailUrl?: string };
@@ -153,11 +179,17 @@ export function CreateAnnouncementForm() {
 
       const result = await createAnnouncement(formData);
       if (result.error) {
-        setError(errorMessage(result.error));
+        const locale = "locale" in result ? result.locale : null;
+        if (isAnnouncementTranslationLocale(locale)) setActiveLocale(locale);
+        setError(errorMessage(result.error, locale));
         return;
       }
       formRef.current?.reset();
       clearMedia();
+      setTitle("");
+      setBody("");
+      setTranslations({});
+      setDrafted([]);
     });
   }
 
@@ -165,7 +197,7 @@ export function CreateAnnouncementForm() {
     <form ref={formRef} action={handleSubmit} className="space-y-3 rounded-xl border border-line p-4">
       <div>
         <label htmlFor="title" className="text-xs font-medium text-foreground-soft">
-          Title
+          Title (English)
         </label>
         <input
           id="title"
@@ -173,12 +205,14 @@ export function CreateAnnouncementForm() {
           type="text"
           maxLength={120}
           required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
           className="mt-1 w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-accent"
         />
       </div>
       <div>
         <label htmlFor="body" className="text-xs font-medium text-foreground-soft">
-          What&apos;s new
+          What&apos;s new (English)
         </label>
         <textarea
           id="body"
@@ -186,9 +220,23 @@ export function CreateAnnouncementForm() {
           rows={4}
           maxLength={4000}
           required
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
           className="mt-1 w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-accent"
         />
       </div>
+
+      <AnnouncementTranslationsFields
+        englishTitle={title}
+        englishBody={body}
+        value={translations}
+        onChange={setTranslations}
+        drafted={drafted}
+        onDrafted={setDrafted}
+        activeLocale={activeLocale}
+        onActiveLocaleChange={setActiveLocale}
+        disabled={isPending}
+      />
 
       <div>
         <label className="text-xs font-medium text-foreground-soft">Media (optional)</label>

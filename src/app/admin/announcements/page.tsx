@@ -4,6 +4,8 @@ import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { CreateAnnouncementForm } from "@/components/create-announcement-form";
 import { DeleteAnnouncementButton } from "@/components/delete-announcement-button";
+import { TARGET_LANGUAGE_NAMES } from "@/lib/translation";
+import { isAnnouncementTranslationLocale } from "@/lib/announcement-translations";
 
 export default async function AdminAnnouncementsPage() {
   const user = await getSessionUserOrRedirect();
@@ -12,6 +14,7 @@ export default async function AdminAnnouncementsPage() {
   const announcements = await prisma.announcement.findMany({
     orderBy: { createdAt: "desc" },
     take: 50,
+    include: { translations: { select: { locale: true }, orderBy: { locale: "asc" } } },
   });
 
   return (
@@ -21,7 +24,9 @@ export default async function AdminAnnouncementsPage() {
       </Link>
       <h1 className="mt-2 text-2xl font-semibold">What&apos;s new</h1>
       <p className="mt-1 text-sm text-foreground-soft">
-        Posted here shows up for every user via the megaphone icon in the nav bar.
+        Posted here shows up for every user via the megaphone icon in the nav bar. Write it in English; add your own
+        version for any other language below (optional). Everyone whose app language has no version gets the
+        English, on the What&apos;s new page and in the push. Translations can only be added before posting.
       </p>
 
       <div className="mt-6">
@@ -44,6 +49,13 @@ export default async function AdminAnnouncementsPage() {
                   )}
                 </div>
               )}
+              <p className="mt-2 text-xs text-foreground-soft">
+                {a.translations.length > 0
+                  ? `Also in: ${a.translations
+                      .map((t) => (isAnnouncementTranslationLocale(t.locale) ? TARGET_LANGUAGE_NAMES[t.locale] : t.locale))
+                      .join(", ")}`
+                  : "English only"}
+              </p>
               <p className="mt-2 text-xs text-foreground-soft">{a.createdAt.toLocaleString()}</p>
             </div>
             <DeleteAnnouncementButton id={a.id} />

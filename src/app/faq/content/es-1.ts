@@ -34,7 +34,7 @@ export const es1 = {
   },
   "megaphone-icon-next-bell": {
     q: "¿Qué es el ícono de megáfono que está junto a la campana?",
-    a: "Es «Novedades»: tócalo para ver la lista de las funciones y mejoras que vamos lanzando. Se ilumina cuando hay algo que todavía no has visto, y en cuanto se publica una novedad se envía una notificación real a tu teléfono, así que no tienes que acordarte de revisarlo.",
+    a: "Es «Novedades»: tócalo para ver la lista de las funciones y mejoras que vamos lanzando. Se ilumina cuando hay algo que todavía no has visto, y en cuanto se publica una novedad se envía una notificación real a tu teléfono, así que no tienes que acordarte de revisarlo. Cada novedad aparece en el idioma en que usas YuKon3t cuando la hemos escrito en ese idioma; si no, en inglés. La notificación del teléfono sigue la misma regla, en el idioma en que te llegan las notificaciones.",
   },
   "search-app": {
     q: "¿Cómo busco en la aplicación?",

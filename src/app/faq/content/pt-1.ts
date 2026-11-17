@@ -34,7 +34,7 @@ export const pt1 = {
   },
   "megaphone-icon-next-bell": {
     q: "O que é o ícone de megafone ao lado do sino?",
-    a: "É «Novidades»: toque nele para ver a lista, sempre atualizada, dos novos recursos e melhorias que lançamos. Ele acende quando há algo que você ainda não viu, e uma notificação de verdade é enviada ao seu celular assim que uma novidade é publicada, para você não precisar lembrar de conferir.",
+    a: "É «Novidades»: toque nele para ver a lista, sempre atualizada, dos novos recursos e melhorias que lançamos. Ele acende quando há algo que você ainda não viu, e uma notificação de verdade é enviada ao seu celular assim que uma novidade é publicada, para você não precisar lembrar de conferir. Cada novidade aparece no idioma em que você usa o YuKon3t quando a escrevemos nesse idioma; caso contrário, em inglês. A notificação no celular segue a mesma regra, no idioma das suas notificações.",
   },
   "search-app": {
     q: "Como faço uma busca no aplicativo?",

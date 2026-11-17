@@ -59,10 +59,18 @@ const BROADCAST_BATCH_SIZE = 50;
  * never block the announcement itself from being created/visible via the
  * in-app WhatsNewBell.
  */
-export async function broadcastPushAnnouncement(payload: PushPayload) {
+export async function broadcastPushAnnouncement(payload: Localized<PushPayload>) {
   if (!isPushConfigured) return;
 
-  const subscriptions = await prisma.pushSubscription.findMany();
+  // One query for every subscription and its owner's language; sendPushToSubscriptions words the payload once per
+  // language (the announcement's version in that language, else English). Never a query per user.
+  let subscriptions;
+  try {
+    subscriptions = await prisma.pushSubscription.findMany({ select: SUBSCRIPTION_SELECT });
+  } catch (err) {
+    console.error("[push] subscription lookup failed", err);
+    return;
+  }
   await sendPushToSubscriptions(subscriptions, payload);
 }
 

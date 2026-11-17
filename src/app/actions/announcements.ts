@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { announcementSchema } from "@/lib/validations";
+import { announcementSchema, announcementTranslationsSchema } from "@/lib/validations";
+import { announcementPushPayload, type AnnouncementTranslationLocale } from "@/lib/announcement-translations";
 import { broadcastFcmAnnouncement } from "@/lib/fcm";
 import { broadcastPushAnnouncement } from "@/lib/push";
 import { publishEvent } from "@/lib/realtime-server";
@@ -17,6 +18,11 @@ import { deleteOwnedUploads } from "@/lib/owned-uploads";
  * that part was already automatic), and now also actively pushed to every
  * registered device (native FCM + web push), not just left as a passive
  * badge someone has to notice on their own.
+ *
+ * `title`/`body` are the English (default) version. `translations` (optional, a JSON array of { locale, title, body }
+ * from the form) adds the admin's own version for any of the other languages; readers and push recipients in a
+ * language without one get the English (src/lib/announcement-translations.ts). Translations can only be added here,
+ * at creation: the admin page has no edit for a posted announcement.
  */
 export async function createAnnouncement(formData: FormData) {
   const admin = await requireAdmin();
@@ -32,6 +38,8 @@ export async function createAnnouncement(formData: FormData) {
     return { error: "invalid" as const };
   }
   const { title, body, mediaType, mediaUrl, mediaThumbnailUrl } = parsed.data;
+
+  const translations = parseTranslations(formData.get("translations"));
 
   // mediaType/mediaUrl travel together or not at all — same imperative
   // pairing check createAdCampaign/createStory use for their own optional
@@ -50,6 +58,13 @@ export async function createAnnouncement(formData: FormData) {
   // orphaned object behind.
   const cleanupUploads = () =>
     deleteOwnedUploads(mediaUrl ? [mediaUrl, ...(mediaThumbnailUrl ? [mediaThumbnailUrl] : [])] : [], admin.id);
+
+  if (!translations.ok) {
+    // The form checks this before uploading anything; this is the server's own check (a crafted request, or a
+    // language half-filled after the client's check).
+    await cleanupUploads();
+    return { error: "invalid_translation" as const, locale: translations.locale };
+  }
 
   if (mediaType && mediaUrl) {
     const key = keyFromPublicUrl(mediaUrl);
@@ -73,6 +88,7 @@ export async function createAnnouncement(formData: FormData) {
       mediaType,
       mediaUrl,
       mediaThumbnailUrl,
+      ...(translations.rows.length > 0 ? { translations: { create: translations.rows } } : {}),
     },
   });
 
@@ -82,8 +98,11 @@ export async function createAnnouncement(formData: FormData) {
   // awaited rather than left running in the background. Both are already
   // internally best-effort/never-throwing (see their own comments), so
   // awaiting them can't make announcement creation itself fail.
-  await broadcastFcmAnnouncement({ title: parsed.data.title, body: parsed.data.body });
-  await broadcastPushAnnouncement({ title: parsed.data.title, body: parsed.data.body, url: "/whats-new" });
+  // Each recipient's push is in their stored language (User.locale) when this announcement has that version, else
+  // English; both senders read the language with the devices in one query and word it once per language.
+  const pushText = announcementPushPayload({ title, body, translations: translations.rows });
+  await broadcastFcmAnnouncement(pushText);
+  await broadcastPushAnnouncement((locale) => ({ ...pushText(locale), url: "/whats-new" }));
   await publishEvent(REALTIME_CHANNELS.announcements(), "changed");
 
   revalidatePath("/admin/announcements");
@@ -128,4 +147,31 @@ export async function markAnnouncementsSeen() {
   });
 
   return { error: null };
+}
+
+type ParsedTranslations =
+  | { ok: true; rows: { locale: AnnouncementTranslationLocale; title: string; body: string }[] }
+  | { ok: false; locale: string | null };
+
+/** The form's `translations` field: absent or empty means none; anything unreadable or invalid refuses the post. */
+function parseTranslations(raw: FormDataEntryValue | null): ParsedTranslations {
+  if (raw === null || raw === "") return { ok: true, rows: [] };
+  if (typeof raw !== "string") return { ok: false, locale: null };
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return { ok: false, locale: null };
+  }
+  const parsed = announcementTranslationsSchema.safeParse(data);
+  if (!parsed.success) {
+    // Name the first language at fault so the form can open it.
+    const index = parsed.error.issues.find((issue) => typeof issue.path[0] === "number")?.path[0];
+    const row = Array.isArray(data) && typeof index === "number" ? (data[index] as { locale?: unknown } | undefined) : undefined;
+    return { ok: false, locale: typeof row?.locale === "string" ? row.locale : null };
+  }
+  return {
+    ok: true,
+    rows: parsed.data.map((row) => ({ locale: row.locale as AnnouncementTranslationLocale, title: row.title, body: row.body })),
+  };
 }

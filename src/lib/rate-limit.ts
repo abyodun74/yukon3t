@@ -297,6 +297,9 @@ const limiterDefinitions = {
   translateRequest: makeLimiter(120, "10 m", "translateRequest"),
   translateModelCall: makeLimiter(200, "1 h", "translateModelCall"),
   translateGlobal: makeLimiter(20000, "24 h", "translateGlobal"),
+  // An admin's "Draft translations" on /admin/announcements (actions/announcement-drafts.ts): one press is up to 16
+  // paid model calls (8 languages x title and body), which also count against translateGlobal. Admin-only, so small.
+  announcementDraft: makeLimiter(10, "1 h", "announcementDraft"),
   // Live translated captions in 1:1 calls (actions/call-captions.ts). The hard money cap is the per-user monthly
   // count of seconds in the database (CALL_CAPTION_MONTHLY_SECONDS), which holds while Redis fails open; these only
   // slow down abuse. Turning captions on/off and the state checks; starting a transcription session (each one is an
@@ -403,6 +406,7 @@ export const FAIL_CLOSED_NO_FALLBACK: ReadonlySet<LimiterName> = new Set<Limiter
   "transcribeAudio", // OpenAI Whisper per call
   "translateModelCall", // OpenAI per cache miss
   "translateGlobal", // the bill's ceiling across everyone
+  "announcementDraft", // an admin's machine-drafted announcement translations (OpenAI per call)
   "brandedVideo", // Cloudflare Stream encode
   "linkResolve", // up to 3 outbound requests to a caller-chosen host; refused, the shared link just stays a link
 ]);

@@ -173,7 +173,10 @@ const sections: Section[] = [
             list of new features and updates we&apos;ve shipped. It lights up
             when there&apos;s something you haven&apos;t seen yet, and a real
             phone notification goes out the moment a new one is posted, so
-            you don&apos;t have to remember to check.
+            you don&apos;t have to remember to check. Each one appears in the
+            language you use YuKon3t in when we&apos;ve written it in that
+            language, otherwise in English. The phone notification follows
+            the same rule, in the language your notifications are sent in.
           </>
         ),
       },

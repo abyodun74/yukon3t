@@ -17,6 +17,14 @@ import {
 import { EVENT_BRING_ITEM_MAX_LENGTH, EVENT_CHANGE_REASON_MAX_LENGTH } from "@/lib/circle-events";
 import { EVENT_ANNOUNCEMENT_MAX_LENGTH } from "@/lib/circle-event-organizer";
 import { RSVP_STATUSES } from "@/lib/rsvp";
+import {
+  ANNOUNCEMENT_BODY_MAX,
+  ANNOUNCEMENT_BODY_MIN,
+  ANNOUNCEMENT_TITLE_MAX,
+  ANNOUNCEMENT_TITLE_MIN,
+  ANNOUNCEMENT_TRANSLATION_LOCALES,
+  isAnnouncementTranslationLocale,
+} from "@/lib/announcement-translations";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 import { FORWARD_MAX_RECIPIENTS } from "@/lib/message-forward";
 import { SHOPPING_LIST_ITEM_MAX, SHOPPING_LIST_MAX_ITEMS } from "@/lib/shopping-list";
@@ -357,8 +365,8 @@ export const circleInviteSchema = z.object({
 });
 
 export const announcementSchema = z.object({
-  title: z.string().trim().min(3).max(120),
-  body: z.string().trim().min(10).max(4000),
+  title: z.string().trim().min(ANNOUNCEMENT_TITLE_MIN).max(ANNOUNCEMENT_TITLE_MAX),
+  body: z.string().trim().min(ANNOUNCEMENT_BODY_MIN).max(ANNOUNCEMENT_BODY_MAX),
   // All three optional — most announcements are text-only. mediaUrl is
   // required alongside mediaType and mediaThumbnailUrl is VIDEO-only, both
   // enforced imperatively in createAnnouncement (same pattern storySchema
@@ -366,6 +374,44 @@ export const announcementSchema = z.object({
   mediaType: z.enum(["IMAGE", "VIDEO"]).optional(),
   mediaUrl: z.string().url().optional(),
   mediaThumbnailUrl: z.string().url().optional(),
+});
+
+// One language's own version of an announcement (src/lib/announcement-translations.ts): a supported language other
+// than the base English, both halves required (a language never has a title without a body or vice versa), and the
+// same bounds as the base title/body.
+export const announcementTranslationSchema = z.object({
+  locale: z.string().refine(isAnnouncementTranslationLocale, { message: "unsupported_locale" }),
+  title: z.string().trim().min(ANNOUNCEMENT_TITLE_MIN).max(ANNOUNCEMENT_TITLE_MAX),
+  body: z.string().trim().min(ANNOUNCEMENT_BODY_MIN).max(ANNOUNCEMENT_BODY_MAX),
+});
+
+// Every translation posted with one announcement: at most one per language.
+export const announcementTranslationsSchema = z
+  .array(announcementTranslationSchema)
+  .max(ANNOUNCEMENT_TRANSLATION_LOCALES.length)
+  .superRefine((rows, ctx) => {
+    const seen = new Set<string>();
+    rows.forEach((row, index) => {
+      if (seen.has(row.locale)) ctx.addIssue({ code: "custom", message: "duplicate_locale", path: [index, "locale"] });
+      seen.add(row.locale);
+    });
+  });
+
+// "Draft translations" (actions/announcement-drafts.ts): the English text as typed so far, and each language with
+// the halves it still needs (draftTargets). The English must already be postable, so a draft is never made of a
+// fragment.
+export const announcementDraftSchema = z.object({
+  title: z.string().trim().min(ANNOUNCEMENT_TITLE_MIN).max(ANNOUNCEMENT_TITLE_MAX),
+  body: z.string().trim().min(ANNOUNCEMENT_BODY_MIN).max(ANNOUNCEMENT_BODY_MAX),
+  targets: z
+    .array(
+      z.object({
+        locale: z.string().refine(isAnnouncementTranslationLocale, { message: "unsupported_locale" }),
+        fields: z.array(z.enum(["title", "body"])).min(1).max(2),
+      }),
+    )
+    .min(1)
+    .max(ANNOUNCEMENT_TRANSLATION_LOCALES.length),
 });
 
 export const channelSchema = z.object({

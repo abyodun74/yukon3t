@@ -34,7 +34,7 @@ export const fr1 = {
   },
   "megaphone-icon-next-bell": {
     q: "À quoi correspond l'icône de mégaphone à côté de la cloche ?",
-    a: "C'est « Nouveautés » : touchez-la pour voir la liste, tenue à jour, des nouvelles fonctionnalités et des mises à jour que nous avons publiées. Elle s'allume lorsqu'il y a quelque chose que vous n'avez pas encore vu, et une vraie notification est envoyée sur votre téléphone dès qu'une nouveauté est publiée ; vous n'avez donc pas à penser à vérifier.",
+    a: "C'est « Nouveautés » : touchez-la pour voir la liste, tenue à jour, des nouvelles fonctionnalités et des mises à jour que nous avons publiées. Elle s'allume lorsqu'il y a quelque chose que vous n'avez pas encore vu, et une vraie notification est envoyée sur votre téléphone dès qu'une nouveauté est publiée ; vous n'avez donc pas à penser à vérifier. Chaque nouveauté s'affiche dans la langue dans laquelle vous utilisez YuKon3t lorsque nous l'avons rédigée dans cette langue, sinon en anglais. La notification sur votre téléphone suit la même règle, dans la langue de vos notifications.",
   },
   "search-app": {
     q: "Comment faire une recherche dans l'application ?",

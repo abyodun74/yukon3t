@@ -192,16 +192,28 @@ const FCM_MULTICAST_CHUNK_SIZE = 500;
  * a push failure must never block the announcement itself from being
  * created/visible via the in-app WhatsNewBell.
  */
-export async function broadcastFcmAnnouncement(payload: { title: string; body: string }) {
+export async function broadcastFcmAnnouncement(localizedPayload: Localized<{ title: string; body: string }>) {
   if (!isFcmConfigured || !app) return;
 
-  const tokens = await prisma.fcmToken.findMany({ select: { id: true, token: true } });
+  // One query for every device and its owner's language; then one chunked multicast per language, each worded once
+  // (the announcement's version in that language, else English: announcementPushPayload). Never a query per user.
+  let tokens: Token[];
+  try {
+    tokens = await prisma.fcmToken.findMany({ select: TOKEN_SELECT });
+  } catch (err) {
+    console.error("[fcm] token lookup failed", err);
+    return;
+  }
   if (tokens.length === 0) return;
 
-  await sendFcmNotificationToTokens(app, tokens, {
-    notification: { title: payload.title, body: payload.body },
-    data: { type: "ANNOUNCEMENT", url: "/whats-new" },
-  });
+  const payloadFor = perLocale(localizedPayload);
+  for (const [locale, group] of groupByLocale(tokens, (token) => token.user.locale)) {
+    const payload = payloadFor(locale);
+    await sendFcmNotificationToTokens(app, group, {
+      notification: { title: payload.title, body: payload.body },
+      data: { type: "ANNOUNCEMENT", url: "/whats-new" },
+    });
+  }
 }
 
 /**

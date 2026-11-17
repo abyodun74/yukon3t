@@ -34,7 +34,7 @@ export const sw1 = {
   },
   "megaphone-icon-next-bell": {
     q: "Ikoni ya kipaza sauti iliyo karibu na kengele ni ya nini?",
-    a: "Ni «Mapya»: igusa ili uone orodha ya vipengele na maboresho tunayotoa. Inawaka kuna kitu ambacho bado hujakiona, na mara tu jambo jipya linapochapishwa, arifa halisi hutumwa kwenye simu yako, kwa hiyo huhitaji kukumbuka kuangalia.",
+    a: "Ni «Mapya»: igusa ili uone orodha ya vipengele na maboresho tunayotoa. Inawaka kuna kitu ambacho bado hujakiona, na mara tu jambo jipya linapochapishwa, arifa halisi hutumwa kwenye simu yako, kwa hiyo huhitaji kukumbuka kuangalia. Kila jambo jipya huonekana kwa lugha unayotumia YuKon3t ikiwa tumeliandika kwa lugha hiyo; vinginevyo kwa Kiingereza. Arifa ya simu hufuata kanuni hiyo hiyo, kwa lugha ya arifa zako.",
   },
   "search-app": {
     q: "Natafuta vipi kwenye programu?",

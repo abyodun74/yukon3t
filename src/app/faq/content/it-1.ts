@@ -34,7 +34,7 @@ export const it1 = {
   },
   "megaphone-icon-next-bell": {
     q: "Cos'è l'icona del megafono accanto alla campanella?",
-    a: "Sono le «Novità»: toccala per vedere l'elenco delle funzioni e dei miglioramenti che rilasciamo. Si illumina quando c'è qualcosa che non hai ancora visto, e appena viene pubblicata una novità ti arriva una vera notifica sul telefono, quindi non devi ricordarti di controllare.",
+    a: "Sono le «Novità»: toccala per vedere l'elenco delle funzioni e dei miglioramenti che rilasciamo. Si illumina quando c'è qualcosa che non hai ancora visto, e appena viene pubblicata una novità ti arriva una vera notifica sul telefono, quindi non devi ricordarti di controllare. Ogni novità appare nella lingua in cui usi YuKon3t quando l'abbiamo scritta in quella lingua, altrimenti in inglese. La notifica sul telefono segue la stessa regola, nella lingua delle tue notifiche.",
   },
   "search-app": {
     q: "Come faccio a cercare nell'app?",

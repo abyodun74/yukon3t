@@ -3,7 +3,8 @@ import { getSessionUserOrRedirect } from "@/lib/page-guards";
 import { prisma } from "@/lib/prisma";
 import { BackButton } from "@/components/back-button";
 import { WhatsNewSeenMarker } from "@/components/whats-new-seen-marker";
-import { intlLocale } from "@/lib/i18n/locales";
+import { DEFAULT_LOCALE, intlLocale } from "@/lib/i18n/locales";
+import { announcementTextFor } from "@/lib/announcement-translations";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 
 const title = "What's New on YuKon3t — Latest Features & Updates";
@@ -39,9 +40,16 @@ export default async function WhatsNewPage() {
   const locale = await getLocale();
   const t = (await getDictionary()).pages.whatsNew;
 
+  // Each announcement in the reader's language when the admin posted that version, else its own English
+  // (announcementTextFor). Only the reader's language is loaded: at most one translation row per announcement, in
+  // the same query.
   const announcements = await prisma.announcement.findMany({
     orderBy: { createdAt: "desc" },
     take: 20,
+    include:
+      locale === DEFAULT_LOCALE
+        ? undefined
+        : { translations: { where: { locale }, select: { locale: true, title: true, body: true } } },
   });
 
   return (
@@ -55,36 +63,42 @@ export default async function WhatsNewPage() {
       </p>
 
       <div className="mt-6 space-y-4">
-        {announcements.map((a) => (
-          <div key={a.id} className="rounded-xl border border-line p-4">
-            {/* Written by an admin, in whatever language they wrote it. */}
-            <h2 dir="auto" className="break-words font-semibold">
-              {a.title}
-            </h2>
-            <p dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground-soft">
-              {a.body}
-            </p>
-            {a.mediaUrl && (
-              <div className="mt-3 overflow-hidden rounded-lg bg-black">
-                {a.mediaType === "VIDEO" ? (
-                  <video
-                    src={a.mediaUrl}
-                    poster={a.mediaThumbnailUrl ?? undefined}
-                    controls
-                    playsInline
-                    className="w-full"
-                  />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.mediaUrl} alt="" className="w-full object-contain" />
-                )}
+        {announcements.map((a) => {
+          const text = announcementTextFor(a, locale);
+          return (
+            <div key={a.id} className="rounded-xl border border-line p-4">
+              {/* The admin's version in the reader's language, or the English one; `lang` says which, so a screen
+                  reader pronounces English text as English on a page in another language. */}
+              <div lang={text.locale}>
+                <h2 dir="auto" className="break-words font-semibold">
+                  {text.title}
+                </h2>
+                <p dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground-soft">
+                  {text.body}
+                </p>
               </div>
-            )}
-            <p className="mt-2 text-xs text-foreground-soft">
-              {a.createdAt.toLocaleDateString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric" })}
-            </p>
-          </div>
-        ))}
+              {a.mediaUrl && (
+                <div className="mt-3 overflow-hidden rounded-lg bg-black">
+                  {a.mediaType === "VIDEO" ? (
+                    <video
+                      src={a.mediaUrl}
+                      poster={a.mediaThumbnailUrl ?? undefined}
+                      controls
+                      playsInline
+                      className="w-full"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.mediaUrl} alt="" className="w-full object-contain" />
+                  )}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-foreground-soft">
+                {a.createdAt.toLocaleDateString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric" })}
+              </p>
+            </div>
+          );
+        })}
         {announcements.length === 0 && (
           <p className="text-sm text-foreground-soft">{t.empty}</p>
         )}

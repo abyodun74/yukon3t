@@ -3165,8 +3165,26 @@ model Announcement {
   mediaType         AnnouncementMediaType?
   mediaUrl          String?
   mediaThumbnailUrl String?
+  // title/body above are the English (default) version, shown to anyone whose language has no row here.
+  translations      AnnouncementTranslation[]
 
   @@index([createdAt])
+}
+
+// An admin-written version of an Announcement in one non-English language (src/lib/announcement-translations.ts).
+// `locale` is one of SUPPORTED_LOCALES other than "en"; readers and push recipients without a row for their language
+// get the Announcement's own (English) title/body.
+model AnnouncementTranslation {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  locale         String
+  title          String
+  body           String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@unique([announcementId, locale])
+  @@index([locale])
 }
 
 model AccountDeletionLog {

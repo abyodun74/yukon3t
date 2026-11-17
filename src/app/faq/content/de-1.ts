@@ -34,7 +34,7 @@ export const de1 = {
   },
   "megaphone-icon-next-bell": {
     q: "Was ist das Megafon-Symbol neben der Glocke?",
-    a: "Das sind die „Neuigkeiten“: Tippe darauf, um die Liste der Funktionen und Verbesserungen zu sehen, die wir veröffentlichen. Es leuchtet auf, wenn es etwas gibt, das du noch nicht gesehen hast, und sobald eine Neuigkeit erscheint, wird eine echte Benachrichtigung an dein Handy gesendet, du musst also nicht daran denken, nachzusehen.",
+    a: "Das sind die „Neuigkeiten“: Tippe darauf, um die Liste der Funktionen und Verbesserungen zu sehen, die wir veröffentlichen. Es leuchtet auf, wenn es etwas gibt, das du noch nicht gesehen hast, und sobald eine Neuigkeit erscheint, wird eine echte Benachrichtigung an dein Handy gesendet, du musst also nicht daran denken, nachzusehen. Jede Neuigkeit erscheint in der Sprache, in der du YuKon3t nutzt, wenn wir sie in dieser Sprache verfasst haben, sonst auf Englisch. Die Benachrichtigung auf dem Handy folgt derselben Regel, in der Sprache deiner Benachrichtigungen.",
   },
   "search-app": {
     q: "Wie suche ich in der App?",
