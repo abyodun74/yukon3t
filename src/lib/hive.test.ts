@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { isFlagged, hiveFailureForStatus, isProviderWideFailure } from "@/lib/hive";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { isFlagged, hiveFailureForStatus, isProviderWideFailure, parseRetryAfterSeconds, moderateVideo } from "@/lib/hive";
 
 function response(classes: Array<{ class: string; value: number }>) {
   return { output: [{ classes }] };
@@ -87,5 +87,58 @@ describe("hiveFailureForStatus / isProviderWideFailure", () => {
     expect(isProviderWideFailure("unreachable")).toBe(true);
     expect(isProviderWideFailure("timeout")).toBe(false);
     expect(isProviderWideFailure("bad_response")).toBe(false);
+  });
+});
+
+describe("parseRetryAfterSeconds", () => {
+  const now = Date.parse("2026-11-16T12:00:00Z");
+  it("reads delta-seconds and HTTP dates", () => {
+    expect(parseRetryAfterSeconds("120", now)).toBe(120);
+    expect(parseRetryAfterSeconds(" 0 ", now)).toBe(0);
+    expect(parseRetryAfterSeconds("Mon, 16 Nov 2026 12:30:00 GMT", now)).toBe(1800);
+  });
+  it("ignores missing, unreadable, past or absurd values", () => {
+    expect(parseRetryAfterSeconds(null, now)).toBeUndefined();
+    expect(parseRetryAfterSeconds("", now)).toBeUndefined();
+    expect(parseRetryAfterSeconds("soon", now)).toBeUndefined();
+    expect(parseRetryAfterSeconds("-5", now)).toBeUndefined();
+    expect(parseRetryAfterSeconds("Mon, 16 Nov 2026 11:00:00 GMT", now)).toBeUndefined();
+    expect(parseRetryAfterSeconds(String(10 * 24 * 3600), now)).toBeUndefined();
+  });
+});
+
+describe("moderateVideo (HTTP)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  it("passes Hive's Retry-After through on a 429", async () => {
+    vi.stubEnv("HIVE_API_KEY", "k");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"message":"rate limited"}', { status: 429, headers: { "Retry-After": "900" } })),
+    );
+    expect(await moderateVideo("https://media.example.com/v.mp4")).toMatchObject({
+      ok: false,
+      failure: "rate_limited",
+      retryAfterSeconds: 900,
+    });
+  });
+
+  it("aborts at the shorter timeout the caller gives (never above 30s)", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("HIVE_API_KEY", "k");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => init.signal!.addEventListener("abort", () => reject(new Error("aborted")))),
+      ),
+    );
+    const pending = moderateVideo("https://media.example.com/v.mp4", { timeoutMs: 5_000 });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(await pending).toEqual({ ok: false, failure: "timeout" });
   });
 });

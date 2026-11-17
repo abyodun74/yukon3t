@@ -56,7 +56,9 @@ export function isFlagged(data: HiveVisualModerationResponse): boolean {
 // budget than the 8s text/image timeout in moderation.ts. This only ever
 // runs inside the moderate-videos cron, never in a user-facing request
 // path, so a slow call doesn't hold anything open for an end user.
-const MODERATION_TIMEOUT_MS = 30_000;
+// The moderate-videos cron passes a shorter one when its run budget has less than this left
+// (src/lib/video-scan-budget.ts); a timeout under a shortened cap is the run's budget, not the video's fault.
+export const MODERATION_TIMEOUT_MS = 30_000;
 
 /**
  * Why a scan produced no verdict. "Provider-wide" failures (see isProviderWideFailure) say nothing about the video:
@@ -76,7 +78,29 @@ export type HiveFailure =
   | "timeout"
   | "bad_response";
 
-export type HiveScan = { ok: true; flagged: boolean } | { ok: false; failure: HiveFailure; detail?: string };
+export type HiveScan =
+  | { ok: true; flagged: boolean }
+  // retryAfterSeconds: Hive's Retry-After header, when it sent a readable one (a 429 usually).
+  | { ok: false; failure: HiveFailure; detail?: string; retryAfterSeconds?: number };
+
+// A Retry-After value longer than this is treated as unreadable (the caller caps its own wait anyway).
+const RETRY_AFTER_MAX_SECONDS = 24 * 60 * 60;
+
+/** Retry-After as whole seconds (delta-seconds or an HTTP date), or undefined when absent or unreadable. */
+export function parseRetryAfterSeconds(value: string | null | undefined, nowMs: number): number | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  let seconds: number;
+  if (/^\d+$/.test(trimmed)) {
+    seconds = Number(trimmed);
+  } else {
+    const at = Date.parse(trimmed);
+    if (Number.isNaN(at)) return undefined;
+    seconds = Math.ceil((at - nowMs) / 1000);
+  }
+  if (!Number.isFinite(seconds) || seconds < 0 || seconds > RETRY_AFTER_MAX_SECONDS) return undefined;
+  return seconds;
+}
 
 // Statuses that can be about the media itself (a URL Hive couldn't fetch or read, a file too large or of the wrong
 // type). Any other client error is about the account or the request, which is the same for every video.
@@ -116,12 +140,13 @@ const DETAIL_MAX_CHARS = 300;
  * Synchronously scans a video URL. Never "assume clean": anything other than a readable answer comes back as a
  * failure with its reason (and Hive's own error text when it sent one), which the cron logs, reports and acts on.
  */
-export async function moderateVideo(videoUrl: string): Promise<HiveScan> {
+export async function moderateVideo(videoUrl: string, options: { timeoutMs?: number } = {}): Promise<HiveScan> {
   const apiKey = process.env.HIVE_API_KEY;
   if (!apiKey) return { ok: false, failure: "not_configured" };
 
+  const timeoutMs = Math.max(1, Math.min(MODERATION_TIMEOUT_MS, options.timeoutMs ?? MODERATION_TIMEOUT_MS));
   const timeoutController = new AbortController();
-  const timeout = setTimeout(() => timeoutController.abort(), MODERATION_TIMEOUT_MS);
+  const timeout = setTimeout(() => timeoutController.abort(), timeoutMs);
   try {
     let res: Response;
     try {
@@ -136,10 +161,12 @@ export async function moderateVideo(videoUrl: string): Promise<HiveScan> {
     }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      const retryAfterSeconds = parseRetryAfterSeconds(res.headers.get("retry-after"), Date.now());
       return {
         ok: false,
         failure: hiveFailureForStatus(res.status, body),
         detail: `HTTP ${res.status}${body ? ` ${body.slice(0, DETAIL_MAX_CHARS)}` : ""}`,
+        ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
       };
     }
     let data: HiveVisualModerationResponse;
