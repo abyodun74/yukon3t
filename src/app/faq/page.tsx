@@ -508,7 +508,10 @@ const sections: Section[] = [
             see a note that it&apos;s waiting for review, and you don&apos;t
             need to upload it again. Its caption can&apos;t be edited while
             it&apos;s waiting for review. A held post nobody has reviewed within
-            14 days is deleted, together with its photos or video. Uploads
+            14 days is deleted, together with its photos or video. If our
+            automatic video check can&apos;t process a video at all, the
+            video is hidden the same way until a moderator has looked at it,
+            and it isn&apos;t deleted while it waits. Uploads
             in the most serious categories (such as sexual content involving
             minors) are rejected and deleted straight away and never kept
             for review. If an upload fails because of a problem on our side,

@@ -1,10 +1,26 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { moderateVideo, isProviderWideFailure, type HiveFailure, type HiveScan } from "@/lib/hive";
-import { nextAfterVideoScanFailure, type VideoScanNext } from "@/lib/video-scan-retry";
+import { nextAfterVideoScanFailure, VIDEO_SCAN_MAX_ATTEMPTS, type VideoScanNext } from "@/lib/video-scan-retry";
 import { isCronAuthorized } from "@/lib/cron-auth";
 import { HIVE_VIDEO_MODERATION_MAX_SECONDS } from "@/lib/storage";
 import { captureError } from "@/lib/error-tracking";
+import { headVideoForDiagnostics } from "@/lib/video-scan-head";
+import {
+  buildVideoScanFailureDiagnostic,
+  formatVideoScanFailureLog,
+  pushFailureSummary,
+  scrubDiagnosticText,
+  videoScanFailedHoldDetail,
+  videoScanFailureContext,
+  type VideoScanFailureDiagnostic,
+  type VideoScanFailureSummary,
+  type VideoScanItemKind,
+} from "@/lib/video-scan-diagnostics";
+import {
+  VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+  videoScanFailedHoldAuditReason,
+} from "@/lib/media-moderation-hold";
 
 const BATCH_SIZE = 20;
 
@@ -20,6 +36,9 @@ const BATCH_SIZE = 20;
  * different API, this call is the real (billable) moderation work, so an
  * overlapping cron run must not redo it. On failure, un-claims the post so
  * a later run retries instead of silently leaving it unmoderated forever.
+ * The claim is guarded on the retry wait being over too (retryDue), not only
+ * on videoModeratedAt being null: a run that read its candidates just before
+ * another run un-claimed a video for backoff must not pick it straight up.
  *
  * The claim's timestamp doubles as a token: the FLAGGED write and the
  * un-claim are both guarded on videoModeratedAt still being exactly the
@@ -39,18 +58,26 @@ const BATCH_SIZE = 20;
  *    silent "failed" count, for days.
  *  - about this video: recorded on the row (videoScanAttempts /
  *    videoScanRetryAt) with a growing wait, and after the last attempt the
- *    video leaves Hive's queue for the Stream review or an admin
- *    (src/lib/video-scan-retry.ts). It used to go straight back into the
+ *    video is held for an admin (src/lib/video-scan-retry.ts): hidden
+ *    (FLAGGED), media kept, a CONTENT_FLAGGED_FOR_REVIEW audit row with the
+ *    reason, never deleted unreviewed. It used to go straight back into the
  *    candidate set every run, so 20 such videos starved every newer one.
+ * Every failed scan is logged with a diagnostic (src/lib/video-scan-
+ * diagnostics.ts: attempt, Hive's status / code / message, the file's
+ * extension, host, size, type and duration, from one HEAD of the public file
+ * done only on a failure), listed in the response's `failures` (first 10),
+ * and attached to the Sentry report of a give-up or a provider-wide stop.
  * Candidates are taken oldest first and skip a video still waiting out its
  * retry time.
  */
 type RunState = {
-  providerFailure: { failure: HiveFailure; detail?: string } | null;
+  providerFailure: { failure: HiveFailure; detail?: string; diagnostic?: VideoScanFailureDiagnostic } | null;
   videoFailures: Partial<Record<HiveFailure, number>>;
+  failures: VideoScanFailureSummary[];
 };
 
 type ScanFailure = Extract<HiveScan, { ok: false }>;
+type ModerationStatusValue = "PUBLISHED" | "FLAGGED" | "REMOVED";
 
 /** Hive's answer, or a failure for an exception (none is expected: moderateVideo catches its own). */
 async function scan(videoUrl: string, context: Record<string, unknown>): Promise<HiveScan> {
@@ -62,27 +89,73 @@ async function scan(videoUrl: string, context: Record<string, unknown>): Promise
   }
 }
 
-/** Notes a failed scan on the run, and says whether the run must stop (provider-wide). */
-function noteFailure(state: RunState, result: ScanFailure, label: string): boolean {
-  if (isProviderWideFailure(result.failure)) {
-    state.providerFailure ??= { failure: result.failure, detail: result.detail };
-    return true;
+type FailedItem = {
+  kind: VideoScanItemKind;
+  id: string;
+  videoUrl: string | null;
+  videoScanAttempts: number;
+  videoDurationSeconds: number | null;
+  moderationStatus: ModerationStatusValue;
+};
+
+/**
+ * Works out what a failed scan means for the item, logs it with its diagnostic (one HEAD of the file, only here, so
+ * at most once per item per run) and notes it on the run. `next` is null for a provider-wide failure: the caller
+ * un-claims the item and stops the run.
+ */
+async function noteFailure(
+  state: RunState,
+  item: FailedItem,
+  result: ScanFailure,
+): Promise<{ next: VideoScanNext | null; diagnostic: VideoScanFailureDiagnostic }> {
+  const providerWide = isProviderWideFailure(result.failure);
+  const next = providerWide
+    ? null
+    : nextAfterVideoScanFailure({
+        failuresSoFar: item.videoScanAttempts,
+        now: new Date(),
+        moderationStatus: item.moderationStatus,
+      });
+  const head = await headVideoForDiagnostics(item.videoUrl);
+  const diagnostic = buildVideoScanFailureDiagnostic({
+    kind: item.kind,
+    id: item.id,
+    failuresSoFar: item.videoScanAttempts,
+    maxAttempts: VIDEO_SCAN_MAX_ATTEMPTS,
+    failure: result.failure,
+    detail: result.detail,
+    videoUrl: item.videoUrl,
+    durationSeconds: item.videoDurationSeconds,
+    head,
+    outcome: next ? next.kind : "run_stopped",
+  });
+  console.error(formatVideoScanFailureLog(diagnostic));
+  pushFailureSummary(state.failures, diagnostic);
+  if (providerWide) {
+    state.providerFailure ??= { failure: result.failure, detail: result.detail, diagnostic };
+  } else {
+    state.videoFailures[result.failure] = (state.videoFailures[result.failure] ?? 0) + 1;
   }
-  state.videoFailures[result.failure] = (state.videoFailures[result.failure] ?? 0) + 1;
-  console.error(
-    `[moderate-videos] Hive could not scan ${label}: ${result.failure}${result.detail ? ` (${result.detail})` : ""}`,
-  );
-  return false;
+  return { next, diagnostic };
 }
 
 /** Reports a video Hive was given up on (rare: it failed VIDEO_SCAN_MAX_ATTEMPTS times for reasons of its own). */
-async function reportGiveUp(next: VideoScanNext, result: ScanFailure, context: Record<string, unknown>) {
+async function reportGiveUp(next: VideoScanNext, diagnostic: VideoScanFailureDiagnostic) {
   if (next.kind === "retry") return;
-  await captureError(new Error(`Hive gave up on a video (${result.failure}), next: ${next.kind}`), {
+  await captureError(new Error(`Hive gave up on a video (${diagnostic.failure}), next: ${next.kind}`), {
     route: "cron/moderate-videos",
-    detail: result.detail,
-    ...context,
+    ...videoScanFailureContext(diagnostic),
   });
+}
+
+/** The audit row an admin hold writes: what /admin/moderation shows as the reason. Never swept (see the sweep). */
+function holdAuditRow(kind: VideoScanItemKind, id: string, authorId: string, diagnostic: VideoScanFailureDiagnostic) {
+  return {
+    targetId: authorId,
+    action: "CONTENT_FLAGGED_FOR_REVIEW" as const,
+    performedBy: VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+    reason: videoScanFailedHoldAuditReason(kind, id, videoScanFailedHoldDetail(diagnostic)),
+  };
 }
 
 /** A video whose retry wait (if any) is over. */
@@ -91,24 +164,34 @@ function retryDue() {
 }
 
 const COUNT_FAILURE = { videoScanAttempts: { increment: 1 } };
+const GIVE_UP = { ...COUNT_FAILURE, videoScanRetryAt: null };
+const HOLDABLE: ModerationStatusValue[] = ["PUBLISHED", "FLAGGED"];
 
 async function moderatePostVideos(state: RunState) {
   const pending = await prisma.post.findMany({
     where: { mediaType: "VIDEO", videoModeratedAt: null, videoUrl: { not: null }, ...retryDue() },
     orderBy: { createdAt: "asc" },
-    select: { id: true, videoUrl: true, videoScanAttempts: true, moderationStatus: true, videoDurationSeconds: true },
+    select: {
+      id: true,
+      authorId: true,
+      videoUrl: true,
+      videoScanAttempts: true,
+      moderationStatus: true,
+      videoDurationSeconds: true,
+    },
     take: BATCH_SIZE,
   });
 
   let flagged = 0;
   let cleared = 0;
   let failed = 0;
+  let held = 0;
 
   for (const post of pending) {
     if (state.providerFailure) break;
     const claimedAt = new Date();
     const claimed = await prisma.post.updateMany({
-      where: { id: post.id, videoModeratedAt: null },
+      where: { id: post.id, videoModeratedAt: null, ...retryDue() },
       data: { videoModeratedAt: claimedAt },
     });
     if (claimed.count === 0) continue; // another run already claimed it
@@ -118,40 +201,35 @@ async function moderatePostVideos(state: RunState) {
       const result = await scan(post.videoUrl!, { kind: "post", postId: post.id });
       if (!result.ok) {
         failed += 1;
-        if (noteFailure(state, result, `post ${post.id}`)) {
+        const { next, diagnostic } = await noteFailure(state, { kind: "post", ...post }, result);
+        if (!next) {
           await prisma.post.updateMany({ where: mine, data: { videoModeratedAt: null } });
           break;
         }
-        const next = nextAfterVideoScanFailure({
-          failuresSoFar: post.videoScanAttempts,
-          now: new Date(),
-          published: post.moderationStatus === "PUBLISHED",
-          durationSeconds: post.videoDurationSeconds,
-        });
         if (next.kind === "retry") {
           await prisma.post.updateMany({
             where: mine,
             data: { ...COUNT_FAILURE, videoModeratedAt: null, videoScanRetryAt: next.retryAt },
           });
-        } else if (next.kind === "long_review") {
-          // videoModeratedAt stays set, so it is out of Hive's queue; moderate-long-videos picks it up from
-          // videoLongReviewNeeded.
-          await prisma.post.updateMany({
-            where: mine,
-            data: { ...COUNT_FAILURE, videoScanRetryAt: null, videoLongReviewNeeded: true },
-          });
         } else if (next.kind === "hold_for_admin") {
-          const held = await prisma.post.updateMany({
-            where: { ...mine, moderationStatus: "PUBLISHED" },
-            data: { ...COUNT_FAILURE, videoScanRetryAt: null, moderationStatus: "FLAGGED" },
+          // videoModeratedAt stays set, so it is out of Hive's queue; an admin's Publish re-stamps it.
+          const didHold = await prisma.$transaction(async (tx) => {
+            const write = await tx.post.updateMany({
+              where: { ...mine, moderationStatus: { in: HOLDABLE } },
+              data: { ...GIVE_UP, moderationStatus: "FLAGGED" },
+            });
+            if (write.count === 0) {
+              await tx.post.updateMany({ where: mine, data: GIVE_UP });
+              return false;
+            }
+            await tx.auditLog.create({ data: holdAuditRow("post", post.id, post.authorId, diagnostic) });
+            return true;
           });
-          if (held.count === 0) {
-            await prisma.post.updateMany({ where: mine, data: { ...COUNT_FAILURE, videoScanRetryAt: null } });
-          }
+          if (didHold) held += 1;
         } else {
-          await prisma.post.updateMany({ where: mine, data: { ...COUNT_FAILURE, videoScanRetryAt: null } });
+          await prisma.post.updateMany({ where: mine, data: GIVE_UP });
         }
-        await reportGiveUp(next, result, { kind: "post", postId: post.id });
+        await reportGiveUp(next, diagnostic);
         continue;
       }
       if (result.flagged) {
@@ -171,7 +249,7 @@ async function moderatePostVideos(state: RunState) {
     }
   }
 
-  return { checked: pending.length, flagged, cleared, failed };
+  return { checked: pending.length, flagged, cleared, failed, heldForAdmin: held };
 }
 
 // Same logic as moderatePostVideos, applied to Comment instead of Post —
@@ -184,6 +262,7 @@ async function moderateCommentVideos(state: RunState) {
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
+      authorId: true,
       videoUrl: true,
       postId: true,
       videoScanAttempts: true,
@@ -196,12 +275,13 @@ async function moderateCommentVideos(state: RunState) {
   let flagged = 0;
   let cleared = 0;
   let failed = 0;
+  let held = 0;
 
   for (const comment of pending) {
     if (state.providerFailure) break;
     const claimedAt = new Date();
     const claimed = await prisma.comment.updateMany({
-      where: { id: comment.id, videoModeratedAt: null },
+      where: { id: comment.id, videoModeratedAt: null, ...retryDue() },
       data: { videoModeratedAt: claimedAt },
     });
     if (claimed.count === 0) continue;
@@ -211,44 +291,44 @@ async function moderateCommentVideos(state: RunState) {
       const result = await scan(comment.videoUrl!, { kind: "comment", commentId: comment.id });
       if (!result.ok) {
         failed += 1;
-        if (noteFailure(state, result, `comment ${comment.id}`)) {
+        const { next, diagnostic } = await noteFailure(state, { kind: "comment", ...comment }, result);
+        if (!next) {
           await prisma.comment.updateMany({ where: mine, data: { videoModeratedAt: null } });
           break;
         }
-        const next = nextAfterVideoScanFailure({
-          failuresSoFar: comment.videoScanAttempts,
-          now: new Date(),
-          published: comment.moderationStatus === "PUBLISHED",
-          durationSeconds: comment.videoDurationSeconds,
-        });
         if (next.kind === "retry") {
           await prisma.comment.updateMany({
             where: mine,
             data: { ...COUNT_FAILURE, videoModeratedAt: null, videoScanRetryAt: next.retryAt },
           });
-        } else if (next.kind === "long_review") {
-          await prisma.comment.updateMany({
-            where: mine,
-            data: { ...COUNT_FAILURE, videoScanRetryAt: null, videoLongReviewNeeded: true },
-          });
         } else if (next.kind === "hold_for_admin") {
           // Hiding a live comment takes it out of the post's commentCount in the same transaction, as the flag write
-          // below does.
-          await prisma.$transaction(async (tx) => {
-            const held = await tx.comment.updateMany({
+          // below does; one already hidden just gets the audit row (an admin's Publish counts it back in).
+          const didHold = await prisma.$transaction(async (tx) => {
+            const fromLive = await tx.comment.updateMany({
               where: { ...mine, moderationStatus: "PUBLISHED" },
-              data: { ...COUNT_FAILURE, videoScanRetryAt: null, moderationStatus: "FLAGGED" },
+              data: { ...GIVE_UP, moderationStatus: "FLAGGED" },
             });
-            if (held.count > 0) {
+            if (fromLive.count > 0) {
               await tx.post.update({ where: { id: comment.postId }, data: { commentCount: { decrement: 1 } } });
             } else {
-              await tx.comment.updateMany({ where: mine, data: { ...COUNT_FAILURE, videoScanRetryAt: null } });
+              const alreadyHidden = await tx.comment.updateMany({
+                where: { ...mine, moderationStatus: "FLAGGED" },
+                data: GIVE_UP,
+              });
+              if (alreadyHidden.count === 0) {
+                await tx.comment.updateMany({ where: mine, data: GIVE_UP });
+                return false;
+              }
             }
+            await tx.auditLog.create({ data: holdAuditRow("comment", comment.id, comment.authorId, diagnostic) });
+            return true;
           });
+          if (didHold) held += 1;
         } else {
-          await prisma.comment.updateMany({ where: mine, data: { ...COUNT_FAILURE, videoScanRetryAt: null } });
+          await prisma.comment.updateMany({ where: mine, data: GIVE_UP });
         }
-        await reportGiveUp(next, result, { kind: "comment", commentId: comment.id });
+        await reportGiveUp(next, diagnostic);
         continue;
       }
       if (result.flagged) {
@@ -288,7 +368,7 @@ async function moderateCommentVideos(state: RunState) {
     }
   }
 
-  return { checked: pending.length, flagged, cleared, failed };
+  return { checked: pending.length, flagged, cleared, failed, heldForAdmin: held };
 }
 
 // Same logic as moderateCommentVideos, applied to Muse. mediaType: "VIDEO"
@@ -307,19 +387,27 @@ async function moderateMuseVideos(state: RunState) {
       ...retryDue(),
     },
     orderBy: { createdAt: "asc" },
-    select: { id: true, videoUrl: true, videoScanAttempts: true, moderationStatus: true, videoDurationSeconds: true },
+    select: {
+      id: true,
+      authorId: true,
+      videoUrl: true,
+      videoScanAttempts: true,
+      moderationStatus: true,
+      videoDurationSeconds: true,
+    },
     take: BATCH_SIZE,
   });
 
   let flagged = 0;
   let cleared = 0;
   let failed = 0;
+  let held = 0;
 
   for (const muse of pending) {
     if (state.providerFailure) break;
     const claimedAt = new Date();
     const claimed = await prisma.muse.updateMany({
-      where: { id: muse.id, videoModeratedAt: null },
+      where: { id: muse.id, videoModeratedAt: null, ...retryDue() },
       data: { videoModeratedAt: claimedAt },
     });
     if (claimed.count === 0) continue;
@@ -329,38 +417,34 @@ async function moderateMuseVideos(state: RunState) {
       const result = await scan(muse.videoUrl!, { kind: "muse", museId: muse.id });
       if (!result.ok) {
         failed += 1;
-        if (noteFailure(state, result, `muse ${muse.id}`)) {
+        const { next, diagnostic } = await noteFailure(state, { kind: "muse", ...muse }, result);
+        if (!next) {
           await prisma.muse.updateMany({ where: mine, data: { videoModeratedAt: null } });
           break;
         }
-        const next = nextAfterVideoScanFailure({
-          failuresSoFar: muse.videoScanAttempts,
-          now: new Date(),
-          published: muse.moderationStatus === "PUBLISHED",
-          durationSeconds: muse.videoDurationSeconds,
-        });
         if (next.kind === "retry") {
           await prisma.muse.updateMany({
             where: mine,
             data: { ...COUNT_FAILURE, videoModeratedAt: null, videoScanRetryAt: next.retryAt },
           });
-        } else if (next.kind === "long_review") {
-          await prisma.muse.updateMany({
-            where: mine,
-            data: { ...COUNT_FAILURE, videoScanRetryAt: null, videoLongReviewNeeded: true },
-          });
         } else if (next.kind === "hold_for_admin") {
-          const held = await prisma.muse.updateMany({
-            where: { ...mine, moderationStatus: "PUBLISHED" },
-            data: { ...COUNT_FAILURE, videoScanRetryAt: null, moderationStatus: "FLAGGED" },
+          const didHold = await prisma.$transaction(async (tx) => {
+            const write = await tx.muse.updateMany({
+              where: { ...mine, moderationStatus: { in: HOLDABLE } },
+              data: { ...GIVE_UP, moderationStatus: "FLAGGED" },
+            });
+            if (write.count === 0) {
+              await tx.muse.updateMany({ where: mine, data: GIVE_UP });
+              return false;
+            }
+            await tx.auditLog.create({ data: holdAuditRow("muse", muse.id, muse.authorId, diagnostic) });
+            return true;
           });
-          if (held.count === 0) {
-            await prisma.muse.updateMany({ where: mine, data: { ...COUNT_FAILURE, videoScanRetryAt: null } });
-          }
+          if (didHold) held += 1;
         } else {
-          await prisma.muse.updateMany({ where: mine, data: { ...COUNT_FAILURE, videoScanRetryAt: null } });
+          await prisma.muse.updateMany({ where: mine, data: GIVE_UP });
         }
-        await reportGiveUp(next, result, { kind: "muse", museId: muse.id });
+        await reportGiveUp(next, diagnostic);
         continue;
       }
       if (result.flagged) {
@@ -380,7 +464,7 @@ async function moderateMuseVideos(state: RunState) {
     }
   }
 
-  return { checked: pending.length, flagged, cleared, failed };
+  return { checked: pending.length, flagged, cleared, failed, heldForAdmin: held };
 }
 
 export async function GET(request: Request) {
@@ -391,7 +475,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const state: RunState = { providerFailure: null, videoFailures: {} };
+  const state: RunState = { providerFailure: null, videoFailures: {}, failures: [] };
   const [posts, comments, muses] = await Promise.all([
     moderatePostVideos(state),
     moderateCommentVideos(state),
@@ -401,18 +485,26 @@ export async function GET(request: Request) {
   if (state.providerFailure) {
     // Once per run (every 5 minutes) while it lasts; Sentry groups these into one issue. Nothing was counted against
     // any video, so every one is scanned once Hive works again.
-    const { failure, detail } = state.providerFailure;
+    const { failure, diagnostic } = state.providerFailure;
+    const detail = state.providerFailure.detail ? scrubDiagnosticText(state.providerFailure.detail, 400) : undefined;
     console.error(`[moderate-videos] Hive unavailable, run stopped: ${failure}${detail ? ` (${detail})` : ""}`);
     await captureError(new Error(`Hive video moderation unavailable: ${failure}`), {
       route: "cron/moderate-videos",
       detail,
+      ...(diagnostic ? videoScanFailureContext(diagnostic) : {}),
     });
   }
 
   return NextResponse.json({
     error: null,
-    hive: state.providerFailure,
+    hive: state.providerFailure
+      ? {
+          failure: state.providerFailure.failure,
+          detail: state.providerFailure.detail ? scrubDiagnosticText(state.providerFailure.detail, 400) : undefined,
+        }
+      : null,
     videoFailures: state.videoFailures,
+    failures: state.failures,
     posts,
     comments,
     muses,

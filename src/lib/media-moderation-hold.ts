@@ -107,6 +107,38 @@ export function mediaTypeFromMediaAuditReason(reason: string): string | null {
   return match ? match[1] : null;
 }
 
+// --- Video scan failure holds ----------------------------------------------
+// The moderate-videos cron gives up on a video Hive couldn't scan after VIDEO_SCAN_MAX_ATTEMPTS
+// (src/lib/video-scan-retry.ts) and holds it for an admin: FLAGGED, media kept, one CONTENT_FLAGGED_FOR_REVIEW audit
+// row with its own performedBy, so sweepExpiredMediaHolds (which reads MEDIA_HOLD_PERFORMED_BY rows only, and also
+// skips any post that has one of these) never deletes it: an unscannable file isn't a finding against anyone, so it
+// waits for an admin's Publish or Remove however long that takes. Post, Comment and Muse alike.
+
+export const VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY = "system:video-scan-failed-hold";
+
+/** The plain-language reason an admin sees first. */
+export const VIDEO_SCAN_FAILED_REASON = "automatic video scan could not process this file";
+
+const SCAN_FAILED_PREFIX = `Video held for admin review: ${VIDEO_SCAN_FAILED_REASON}`;
+
+export type VideoScanHoldKind = "post" | "comment" | "muse";
+
+/** e.g. "Video held for admin review: automatic video scan could not process this file (muse:c1, VIDEO): Hive …" */
+export function videoScanFailedHoldAuditReason(kind: VideoScanHoldKind, id: string, detail: string): string {
+  return `${SCAN_FAILED_PREFIX} (${kind}:${id}, VIDEO): ${detail}`;
+}
+
+/** The held item out of a videoScanFailedHoldAuditReason string, or null. */
+export function videoScanHoldTargetFromAuditReason(reason: string): { kind: VideoScanHoldKind; id: string } | null {
+  const match = /\((post|comment|muse):([A-Za-z0-9_-]+), VIDEO\)/.exec(reason);
+  return match ? { kind: match[1] as VideoScanHoldKind, id: match[2] } : null;
+}
+
+/** Map key for a held item: "post:<id>", "comment:<id>", "muse:<id>". */
+export function videoScanHoldKey(kind: VideoScanHoldKind, id: string): string {
+  return `${kind}:${id}`;
+}
+
 /** When a hold that started at `heldAt` is deleted if nobody has reviewed it. */
 export function mediaHoldExpiresAt(heldAt: Date): Date {
   return new Date(heldAt.getTime() + MEDIA_HOLD_REVIEW_WINDOW_MS);

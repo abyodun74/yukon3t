@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mediaHoldAuditReason } from "@/lib/media-moderation-hold";
+import { mediaHoldAuditReason, videoScanFailedHoldAuditReason } from "@/lib/media-moderation-hold";
 
 // sweepExpiredMediaHolds against a mocked database: only held posts still FLAGGED past the review window are deleted
 // (with their media), each with an audit row; a post an admin already published is left alone.
 
 const AUTHOR = "cau00000000001";
 let holds: Array<{ reason: string }> = [];
+let scanHolds: Array<{ reason: string }> = [];
 let posts: Record<string, { moderationStatus: string }> = {};
 const findManyAudit = vi.fn();
 const auditCreate = vi.fn();
@@ -39,7 +40,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   holds = [];
   posts = {};
-  findManyAudit.mockImplementation(async () => holds);
+  scanHolds = [];
+  findManyAudit.mockImplementation(async ({ where }: { where: { performedBy: string } }) =>
+    where.performedBy === "system:video-scan-failed-hold" ? scanHolds : holds,
+  );
   removeModeratedContent.mockImplementation(async (_type: string, id: string) => ({
     authorId: AUTHOR,
     mediaUrlsToDelete: [`https://media.example.com/post-video/${AUTHOR}/${id}.mp4`],
@@ -81,5 +85,25 @@ describe("sweepExpiredMediaHolds", () => {
     expect(await sweepExpiredMediaHolds()).toEqual({ expired: 0 });
     expect(removeModeratedContent).not.toHaveBeenCalled();
     expect(cleanUpModeratedMedia).not.toHaveBeenCalled();
+  });
+
+  it("never reads video scan failure holds as expirable", async () => {
+    await sweepExpiredMediaHolds();
+    expect(findManyAudit.mock.calls[0][0].where.performedBy).toBe("system:media-moderation-hold");
+  });
+
+  it("keeps a held post the video scan also gave up on: it waits for an admin", async () => {
+    holds = [
+      { reason: mediaHoldAuditReason("cscan", "VIDEO", ["video frame: violence"]) },
+      { reason: mediaHoldAuditReason("cother", "VIDEO", ["video frame: violence"]) },
+    ];
+    scanHolds = [{ reason: videoScanFailedHoldAuditReason("post", "cscan", "Hive rejected_media, HTTP 413") }];
+    posts = { cscan: { moderationStatus: "FLAGGED" }, cother: { moderationStatus: "FLAGGED" } };
+    expect(await sweepExpiredMediaHolds()).toEqual({ expired: 1 });
+    expect(removeModeratedContent).toHaveBeenCalledTimes(1);
+    expect(removeModeratedContent).toHaveBeenCalledWith("POST", "cother", expect.anything());
+    const scanWhere = findManyAudit.mock.calls[1][0].where;
+    expect(scanWhere.performedBy).toBe("system:video-scan-failed-hold");
+    expect(scanWhere.createdAt).toBeUndefined();
   });
 });

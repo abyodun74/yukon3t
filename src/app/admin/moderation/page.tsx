@@ -26,6 +26,10 @@ import {
   mediaTypeFromMediaAuditReason,
   postIdFromMediaAuditReason,
   reasonsFromMediaAuditReason,
+  VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+  VIDEO_SCAN_FAILED_REASON,
+  videoScanHoldKey,
+  videoScanHoldTargetFromAuditReason,
 } from "@/lib/media-moderation-hold";
 
 // How many of this page's queries may be in flight at once, across all of
@@ -539,6 +543,7 @@ async function FlaggedContentSection({ limit }: SectionProps) {
             mediaType: true,
             createdAt: true,
             albumId: true,
+            videoUrl: true,
             author: { select: { name: true, username: true } },
           },
         }),
@@ -548,7 +553,7 @@ async function FlaggedContentSection({ limit }: SectionProps) {
           where: { moderationStatus: "FLAGGED" },
           orderBy: { createdAt: "asc" },
           take: 20,
-          select: { id: true, content: true, author: { select: { name: true } } },
+          select: { id: true, content: true, postId: true, videoUrl: true, author: { select: { name: true } } },
         }),
       ),
       limit(() =>
@@ -577,6 +582,7 @@ async function FlaggedContentSection({ limit }: SectionProps) {
           select: {
             id: true,
             caption: true,
+            videoUrl: true,
             videoDurationSeconds: true,
             createdAt: true,
             videoLongReviewClaimedAt: true,
@@ -623,18 +629,58 @@ async function FlaggedContentSection({ limit }: SectionProps) {
     }),
   );
 
+  // Videos the automatic scan gave up on (moderate-videos cron, src/lib/video-scan-retry.ts): held for a decision
+  // here, never deleted unreviewed. Looked up only for the items listed above.
+  const scanHoldMarkers = [
+    ...flaggedPosts.filter((p) => p.videoUrl).map((p) => `(${videoScanHoldKey("post", p.id)}, VIDEO)`),
+    ...flaggedComments.filter((c) => c.videoUrl).map((c) => `(${videoScanHoldKey("comment", c.id)}, VIDEO)`),
+    ...flaggedMuses.filter((m) => m.videoUrl).map((m) => `(${videoScanHoldKey("muse", m.id)}, VIDEO)`),
+  ];
+  const scanHoldRows =
+    scanHoldMarkers.length > 0
+      ? ((await loadSection("flagged content scan holds", () =>
+          limit(() =>
+            prisma.auditLog.findMany({
+              where: {
+                action: "CONTENT_FLAGGED_FOR_REVIEW",
+                performedBy: VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+                OR: scanHoldMarkers.map((marker) => ({ reason: { contains: marker } })),
+              },
+              orderBy: { createdAt: "asc" },
+              take: 200,
+              select: { reason: true, createdAt: true },
+            }),
+          ),
+        )) ?? [])
+      : [];
+  const scanHoldByKey = new Map(
+    scanHoldRows.flatMap((row) => {
+      const target = videoScanHoldTargetFromAuditReason(row.reason);
+      return target
+        ? [
+            [
+              videoScanHoldKey(target.kind, target.id),
+              { detail: reasonsFromMediaAuditReason(row.reason).join("; "), heldAt: row.createdAt },
+            ] as const,
+          ]
+        : [];
+    }),
+  );
+
   return (
     <>
       <h2 className={SECTION_HEADING}>
         Flagged content ({flaggedCount})
       </h2>
       <p className="mt-1 text-xs text-foreground-soft">
-        Held back automatically before publishing — no one has reported these,
-        they failed our content screen. Review and publish or remove.
+        Held back automatically — no one has reported these. They failed our
+        content screen, or the automatic video scan couldn&apos;t process the
+        file. Review and publish or remove.
       </p>
       <div className="mt-3 space-y-3">
         {flaggedPosts.map((post) => {
           const hold = holdByPostId.get(post.id);
+          const scanHold = scanHoldByKey.get(videoScanHoldKey("post", post.id));
           return (
             <div key={post.id} className="rounded-lg border border-line p-3">
               <p className="text-xs text-foreground-soft">
@@ -651,11 +697,14 @@ async function FlaggedContentSection({ limit }: SectionProps) {
                   <p className="mt-0.5 text-foreground-soft">Detail: {hold.reasons.join("; ")}</p>
                   <p className="mt-0.5 text-foreground-soft">
                     Not visible to anyone but the author. Publish posts it as they intended; Remove deletes it
-                    and its media. Deleted automatically if not reviewed by{" "}
-                    {mediaHoldExpiresAt(hold.heldAt).toLocaleString()}.
+                    and its media.
+                    {scanHold
+                      ? " Not deleted automatically: the video scan couldn't process it, so it waits for a decision."
+                      : ` Deleted automatically if not reviewed by ${mediaHoldExpiresAt(hold.heldAt).toLocaleString()}.`}
                   </p>
                 </div>
               )}
+              {scanHold && post.videoUrl && <ScanFailureHold hold={scanHold} videoUrl={post.videoUrl} />}
               <Link href={`/post/${post.id}`} className="mt-2 inline-block text-xs text-accent hover:underline">
                 Open the post to review it
               </Link>
@@ -663,13 +712,25 @@ async function FlaggedContentSection({ limit }: SectionProps) {
             </div>
           );
         })}
-        {flaggedComments.map((comment) => (
-          <div key={comment.id} className="rounded-lg border border-line p-3">
-            <p className="text-xs text-foreground-soft">Comment by {comment.author.name}</p>
-            <p className="mt-1 break-words text-sm">{comment.content}</p>
-            <FlaggedContentActions contentType="COMMENT" contentId={comment.id} />
-          </div>
-        ))}
+        {flaggedComments.map((comment) => {
+          const scanHold = scanHoldByKey.get(videoScanHoldKey("comment", comment.id));
+          return (
+            <div key={comment.id} className="rounded-lg border border-line p-3">
+              <p className="text-xs text-foreground-soft">Comment by {comment.author.name}</p>
+              <p className="mt-1 break-words text-sm">{comment.content || "(video comment, no text)"}</p>
+              {scanHold && comment.videoUrl && <ScanFailureHold hold={scanHold} videoUrl={comment.videoUrl} />}
+              {scanHold && (
+                <Link
+                  href={`/post/${comment.postId}`}
+                  className="mt-2 inline-block text-xs text-accent hover:underline"
+                >
+                  Open the post it was left on
+                </Link>
+              )}
+              <FlaggedContentActions contentType="COMMENT" contentId={comment.id} />
+            </div>
+          );
+        })}
         {flaggedMessages.map((message) => (
           <div key={message.id} className="rounded-lg border border-line p-3">
             <p className="text-xs text-foreground-soft">Message from {message.sender.name}</p>
@@ -677,25 +738,61 @@ async function FlaggedContentSection({ limit }: SectionProps) {
             <FlaggedContentActions contentType="MESSAGE" contentId={message.id} />
           </div>
         ))}
-        {flaggedMuses.map((muse) => (
-          <div key={muse.id} className="rounded-lg border border-line p-3">
-            <p className="text-xs text-foreground-soft">
-              Muse by {muse.author.name} · {muse.videoDurationSeconds}s · posted {muse.createdAt.toLocaleString()}
-            </p>
-            <p className="mt-1 break-words text-sm">{muse.caption || "(no caption)"}</p>
-            <p className="mt-1 text-xs text-foreground-soft">
-              {muse.videoLongReviewClaimedAt
-                ? "Automated review in progress — only publish/remove manually if this has sat here a while."
-                : "Not currently being reviewed automatically — safe to resolve now."}
-            </p>
-            <FlaggedContentActions contentType="MUSE" contentId={muse.id} />
-          </div>
-        ))}
+        {flaggedMuses.map((muse) => {
+          const scanHold = scanHoldByKey.get(videoScanHoldKey("muse", muse.id));
+          return (
+            <div key={muse.id} className="rounded-lg border border-line p-3">
+              <p className="text-xs text-foreground-soft">
+                Muse by {muse.author.name} · {muse.videoDurationSeconds}s · posted {muse.createdAt.toLocaleString()}
+              </p>
+              <p className="mt-1 break-words text-sm">{muse.caption || "(no caption)"}</p>
+              {scanHold && muse.videoUrl ? (
+                <ScanFailureHold hold={scanHold} videoUrl={muse.videoUrl} />
+              ) : (
+                <p className="mt-1 text-xs text-foreground-soft">
+                  {muse.videoLongReviewClaimedAt
+                    ? "Automated review in progress — only publish/remove manually if this has sat here a while."
+                    : "Not currently being reviewed automatically — safe to resolve now."}
+                </p>
+              )}
+              <FlaggedContentActions contentType="MUSE" contentId={muse.id} />
+            </div>
+          );
+        })}
         {flaggedCount === 0 && (
           <p className="text-sm text-foreground-soft">Nothing flagged right now.</p>
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * A video the automatic scan (Hive, moderate-videos cron) couldn't process after every retry: hidden and held here
+ * with the scan's own diagnostic. Not a finding against the author, and never deleted automatically.
+ */
+function ScanFailureHold({ hold, videoUrl }: { hold: { detail: string; heldAt: Date }; videoUrl: string }) {
+  return (
+    <div className="mt-2 rounded-md border border-line bg-surface p-2 text-xs">
+      <p>
+        <span className="font-medium">Held for review:</span> {VIDEO_SCAN_FAILED_REASON} (held{" "}
+        {hold.heldAt.toLocaleString()}).
+      </p>
+      <p className="mt-0.5 break-words text-foreground-soft">Detail: {hold.detail}</p>
+      <p className="mt-0.5 text-foreground-soft">
+        Not a violation finding. Hidden from everyone but the author until you decide: Publish makes it visible again;
+        Remove deletes it and its media. It is not deleted automatically.
+      </p>
+      <video
+        src={videoUrl}
+        controls
+        preload="metadata"
+        playsInline
+        className="mt-2 max-h-64 w-full rounded-md bg-black"
+      >
+        Your browser can&apos;t play this video here.
+      </video>
+    </div>
   );
 }
 

@@ -28,7 +28,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 14, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 16, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -194,7 +194,10 @@ export default function PrivacyPage() {
         automated screening flags when you post it is kept, hidden from
         everyone except you and our moderators, until a moderator publishes
         or removes it; if nobody has reviewed it within 14 days, it is
-        deleted together with its media. Uploads in the most serious
+        deleted together with its media. A video our automated video check
+        cannot process at all is hidden the same way and kept until a
+        moderator publishes or removes it; it is not deleted automatically
+        while it waits. Uploads in the most serious
         categories (such as sexual content involving minors) are deleted
         straight away and not kept for review; a record that the upload was
         rejected, when, and the screening categories involved is kept with

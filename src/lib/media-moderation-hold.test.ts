@@ -12,6 +12,11 @@ import {
   MEDIA_HOLD_SWEEP_LOOKBACK_MS,
   postIdFromMediaAuditReason,
   reasonsFromMediaAuditReason,
+  MEDIA_HOLD_PERFORMED_BY,
+  VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+  videoScanFailedHoldAuditReason,
+  videoScanHoldKey,
+  videoScanHoldTargetFromAuditReason,
 } from "@/lib/media-moderation-hold";
 import { violationKeysFromReasons } from "@/lib/moderation-labels";
 
@@ -127,5 +132,33 @@ describe("review window", () => {
     const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
     expect(yesterday < lt).toBe(false);
     expect(fifteenDaysAgo < lt && fifteenDaysAgo >= gte).toBe(true);
+  });
+});
+
+describe("video scan failure hold reasons", () => {
+  it("names the item and gives the plain reason first, then the scan's detail", () => {
+    const reason = videoScanFailedHoldAuditReason("muse", "cmuse1", "Hive rejected_media, HTTP 413; failed 6 of 6 attempts");
+    expect(reason).toBe(
+      "Video held for admin review: automatic video scan could not process this file (muse:cmuse1, VIDEO): Hive rejected_media, HTTP 413; failed 6 of 6 attempts",
+    );
+    expect(videoScanHoldTargetFromAuditReason(reason)).toEqual({ kind: "muse", id: "cmuse1" });
+    expect(reasonsFromMediaAuditReason(reason)).toEqual(["Hive rejected_media, HTTP 413", "failed 6 of 6 attempts"]);
+  });
+
+  it("reads post, comment and muse holds, and nothing else", () => {
+    expect(videoScanHoldTargetFromAuditReason(videoScanFailedHoldAuditReason("post", "cp1", "x"))).toEqual({
+      kind: "post",
+      id: "cp1",
+    });
+    expect(videoScanHoldTargetFromAuditReason(videoScanFailedHoldAuditReason("comment", "cc1", "x"))).toEqual({
+      kind: "comment",
+      id: "cc1",
+    });
+    expect(videoScanHoldTargetFromAuditReason(mediaHoldAuditReason("cp1", "IMAGE", ["photo: sexual"]))).toBeNull();
+    expect(videoScanHoldKey("comment", "cc1")).toBe("comment:cc1");
+  });
+
+  it("uses its own performedBy, so the 14-day media-hold sweep never reads these rows", () => {
+    expect(VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY).not.toBe(MEDIA_HOLD_PERFORMED_BY);
   });
 });

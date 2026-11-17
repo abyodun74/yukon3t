@@ -6,6 +6,8 @@ import {
   postIdFromMediaAuditReason,
   MEDIA_HOLD_EXPIRED_PERFORMED_BY,
   MEDIA_HOLD_PERFORMED_BY,
+  VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+  videoScanHoldTargetFromAuditReason,
 } from "@/lib/media-moderation-hold";
 
 const SWEEP_LIMIT = 100;
@@ -28,7 +30,27 @@ export async function sweepExpiredMediaHolds(now = new Date()): Promise<{ expire
     select: { reason: true },
     take: 1000,
   });
-  const postIds = [...new Set(holds.map((h) => postIdFromMediaAuditReason(h.reason)).filter((id): id is string => !!id))];
+  const heldIds = [...new Set(holds.map((h) => postIdFromMediaAuditReason(h.reason)).filter((id): id is string => !!id))];
+  if (heldIds.length === 0) return { expired: 0 };
+
+  // A post the video scan also gave up on (VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY, any age) waits for an admin instead:
+  // an unscannable file is never deleted unreviewed. Rows of that kind are never read above in the first place.
+  const scanHolds = await prisma.auditLog.findMany({
+    where: {
+      action: "CONTENT_FLAGGED_FOR_REVIEW",
+      performedBy: VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+      OR: heldIds.map((id) => ({ reason: { contains: `(post:${id}, VIDEO)` } })),
+    },
+    select: { reason: true },
+    take: 1000,
+  });
+  const exempt = new Set(
+    scanHolds.flatMap((row) => {
+      const target = videoScanHoldTargetFromAuditReason(row.reason);
+      return target?.kind === "post" ? [target.id] : [];
+    }),
+  );
+  const postIds = heldIds.filter((id) => !exempt.has(id));
   if (postIds.length === 0) return { expired: 0 };
 
   const stillHeld = await prisma.post.findMany({
