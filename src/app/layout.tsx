@@ -328,7 +328,19 @@ export default async function RootLayout({
                   </a>
                 </HideInIosApp>
               </div>
-              <p className="mt-3">© {new Date().getFullYear()} YuKon3t</p>
+              <p className="mt-3">
+                © {new Date().getFullYear()} YuKon3t ·{" "}
+                {/* Brand names, deliberately untranslated (same as "YuKon3t" here). Plain link (no nofollow)
+                    to the parent company's site: it is a real, verified relationship. */}
+                <a
+                  href="https://motiffcoreholdings.com"
+                  target="_blank"
+                  rel="noopener"
+                  className="hover:text-accent"
+                >
+                  Motiff Core Holdings
+                </a>
+              </p>
             </footer>
           </ContentTranslationProvider>
           </CallSessionProvider>
