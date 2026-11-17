@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { announcementSchema, announcementTranslationsSchema } from "@/lib/validations";
+import { announcementEditSchema, announcementSchema, announcementTranslationsSchema } from "@/lib/validations";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { announcementPushPayload, type AnnouncementTranslationLocale } from "@/lib/announcement-translations";
 import { broadcastFcmAnnouncement } from "@/lib/fcm";
 import { broadcastPushAnnouncement } from "@/lib/push";
@@ -21,8 +22,8 @@ import { deleteOwnedUploads } from "@/lib/owned-uploads";
  *
  * `title`/`body` are the English (default) version. `translations` (optional, a JSON array of { locale, title, body }
  * from the form) adds the admin's own version for any of the other languages; readers and push recipients in a
- * language without one get the English (src/lib/announcement-translations.ts). Translations can only be added here,
- * at creation: the admin page has no edit for a posted announcement.
+ * language without one get the English (src/lib/announcement-translations.ts). A posted announcement's text,
+ * translations and attachment can be changed later with updateAnnouncement (no new push).
  */
 export async function createAnnouncement(formData: FormData) {
   const admin = await requireAdmin();
@@ -106,6 +107,130 @@ export async function createAnnouncement(formData: FormData) {
   await publishEvent(REALTIME_CHANNELS.announcements(), "changed");
 
   revalidatePath("/admin/announcements");
+  revalidatePath("/whats-new");
+  return { error: null };
+}
+
+/**
+ * Admin-only: edits a posted announcement in place (/admin/announcements/[id]/edit): the English title/body, the full
+ * set of per-language versions (replaced as a whole in the same write, so a language left empty in the form is
+ * removed and readers in it get the English again), and the attachment (`media`: keep, remove, or replace with a
+ * file the form has just uploaded, checked like createAnnouncement's).
+ *
+ * Deliberately quiet: no push, no FCM, no realtime "announcements" signal, and createdAt is never written, so the
+ * announcement keeps its place in every list and nobody's "new" badge (createdAt vs User.lastSeenAnnouncementAt)
+ * comes back. Readers simply see the new text next time they open What's new.
+ */
+export async function updateAnnouncement(formData: FormData) {
+  const admin = await requireAdmin();
+
+  const edit = announcementEditSchema.safeParse({ id: formData.get("id"), media: formData.get("media") });
+  const parsed = announcementSchema.safeParse({
+    title: formData.get("title"),
+    body: formData.get("body"),
+    mediaType: formData.get("mediaType") || undefined,
+    mediaUrl: formData.get("mediaUrl") || undefined,
+    mediaThumbnailUrl: formData.get("mediaThumbnailUrl") || undefined,
+  });
+  // Only a "replace" carries new media, uploaded by the form just before this call; it is cleaned up on every
+  // refusal below (deleteOwnedUploads only ever deletes this admin's own uploads).
+  const newUploads =
+    formData.get("media") === "replace"
+      ? [formData.get("mediaUrl"), formData.get("mediaThumbnailUrl")].filter(
+          (u): u is string => typeof u === "string" && u.length > 0,
+        )
+      : [];
+  const cleanupUploads = () => deleteOwnedUploads(newUploads, admin.id);
+
+  if (!edit.success || !parsed.success) {
+    await cleanupUploads();
+    return { error: "invalid" as const };
+  }
+  const { id, media } = edit.data;
+  const { title, body, mediaType, mediaUrl, mediaThumbnailUrl } = parsed.data;
+
+  if (media === "replace") {
+    if (!mediaType || !mediaUrl || (mediaThumbnailUrl && mediaType !== "VIDEO")) {
+      await cleanupUploads();
+      return { error: "invalid" as const };
+    }
+  } else if (mediaType || mediaUrl || mediaThumbnailUrl) {
+    // keep/remove never take new media.
+    return { error: "invalid" as const };
+  }
+
+  const translations = parseTranslations(formData.get("translations"));
+  if (!translations.ok) {
+    await cleanupUploads();
+    return { error: "invalid_translation" as const, locale: translations.locale };
+  }
+
+  if (!(await checkRateLimit("announcementEdit", admin.id))) {
+    await cleanupUploads();
+    return { error: "rate_limited" as const };
+  }
+
+  const existing = await prisma.announcement.findUnique({
+    where: { id },
+    select: { id: true, mediaUrl: true, mediaThumbnailUrl: true },
+  });
+  if (!existing) {
+    await cleanupUploads();
+    return { error: "not_found" as const };
+  }
+
+  if (media === "replace" && mediaType && mediaUrl) {
+    const key = keyFromPublicUrl(mediaUrl);
+    const maxBytes = mediaType === "IMAGE" ? MEDIA_LIMITS["announcement-image"] : MEDIA_LIMITS["announcement-video"];
+    const sizeOk = key && (await verifyUploadedSize({ key, maxBytes, ownerId: admin.id }));
+    if (!sizeOk) {
+      await cleanupUploads();
+      return { error: "too_large" as const };
+    }
+  }
+
+  const mediaData =
+    media === "keep"
+      ? {}
+      : media === "remove"
+        ? { mediaType: null, mediaUrl: null, mediaThumbnailUrl: null }
+        : { mediaType, mediaUrl, mediaThumbnailUrl: mediaThumbnailUrl ?? null };
+
+  try {
+    // One nested write, which Prisma runs as a single transaction: the base text, the attachment, and the whole set
+    // of translations replaced (delete all, create the submitted ones). createdAt is not in it.
+    await prisma.announcement.update({
+      where: { id },
+      data: {
+        title,
+        body,
+        ...mediaData,
+        translations: { deleteMany: {}, ...(translations.rows.length > 0 ? { create: translations.rows } : {}) },
+      },
+    });
+  } catch (err) {
+    await cleanupUploads();
+    // Deleted by another admin between the read and the write.
+    if ((err as { code?: unknown } | null)?.code === "P2025") return { error: "not_found" as const };
+    throw err;
+  }
+
+  // The old attachment's files go only after the new state is committed (plain deleteObject, like
+  // deleteAnnouncement: any admin may edit any announcement, whoever uploaded the file).
+  if (media !== "keep") {
+    const keep = new Set([mediaUrl, mediaThumbnailUrl].filter(Boolean));
+    await Promise.all(
+      [existing.mediaUrl, existing.mediaThumbnailUrl]
+        .filter((url): url is string => Boolean(url) && !keep.has(url!))
+        .map((url) => {
+          const key = keyFromPublicUrl(url);
+          return key ? deleteObject(key) : Promise.resolve();
+        }),
+    );
+  }
+
+  revalidatePath("/admin/announcements");
+  revalidatePath(`/admin/announcements/${id}/edit`);
   revalidatePath("/whats-new");
   return { error: null };
 }

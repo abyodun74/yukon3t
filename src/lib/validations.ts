@@ -23,6 +23,7 @@ import {
   ANNOUNCEMENT_TITLE_MAX,
   ANNOUNCEMENT_TITLE_MIN,
   ANNOUNCEMENT_TRANSLATION_LOCALES,
+  hasUntranslatedMarker,
   isAnnouncementTranslationLocale,
 } from "@/lib/announcement-translations";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
@@ -378,11 +379,23 @@ export const announcementSchema = z.object({
 
 // One language's own version of an announcement (src/lib/announcement-translations.ts): a supported language other
 // than the base English, both halves required (a language never has a title without a body or vice versa), and the
-// same bounds as the base title/body.
+// same bounds as the base title/body. Text still holding a partial draft's "not translated yet" marker is refused, so
+// an unfinished machine draft can't be posted or saved.
+const notUntranslated = (text: string) => !hasUntranslatedMarker(text);
 export const announcementTranslationSchema = z.object({
   locale: z.string().refine(isAnnouncementTranslationLocale, { message: "unsupported_locale" }),
-  title: z.string().trim().min(ANNOUNCEMENT_TITLE_MIN).max(ANNOUNCEMENT_TITLE_MAX),
-  body: z.string().trim().min(ANNOUNCEMENT_BODY_MIN).max(ANNOUNCEMENT_BODY_MAX),
+  title: z
+    .string()
+    .trim()
+    .min(ANNOUNCEMENT_TITLE_MIN)
+    .max(ANNOUNCEMENT_TITLE_MAX)
+    .refine(notUntranslated, { message: "untranslated" }),
+  body: z
+    .string()
+    .trim()
+    .min(ANNOUNCEMENT_BODY_MIN)
+    .max(ANNOUNCEMENT_BODY_MAX)
+    .refine(notUntranslated, { message: "untranslated" }),
 });
 
 // Every translation posted with one announcement: at most one per language.
@@ -397,21 +410,21 @@ export const announcementTranslationsSchema = z
     });
   });
 
-// "Draft translations" (actions/announcement-drafts.ts): the English text as typed so far, and each language with
-// the halves it still needs (draftTargets). The English must already be postable, so a draft is never made of a
-// fragment.
+// "Draft translations" (actions/announcement-drafts.ts), one language per call: the English text as typed so far,
+// the language, and the halves it still needs (draftTargets). The English must already be postable, so a draft is
+// never made of a fragment.
 export const announcementDraftSchema = z.object({
   title: z.string().trim().min(ANNOUNCEMENT_TITLE_MIN).max(ANNOUNCEMENT_TITLE_MAX),
   body: z.string().trim().min(ANNOUNCEMENT_BODY_MIN).max(ANNOUNCEMENT_BODY_MAX),
-  targets: z
-    .array(
-      z.object({
-        locale: z.string().refine(isAnnouncementTranslationLocale, { message: "unsupported_locale" }),
-        fields: z.array(z.enum(["title", "body"])).min(1).max(2),
-      }),
-    )
-    .min(1)
-    .max(ANNOUNCEMENT_TRANSLATION_LOCALES.length),
+  locale: z.string().refine(isAnnouncementTranslationLocale, { message: "unsupported_locale" }),
+  fields: z.array(z.enum(["title", "body"])).min(1).max(2),
+});
+
+// updateAnnouncement: which posted announcement, and what happens to its attachment ("keep" leaves it, "remove"
+// clears it, "replace" takes the newly uploaded mediaType/mediaUrl(/mediaThumbnailUrl) from announcementSchema).
+export const announcementEditSchema = z.object({
+  id: z.string().cuid(),
+  media: z.enum(["keep", "remove", "replace"]),
 });
 
 export const channelSchema = z.object({

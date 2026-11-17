@@ -75,14 +75,33 @@ function reportTranslationFailure(reason: string, error?: unknown) {
 export async function callTranslationModel(
   text: string,
   target: Locale,
+  options?: { timeoutMs?: number },
 ): Promise<{ sourceLang: string; translation: string } | null> {
+  const result = await callTranslationModelDetailed(text, target, options);
+  return result.ok ? { sourceLang: result.sourceLang, translation: result.translation } : null;
+}
+
+export type TranslationCallResult =
+  | { ok: true; sourceLang: string; translation: string }
+  /** `retryable`: a timeout, network error, 408/429/5xx or a malformed answer, which a second try may not repeat. */
+  | { ok: false; retryable: boolean };
+
+/**
+ * `callTranslationModel` with the failure kind kept, for callers that retry once (announcement drafts, which split a
+ * long text into chunks: src/lib/chunked-translation.ts). `timeoutMs` defaults to the 8s used for posts/comments.
+ */
+export async function callTranslationModelDetailed(
+  text: string,
+  target: Locale,
+  options?: { timeoutMs?: number },
+): Promise<TranslationCallResult> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return { ok: false, retryable: false };
   const model = translationModel();
   const { masked, tokens } = protectTokens(text);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TRANSLATION_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), Math.max(1, options?.timeoutMs ?? TRANSLATION_TIMEOUT_MS));
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -98,23 +117,23 @@ export async function callTranslationModel(
     });
     if (!res.ok) {
       reportTranslationFailure(`HTTP ${res.status}`);
-      return null;
+      return { ok: false, retryable: res.status === 408 || res.status === 429 || res.status >= 500 };
     }
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== "string") {
       reportTranslationFailure("no content");
-      return null;
+      return { ok: false, retryable: true };
     }
     const parsed = parseTranslationResponse(content, masked);
     if (!parsed) {
       reportTranslationFailure("unexpected answer shape");
-      return null;
+      return { ok: false, retryable: true };
     }
-    return { sourceLang: parsed.sourceLang, translation: restoreProtectedTokens(parsed.translation, tokens) };
+    return { ok: true, sourceLang: parsed.sourceLang, translation: restoreProtectedTokens(parsed.translation, tokens) };
   } catch (err) {
     reportTranslationFailure(controller.signal.aborted ? "timeout" : "network error", err);
-    return null;
+    return { ok: false, retryable: true };
   } finally {
     clearTimeout(timeout);
   }

@@ -1,16 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
   ANNOUNCEMENT_TRANSLATION_LOCALES,
+  ANNOUNCEMENT_UNTRANSLATED_CLOSE,
+  ANNOUNCEMENT_UNTRANSLATED_OPEN,
   announcementPushPayload,
   announcementTextFor,
   applyDrafts,
+  canRetryDraft,
+  draftFailureStopsQueue,
+  draftStatusFromResult,
   draftTargets,
+  hasUntranslatedMarker,
   isAnnouncementTranslationLocale,
+  markUntranslated,
+  translationFieldsFromRows,
   translationFieldState,
+  translationSubmitProblem,
   translationsForSubmit,
+  type DraftLanguageStatus,
 } from "./announcement-translations";
 import {
   announcementDraftSchema,
+  announcementEditSchema,
   announcementSchema,
   announcementTranslationSchema,
   announcementTranslationsSchema,
@@ -160,14 +171,91 @@ describe("validation", () => {
     ).toBe(false);
   });
 
-  it("draft requests need postable English and valid targets", () => {
-    const targets = [{ locale: "es", fields: ["title", "body"] }];
-    expect(announcementDraftSchema.safeParse({ ...base, targets }).success).toBe(true);
-    expect(announcementDraftSchema.safeParse({ title: "ab", body: base.body, targets }).success).toBe(false);
-    expect(announcementDraftSchema.safeParse({ ...base, targets: [] }).success).toBe(false);
-    expect(announcementDraftSchema.safeParse({ ...base, targets: [{ locale: "en", fields: ["title"] }] }).success).toBe(
+  it("draft requests (one language each) need postable English, a supported language and at least one half", () => {
+    expect(announcementDraftSchema.safeParse({ ...base, locale: "hi", fields: ["title", "body"] }).success).toBe(true);
+    expect(announcementDraftSchema.safeParse({ title: "ab", body: base.body, locale: "es", fields: ["title"] }).success).toBe(
       false,
     );
-    expect(announcementDraftSchema.safeParse({ ...base, targets: [{ locale: "es", fields: [] }] }).success).toBe(false);
+    expect(announcementDraftSchema.safeParse({ ...base, locale: "en", fields: ["title"] }).success).toBe(false);
+    expect(announcementDraftSchema.safeParse({ ...base, locale: "es", fields: [] }).success).toBe(false);
+    expect(announcementDraftSchema.safeParse({ ...base, locale: "es", fields: ["summary"] }).success).toBe(false);
+  });
+
+  it("refuses a translation still holding a partial draft's marker", () => {
+    expect(announcementTranslationSchema.safeParse({ ...es, body: `Hola. ${markUntranslated("The rest.")}` }).success).toBe(
+      false,
+    );
+    expect(announcementTranslationSchema.safeParse({ ...es, title: markUntranslated("Title") }).success).toBe(false);
+  });
+
+  it("edit requests need a cuid and a known media mode", () => {
+    expect(announcementEditSchema.safeParse({ id: "ckabcdefghijklmnopqrstuvw", media: "keep" }).success).toBe(true);
+    expect(announcementEditSchema.safeParse({ id: "ckabcdefghijklmnopqrstuvw", media: "delete" }).success).toBe(false);
+    expect(announcementEditSchema.safeParse({ id: "", media: "remove" }).success).toBe(false);
+  });
+});
+
+describe("drafting UI helpers", () => {
+  const ok = { error: null, locale: "es" as const, failed: [], partial: null, tooLong: [] };
+
+  it("draftStatusFromResult: done, partial, failed and thrown calls", () => {
+    expect(draftStatusFromResult({ ...ok, title: "T", body: "B" }, ["title", "body"])).toEqual({ state: "done", tooLong: [] });
+    expect(draftStatusFromResult({ ...ok, body: "B", tooLong: ["body"] }, ["body"])).toEqual({ state: "done", tooLong: ["body"] });
+    expect(
+      draftStatusFromResult({ ...ok, title: "T", body: "B [[...]]", partial: { done: 2, total: 5 } }, ["title", "body"]),
+    ).toEqual({ state: "partial", missingTitle: false, body: { done: 2, total: 5 }, tooLong: [] });
+    expect(draftStatusFromResult({ ...ok, body: "B", failed: ["title"] }, ["title", "body"])).toEqual({
+      state: "partial",
+      missingTitle: true,
+      body: null,
+      tooLong: [],
+    });
+    expect(draftStatusFromResult({ ...ok, failed: ["title", "body"] }, ["title", "body"])).toEqual({
+      state: "failed",
+      reason: "failed",
+    });
+    expect(draftStatusFromResult({ error: "rate_limited" }, ["title"])).toEqual({ state: "failed", reason: "rate_limited" });
+    expect(draftStatusFromResult(null, ["title"])).toEqual({ state: "failed", reason: "failed" });
+  });
+
+  it("only a rate limit or a missing configuration stops the rest of the queue", () => {
+    expect(draftFailureStopsQueue("rate_limited")).toBe(true);
+    expect(draftFailureStopsQueue("unavailable")).toBe(true);
+    expect(draftFailureStopsQueue("failed")).toBe(false);
+    expect(draftFailureStopsQueue("invalid")).toBe(false);
+  });
+
+  it("canRetryDraft: failed languages and partial ones with an empty half", () => {
+    const empty = { title: "", body: "" };
+    expect(canRetryDraft({ state: "failed", reason: "failed" }, empty)).toBe(true);
+    expect(canRetryDraft({ state: "failed", reason: "invalid" }, empty)).toBe(false);
+    const partial: DraftLanguageStatus = { state: "partial", missingTitle: true, body: null, tooLong: [] };
+    expect(canRetryDraft(partial, { title: "", body: "B" })).toBe(true);
+    expect(canRetryDraft(partial, { title: "T", body: "B" })).toBe(false);
+    expect(canRetryDraft({ state: "done", tooLong: [] }, empty)).toBe(false);
+    expect(canRetryDraft(undefined, empty)).toBe(false);
+  });
+
+  it("translationSubmitProblem: half filled, unfinished draft, too long; empty languages are fine", () => {
+    expect(translationSubmitProblem({ es: { title: "Hola", body: "Cuerpo largo" }, fr: { title: "", body: "" } })).toBeNull();
+    expect(translationSubmitProblem({ es: { title: "Hola", body: "" } })).toEqual({ locale: "es", reason: "partial" });
+    expect(translationSubmitProblem({ ar: { title: "عنوان", body: `نص ${markUntranslated("rest")}` } })).toEqual({
+      locale: "ar",
+      reason: "untranslated",
+    });
+    expect(translationSubmitProblem({ hi: { title: "शीर्षक", body: "x".repeat(4001) } })).toEqual({
+      locale: "hi",
+      reason: "too_long",
+    });
+    expect(hasUntranslatedMarker(`a ${ANNOUNCEMENT_UNTRANSLATED_OPEN}b${ANNOUNCEMENT_UNTRANSLATED_CLOSE}`)).toBe(true);
+  });
+
+  it("translationFieldsFromRows fills the edit form and ignores unknown locales", () => {
+    expect(
+      translationFieldsFromRows([
+        { locale: "es", title: "Hola", body: "Cuerpo largo" },
+        { locale: "zh", title: "x", body: "y" },
+      ]),
+    ).toEqual({ es: { title: "Hola", body: "Cuerpo largo" } });
   });
 });

@@ -7,6 +7,11 @@ import { DeleteAnnouncementButton } from "@/components/delete-announcement-butto
 import { TARGET_LANGUAGE_NAMES } from "@/lib/translation";
 import { isAnnouncementTranslationLocale } from "@/lib/announcement-translations";
 
+// Server Actions used on this page ("Draft translations", one language per call) run under the page's function
+// limit. Each draft call finishes within ANNOUNCEMENT_DRAFT_BUDGET_MS (22s, src/lib/announcement-translations.ts);
+// Netlify cuts functions at about 26-30s whatever this says, Vercel honours it.
+export const maxDuration = 30;
+
 export default async function AdminAnnouncementsPage() {
   const user = await getSessionUserOrRedirect();
   if (!user.isAdmin) redirect("/discover");
@@ -26,7 +31,8 @@ export default async function AdminAnnouncementsPage() {
       <p className="mt-1 text-sm text-foreground-soft">
         Posted here shows up for every user via the megaphone icon in the nav bar. Write it in English; add your own
         version for any other language below (optional). Everyone whose app language has no version gets the
-        English, on the What&apos;s new page and in the push. Translations can only be added before posting.
+        English, on the What&apos;s new page and in the push. A posted announcement can be edited (text, translations,
+        media); editing never sends another push or shows it as new again.
       </p>
 
       <div className="mt-6">
@@ -58,7 +64,15 @@ export default async function AdminAnnouncementsPage() {
               </p>
               <p className="mt-2 text-xs text-foreground-soft">{a.createdAt.toLocaleString()}</p>
             </div>
-            <DeleteAnnouncementButton id={a.id} />
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              <Link
+                href={`/admin/announcements/${a.id}/edit`}
+                className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:border-accent"
+              >
+                Edit
+              </Link>
+              <DeleteAnnouncementButton id={a.id} />
+            </div>
           </div>
         ))}
         {announcements.length === 0 && (

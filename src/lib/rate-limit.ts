@@ -297,9 +297,13 @@ const limiterDefinitions = {
   translateRequest: makeLimiter(120, "10 m", "translateRequest"),
   translateModelCall: makeLimiter(200, "1 h", "translateModelCall"),
   translateGlobal: makeLimiter(20000, "24 h", "translateGlobal"),
-  // An admin's "Draft translations" on /admin/announcements (actions/announcement-drafts.ts): one press is up to 16
-  // paid model calls (8 languages x title and body), which also count against translateGlobal. Admin-only, so small.
-  announcementDraft: makeLimiter(10, "1 h", "announcementDraft"),
+  // An admin's "Draft translations" on /admin/announcements (actions/announcement-drafts.ts), counted per LANGUAGE
+  // call (one press drafts up to 8 languages, one call each, plus Retry): 40/h is five full presses. Each call is up to
+  // 1 + ~6 paid model calls (title + body chunks, plus a retry each), every one of which also counts against
+  // translateGlobal. Admin-only, so small.
+  announcementDraft: makeLimiter(40, "1 h", "announcementDraft"),
+  // Saving an edit to a posted announcement (updateAnnouncement): no push, no model call; only stops a loop.
+  announcementEdit: makeLimiter(30, "1 h", "announcementEdit"),
   // Live translated captions in 1:1 calls (actions/call-captions.ts). The hard money cap is the per-user monthly
   // count of seconds in the database (CALL_CAPTION_MONTHLY_SECONDS), which holds while Redis fails open; these only
   // slow down abuse. Turning captions on/off and the state checks; starting a transcription session (each one is an
