@@ -1,10 +1,10 @@
 "use client";
 
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
-import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, Eye, Trash2, Send, MessageCircle, Pause, Play } from "lucide-react";
+import { X, Eye, Trash2, Send, MessageCircle, Pause, Play, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserLink, UserAvatar } from "@/components/user-link";
 import {
@@ -18,6 +18,9 @@ import {
   createStoryComment,
   deleteStoryComment,
 } from "@/app/actions/stories";
+import { toggleStoryLike } from "@/app/actions/story-likes";
+import { optimisticStoryLike, settleStoryLike } from "@/lib/story-likes";
+import { hapticImpact } from "@/lib/haptics";
 import { StoryShareButton } from "@/components/story-share-button";
 import { StoryCaption } from "@/components/story-caption";
 import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
@@ -202,11 +205,20 @@ export function StoryViewer({
   const [deleteConfirmForId, setDeleteConfirmForId] = useState<string | null>(null);
   const [viewersOpenForId, setViewersOpenForId] = useState<string | null>(null);
   const [viewers, setViewers] = useState<
-    { id: string; name: string; viewedAt: Date; reaction: string | null }[] | null
+    { id: string; name: string; viewedAt: Date; reaction: string | null; liked: boolean }[] | null
   >(null);
   const [isPending, setIsPending] = useState(false);
   const [reactionCounts, setReactionCounts] = useState<{ emoji: string; count: number }[]>([]);
   const [myReaction, setMyReaction] = useState<string | null>(null);
+  // The heart (src/lib/story-likes.ts), keyed by story id like the state above so a story change never shows the
+  // previous story's heart. `likeCount` is only ever set for the author (the server sends null to everyone else).
+  const [likeState, setLikeState] = useState<{ storyId: string; liked: boolean; likeCount: number | null } | null>(
+    null,
+  );
+  // The heart that blooms over the story on a like: keyed so each like replays it; never under reduced motion.
+  const [likeBurst, setLikeBurst] = useState<{ storyId: string; n: number } | null>(null);
+  // A tap on the heart while the previous one is still on its way is ignored, so two quick taps can't race.
+  const likePendingRef = useRef(false);
   const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
   const [comments, setComments] = useState<StoryComment[] | null>(null);
 
@@ -246,6 +258,8 @@ export function StoryViewer({
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
   const userPaused = story ? userPausedForId === story.id : false;
   const captionExpanded = story ? captionExpandedForId === story.id : false;
+  const liked = story && likeState?.storyId === story.id ? likeState.liked : false;
+  const likeCount = story && likeState?.storyId === story.id ? likeState.likeCount : null;
   const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen || closing || captionExpanded;
   // A panel shown inside the viewer. Back closes it before the viewer (its own same-URL history entry, on top of the
   // viewer's: src/lib/viewer-history.ts).
@@ -394,6 +408,7 @@ export function StoryViewer({
       if (cancelled || result.error) return;
       setReactionCounts(result.summary);
       setMyReaction(result.mine);
+      setLikeState({ storyId: story.id, liked: result.liked, likeCount: result.likeCount });
     });
     return () => {
       cancelled = true;
@@ -553,12 +568,48 @@ export function StoryViewer({
     }
   }
 
+  /**
+   * The heart: like or unlike, shown at once (with a light haptic and the bloom on a like), then set to the server's
+   * answer, or put back on any failure. Never on the author's own story (they get the count instead). Sends the
+   * state it wants, so a retry or a doubled request can't flip it twice (toggleStoryLike).
+   */
+  async function handleToggleLike() {
+    if (!story || isOwner) return;
+    if (isGuest) {
+      promptSignUp();
+      return;
+    }
+    if (likePendingRef.current) return;
+    likePendingRef.current = true;
+    const storyId = story.id;
+    const before = { liked };
+    const wanted = optimisticStoryLike(before);
+    setLikeState({ storyId, liked: wanted.liked, likeCount: null });
+    if (wanted.liked) {
+      hapticImpact("light");
+      if (!prefersReducedMotion()) setLikeBurst((b) => ({ storyId, n: (b?.n ?? 0) + 1 }));
+    }
+    let result: Awaited<ReturnType<typeof toggleStoryLike>> | { error: "failed" };
+    try {
+      result = await toggleStoryLike(storyId, wanted.liked);
+    } catch {
+      result = { error: "failed" };
+    } finally {
+      likePendingRef.current = false;
+    }
+    const settled = settleStoryLike(before, result);
+    setLikeState((prev) => (prev?.storyId === storyId ? { storyId, liked: settled.liked, likeCount: null } : prev));
+  }
+
   async function loadViewers() {
     if (!story) return;
+    const storyId = story.id;
     setCommentsOpenForId(null);
-    setViewersOpenForId(story.id);
-    const result = await getStoryViewers(story.id);
+    setViewersOpenForId(storyId);
+    const result = await getStoryViewers(storyId);
     setViewers(result.viewers);
+    // The author's count, as fresh as the list it opens.
+    setLikeState({ storyId, liked: false, likeCount: result.likeCount });
   }
 
   async function loadComments() {
@@ -695,6 +746,19 @@ export function StoryViewer({
         />
       </div>
 
+      {/* The bloom on a like: decorative, never catches a tap (the tap zones under it keep working), and skipped
+          entirely under reduced motion (handleToggleLike never sets it then; the CSS hides it as well). */}
+      {likeBurst?.storyId === story.id && (
+        <div
+          key={likeBurst.n}
+          aria-hidden
+          className="story-like-burst pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+          onAnimationEnd={() => setLikeBurst(null)}
+        >
+          <Heart size={96} className="fill-danger text-danger drop-shadow-lg" />
+        </div>
+      )}
+
       {/* Clear of the notch / Dynamic Island / status bar: the header (and its Close button) starts below it. */}
       <div className="absolute inset-x-0 top-0 z-20 px-3 pb-3" style={{ paddingTop: `calc(${SAFE_AREA_TOP} + 0.75rem)` }}>
         {/* Decorative — the dialog's own name already says "Story 2 of 5". */}
@@ -803,6 +867,12 @@ export function StoryViewer({
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">
                   {format(t.stories.viewer.seenBy, { count: viewers?.length ?? 0 })}
+                  {likeCount !== null && likeCount > 0 && (
+                    <>
+                      {" · "}
+                      {format(t.stories.viewer.likedBy, { count: likeCount })}
+                    </>
+                  )}
                 </p>
                 <button type="button" onClick={() => setViewersOpenForId(null)} aria-label={t.stories.viewer.closeViewers} className="text-foreground-soft">
                   <X size={16} />
@@ -810,9 +880,16 @@ export function StoryViewer({
               </div>
               <ul className="mt-2 space-y-1.5">
                 {(viewers ?? []).map((v) => (
-                  <li key={v.id} className="flex items-center justify-between text-sm">
-                    <span>{v.name}</span>
-                    {v.reaction && <span>{v.reaction}</span>}
+                  <li key={v.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="min-w-0 truncate">{v.name}</span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {v.liked && (
+                        <span role="img" aria-label={t.stories.viewer.liked} title={t.stories.viewer.liked}>
+                          <Heart size={14} aria-hidden className="fill-danger text-danger" />
+                        </span>
+                      )}
+                      {v.reaction && <span>{v.reaction}</span>}
+                    </span>
                   </li>
                 ))}
                 {viewers?.length === 0 && (
@@ -870,6 +947,20 @@ export function StoryViewer({
                   <Eye size={14} />
                   {story.viewCount}
                 </button>
+                {/* Own story: no heart to tap, the count instead (only the author ever sees it). Opens "Seen by",
+                    where everyone who liked carries a heart. */}
+                {likeCount !== null && (
+                  <button
+                    type="button"
+                    data-story-like-count
+                    onClick={loadViewers}
+                    aria-label={plural(locale, t.stories.viewer.likes, likeCount)}
+                    className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs text-white"
+                  >
+                    <Heart size={14} aria-hidden />
+                    {likeCount}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={loadComments}
@@ -967,6 +1058,26 @@ export function StoryViewer({
               storyId={story.id}
               authorName={authorName}
               onFocusChange={setReplyFocused}
+              trailing={
+                // The heart: beside the reply, a 44px target above the tap zones (this bar is z-20), so it never
+                // advances or pauses the story. Filled red once liked; colour and fill tween, no pop.
+                <button
+                  type="button"
+                  data-story-like
+                  onClick={handleToggleLike}
+                  aria-label={liked ? t.stories.viewer.unlike : t.stories.viewer.like}
+                  className="flex h-11 min-h-11 w-11 min-w-11 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                >
+                  <Heart
+                    size={24}
+                    aria-hidden
+                    className={cn(
+                      "transition-[color,fill] duration-150 ease-out motion-reduce:transition-none",
+                      liked ? "fill-danger text-danger" : "fill-transparent",
+                    )}
+                  />
+                </button>
+              }
             />
           </div>
           <SafeAreaBottomSpacer />
@@ -1102,10 +1213,13 @@ function StoryReplyBar({
   storyId,
   authorName,
   onFocusChange,
+  trailing,
 }: {
   storyId: string;
   authorName: string;
   onFocusChange: (focused: boolean) => void;
+  /** Shown at the end of the reply row (the heart). */
+  trailing?: ReactNode;
 }) {
   const { t } = useFeedText();
   const { isGuest, promptSignUp } = useGuestPreview();
@@ -1171,6 +1285,7 @@ function StoryReplyBar({
         >
           <Send size={16} />
         </button>
+        {trailing}
       </div>
       {status === "sent" && <p role="status" className="mt-1 text-xs text-white/80">{t.stories.viewer.replySent}</p>}
       {errorMsg && <p role="alert" className="mt-1 text-xs text-danger">{errorMsg}</p>}

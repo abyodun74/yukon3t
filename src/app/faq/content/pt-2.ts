@@ -75,6 +75,10 @@ export const pt2 = {
     q: "As pessoas podem reagir, responder ou comentar no meu story?",
     a: "Sim, as três coisas, e são diferentes: **reagir** é um emoji rápido (você vê quem reagiu ao abrir seu próprio story); **responder** envia uma mensagem direta privada e só funciona entre pessoas que já têm conexão, como nas mensagens comuns; **comentar** publica um comentário público que qualquer pessoa vendo o story pode ver, acessível pelo ícone de comentários ao lado das reações, e você recebe uma notificação quando alguém comenta no seu. Também há um ícone de **compartilhar** ao lado dos comentários em qualquer story: qualquer pessoa que possa ver o story, e não só quem o publicou, pode tocar nele para encaminhá-lo a uma das suas conversas diretas ou em grupo. Quem recebe vê o story de verdade na conversa e pode tocar nele para abri-lo em tela cheia, na mesma visualização da fileira de stories, em vez de apenas uma mensagem de texto sobre ele.",
   },
+  "like-story": {
+    q: "Posso curtir um story, e quem vê isso?",
+    a: "Sim. Toque no coração ao lado da caixa de resposta no story de qualquer pessoa para curtir; toque de novo para descurtir. Só quem publicou o story pode ver quantas curtidas ele tem e quem curtiu: ao abrir seu próprio story, o coração ao lado do número de visualizações mostra quantas são, e a lista de quem viu marca com um coração todas as pessoas que curtiram. Seu próprio story não tem coração para tocar. Ninguém mais vê o número nem quem curtiu, e ninguém vê a sua curtida. A pessoa recebe uma única notificação na primeira vez que você curte um story (curtir de novo depois não envia outra). Você só pode curtir um story que consegue ver, e as curtidas somem junto com o story depois de 24 horas. Curtir é diferente de reagir com um emoji.",
+  },
 
   "muse-2": {
     q: "O que é o Muse?",

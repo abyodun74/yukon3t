@@ -75,6 +75,10 @@ export const fr2 = {
     q: "Peut-on réagir à ma story, y répondre ou la commenter ?",
     a: "Oui, les trois sont possibles, et ce sont trois choses différentes : **réagir**, c'est envoyer un emoji rapide (vous voyez qui a réagi en ouvrant votre propre story) ; **répondre** envoie un message privé et ne fonctionne qu'entre personnes déjà en relation, comme la messagerie habituelle ; **commenter** publie un commentaire public, que toute personne qui regarde la story peut voir, accessible depuis l'icône de commentaire à côté des réactions, et vous recevez une notification lorsque quelqu'un commente la vôtre. Il y a aussi une icône de **partage** à côté des commentaires sur chaque story : toute personne qui peut voir la story, et pas seulement son auteur, peut la toucher pour la transférer dans l'une de ses discussions privées ou de groupe. Le destinataire voit la vraie story dans la discussion et peut la toucher pour l'ouvrir en plein écran, dans la même vue que depuis la barre des stories, plutôt qu'un simple message texte à son sujet.",
   },
+  "like-story": {
+    q: "Puis-je aimer une story, et qui le voit ?",
+    a: "Oui. Touchez le cœur à côté du champ de réponse sur la story de n'importe qui pour l'aimer ; touchez-le de nouveau pour ne plus l'aimer. Seule la personne qui a publié la story peut voir combien de j'aime elle a reçus et qui l'a aimée : quand vous ouvrez votre propre story, le cœur à côté du nombre de vues indique combien il y en a, et la liste des personnes qui l'ont vue marque d'un cœur toutes celles qui l'ont aimée. Votre propre story n'a pas de cœur à toucher. Personne d'autre ne voit le nombre ni qui a aimé, et personne ne voit votre j'aime non plus. La personne reçoit une seule notification la première fois que vous aimez une story (l'aimer de nouveau plus tard n'en envoie pas d'autre). Vous ne pouvez aimer qu'une story que vous pouvez voir, et les j'aime disparaissent avec la story au bout de 24 heures. Aimer est différent de réagir avec un emoji.",
+  },
 
   "muse-2": {
     q: "Qu'est-ce que Muse ?",

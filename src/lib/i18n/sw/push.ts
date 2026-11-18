@@ -28,6 +28,7 @@ export const push: typeof pushEn = {
     POST_COMMENT: "Ametoa maoni kwenye chapisho lako",
     COMMENT_REPLY: "Amejibu maoni yako",
     MUSE_LIKE: "Amependa Muse yako",
+    STORY_LIKE: "Amependa Story yako",
     MUSE_COMMENT: "Ametoa maoni kwenye Muse yako",
     MUSE_REPOST: "Ameshiriki tena Muse yako",
     MUSE_SHARE: "Ameshiriki Muse yako",

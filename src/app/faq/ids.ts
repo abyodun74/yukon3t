@@ -86,6 +86,7 @@ export const FAQ_IDS = [
   "move-between-different-peoples-stories",
   "close-story",
   "people-react-reply-comment-story",
+  "like-story",
   // Muse
   "muse-2",
   "post-muse",

@@ -728,6 +728,38 @@ button:not(:disabled):active {
   animation: story-media-in 220ms ease-out backwards;
 }
 
+/* The heart that blooms over a Story when it's liked (story-viewer.tsx): grows to full size while fading in, holds,
+   then fades out. Never past scale(1) (no pop, no bounce: see "Motion" in CLAUDE.md), and not shown at all under
+   reduced motion. Ends invisible (`forwards`); the viewer removes it on animationend. */
+@keyframes story-like-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  25% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+.story-like-burst {
+  animation: story-like-burst 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-like-burst {
+    display: none;
+  }
+}
+
 /* Live stream reactions — Daily's own built-in reaction picker is
    cross-origin and can't be centered/restyled (see live-stream-room.tsx),
    so this app renders its own: a tapped emoji rises from the reaction

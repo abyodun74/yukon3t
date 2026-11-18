@@ -1202,6 +1202,26 @@ const sections: Section[] = [
           </>
         ),
       },
+      {
+        id: "like-story",
+        q: "Can I like a Story, and who sees it?",
+        a: (
+          <>
+            Yes. Tap the heart next to the reply box on anyone&apos;s Story
+            to like it; tap it again to unlike it. Only the person who posted
+            the Story can see how many likes it has and who liked it: when
+            you open your own Story, the heart next to the view count shows
+            how many, and the list of who viewed it marks everyone who liked
+            it with a heart. There&apos;s no heart to tap on your own Story.
+            Nobody else can see the count or who liked it, and nobody sees
+            your like either. The person gets one notification the first
+            time you like a Story (liking it again later doesn&apos;t send
+            another). You can only like a Story you&apos;re able to see, and
+            likes disappear with the Story after 24 hours. Liking is separate
+            from reacting with an emoji.
+          </>
+        ),
+      },
     ],
   },
   {

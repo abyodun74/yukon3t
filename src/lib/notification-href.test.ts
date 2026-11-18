@@ -92,6 +92,11 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
     { data: { storyId: "s1" }, href: "/u/me?story=s1" },
     { data: {}, href: "/u/me" },
   ],
+  // Someone liked the reader's own story: the same place as a comment on it.
+  STORY_LIKE: [
+    { data: { storyId: "s1" }, href: "/u/me?story=s1" },
+    { data: {}, href: "/u/me" },
+  ],
   MUSE_LIKE: [{ data: muse, href: "/muse/m1" }],
   // A Muse comment (or reply) to the Muse's owner: the Muse with its comments open on that thread. Older rows (no
   // museCommentId) keep opening the Muse.

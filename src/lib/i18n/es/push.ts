@@ -28,6 +28,7 @@ export const push: typeof pushEn = {
     POST_COMMENT: "Comentó tu publicación",
     COMMENT_REPLY: "Respondió a tu comentario",
     MUSE_LIKE: "Le gustó tu Muse",
+    STORY_LIKE: "Le gustó tu historia",
     MUSE_COMMENT: "Comentó tu Muse",
     MUSE_REPOST: "Volvió a compartir tu Muse",
     MUSE_SHARE: "Compartió tu Muse",

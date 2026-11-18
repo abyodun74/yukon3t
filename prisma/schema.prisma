@@ -409,6 +409,7 @@ model User {
   stories        Story[]
   storyViews     StoryView[]
   storyReactions StoryReaction[]
+  storyLikes     StoryLike[]
   storyComments  StoryComment[]
   adCampaigns    AdCampaign[]
 
@@ -1609,6 +1610,10 @@ enum NotificationType {
   // co-host, to the invitee only (actorId = the inviter, liveStreamId set). Bell + push in the invitee's language.
   // Opens the stream, which shows Accept / Decline. Deleted again if the invite is cancelled while still unread.
   LIVE_STAGE_INVITE
+  // "<name> liked your story": a StoryLike (actions/story-likes.ts), to the story's author only (actorId = the liker,
+  // storyId set). At most one row per liker per story (coalesced under an advisory lock), never for a self-like or
+  // across a block; bell + push in the author's language. Deleted with the story (cascade), so it lives 24h at most.
+  STORY_LIKE
 }
 
 model Notification {
@@ -2287,6 +2292,7 @@ model Story {
   sharedPost Post?           @relation(fields: [sharedPostId], references: [id], onDelete: SetNull)
   views      StoryView[]
   reactions  StoryReaction[]
+  likes      StoryLike[]
   replies    Message[]
   comments   StoryComment[]
   notifications Notification[]
@@ -2319,6 +2325,25 @@ model StoryReaction {
 
   @@unique([storyId, userId])
   @@index([storyId])
+  @@index([userId])
+}
+
+/**
+ * The heart on a story (actions/story-likes.ts, src/lib/story-likes.ts): one row per person per story, separate from
+ * the emoji StoryReaction. Unlike reactions, nothing about likes is shown to anyone but the story's author: the author
+ * sees the count and who liked (the "Seen by" sheet, getStoryViewers); everyone else sees only their own heart.
+ * Cascades with the story (expire-stories cron, deleteStory) and with either account.
+ */
+model StoryLike {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
   @@index([userId])
 }
 

@@ -75,6 +75,10 @@ export const it2 = {
     q: "Si può reagire, rispondere o commentare la mia storia?",
     a: "Sì, tutte e tre le cose, e sono diverse: **reagire** è un'emoji rapida (vedrai chi ha reagito aprendo la tua storia); **rispondere** invia un messaggio diretto privato e funziona solo tra persone che sono già contatti, come i messaggi normali; **commentare** pubblica un commento pubblico che può vedere chiunque stia guardando la storia, visibile dall'icona dei commenti accanto alle reazioni, e ricevi una notifica quando qualcuno commenta la tua. C'è anche un'icona di **condivisione** accanto ai commenti su qualsiasi storia: chiunque possa vedere la storia, non solo chi l'ha pubblicata, può toccarla per inoltrarla a uno dei suoi messaggi diretti o a una chat di gruppo. Chi la riceve vede la vera storia nella chat e può toccarla per aprirla a schermo intero, con la stessa vista della fila delle storie, invece di un semplice messaggio di testo su di essa.",
   },
+  "like-story": {
+    q: "Posso mettere Mi piace a una storia, e chi lo vede?",
+    a: "Sì. Tocca il cuore accanto alla casella di risposta nella storia di chiunque per mettere Mi piace; toccalo di nuovo per toglierlo. Solo chi ha pubblicato la storia può vedere quanti Mi piace ha e a chi è piaciuta: quando apri la tua storia, il cuore accanto al numero di visualizzazioni mostra quanti sono, e l'elenco di chi l'ha vista segna con un cuore tutte le persone a cui è piaciuta. Sulla tua storia non c'è un cuore da toccare. Nessun altro vede il numero né a chi è piaciuta, e nessuno vede il tuo Mi piace. La persona riceve una sola notifica la prima volta che metti Mi piace a una storia (rimetterlo più tardi non ne invia un'altra). Puoi mettere Mi piace solo a una storia che riesci a vedere, e i Mi piace spariscono con la storia dopo 24 ore. Mettere Mi piace è diverso dal reagire con un'emoji.",
+  },
 
   "muse-2": {
     q: "Cos'è Muse?",

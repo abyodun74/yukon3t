@@ -30,6 +30,8 @@ import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { STORY_TRAY_AUTHOR_WHERE } from "@/lib/profile-access";
 import { loadViewableStory } from "@/lib/profile-access-server";
 import { collabChatVisibleWhere } from "@/lib/collab-visibility";
+import { loadStoryLikersForAuthor, storyLikeStateForViewer } from "@/lib/story-likes-server";
+import { mergeViewersWithLikers } from "@/lib/story-likes";
 
 /**
  * Groups active stories from the caller's accepted connections (plus their
@@ -316,16 +318,23 @@ export async function viewStory(storyId: string) {
 // an unbounded fetch growing with view count.
 const STORY_VIEWERS_LIMIT = 200;
 
-/** Author-only: who has seen this story so far, and what they reacted with (if anything). */
+/**
+ * Author-only: who has seen this story so far, what they reacted with (if anything) and whether they liked it, plus
+ * the like count. Likes are shown to nobody else (src/lib/story-likes.ts); anyone who liked without a recorded view
+ * is listed as a viewer too, and likers blocked either way with the author are left out of both.
+ */
 export async function getStoryViewers(storyId: string) {
   const user = await requireVerifiedUser();
 
-  const story = await prisma.story.findUnique({ where: { id: storyId }, select: { authorId: true } });
+  const story =
+    typeof storyId === "string" && storyId
+      ? await prisma.story.findUnique({ where: { id: storyId }, select: { authorId: true } })
+      : null;
   if (!story || story.authorId !== user.id) {
-    return { viewers: [], totalCount: 0 };
+    return { viewers: [], totalCount: 0, likeCount: 0 };
   }
 
-  const [views, totalCount] = await Promise.all([
+  const [views, totalCount, likes] = await Promise.all([
     prisma.storyView.findMany({
       where: { storyId },
       orderBy: { viewedAt: "desc" },
@@ -333,6 +342,7 @@ export async function getStoryViewers(storyId: string) {
       include: { viewer: { select: { id: true, name: true } } },
     }),
     prisma.storyView.count({ where: { storyId } }),
+    loadStoryLikersForAuthor(storyId, user.id),
   ]);
   // Scoped to just the (already-capped) returned viewers, not every reaction
   // on the story — same reasoning as capping views above.
@@ -342,15 +352,18 @@ export async function getStoryViewers(storyId: string) {
   });
   const reactionByViewerId = new Map(reactions.map((r) => [r.userId, r.emoji]));
 
-  return {
-    viewers: views.map((v) => ({
+  const viewers = mergeViewersWithLikers(
+    views.map((v) => ({
       id: v.viewer.id,
       name: v.viewer.name ?? "Unknown",
       viewedAt: v.viewedAt,
       reaction: reactionByViewerId.get(v.viewer.id) ?? null,
     })),
-    totalCount,
-  };
+    likes.likers,
+    (liker) => ({ id: liker.id, name: liker.name, viewedAt: liker.likedAt, reaction: null }),
+  );
+
+  return { viewers, totalCount, likeCount: likes.count };
 }
 
 /** Emoji counts for a story plus the caller's own reaction — visible to anyone who can see the story, unlike getStoryViewers' per-person breakdown. */
@@ -370,14 +383,21 @@ async function reactionSummary(storyId: string, viewerId: string) {
   return { summary: [...counts.entries()].map(([emoji, count]) => ({ emoji, count })), mine };
 }
 
+/**
+ * A story's emoji counts and the caller's own reaction, plus its heart (src/lib/story-likes.ts): the caller's own
+ * like, and the like count only when the caller is the author (null for everyone else).
+ */
 export async function getStoryReactionSummary(storyId: string) {
   const user = await requireVerifiedViewer();
   const story = await loadViewableStory(user.id, storyId);
   if (!story) {
-    return { error: "not_found" as const, summary: [], mine: null };
+    return { error: "not_found" as const, summary: [], mine: null, liked: false, likeCount: null };
   }
-  const result = await reactionSummary(story.id, user.id);
-  return { error: null, ...result };
+  const [result, likeState] = await Promise.all([
+    reactionSummary(story.id, user.id),
+    storyLikeStateForViewer(user.id, story),
+  ]);
+  return { error: null, ...result, ...likeState };
 }
 
 /**

@@ -75,6 +75,10 @@ export const es2 = {
     q: "¿Se puede reaccionar, responder o comentar en mi historia?",
     a: "Sí, las tres cosas, y son distintas: **reaccionar** es un emoji rápido (verás quién reaccionó al abrir tu propia historia); **responder** envía un mensaje directo privado y solo funciona entre personas que ya son contactos, igual que los mensajes normales; **comentar** publica un comentario público que puede ver cualquiera que esté viendo la historia, visible desde el ícono de comentarios que está junto a las reacciones, y recibes una notificación cuando alguien comenta la tuya. También hay un ícono de **compartir** junto a los comentarios en cualquier historia: cualquier persona que pueda ver la historia, no solo quien la publicó, puede tocarlo para reenviarla a uno de sus mensajes directos o chats grupales. Quien la recibe ve la historia real en el chat y puede tocarla para abrirla a pantalla completa, con la misma vista que desde la fila de historias, en lugar de un simple mensaje de texto sobre ella.",
   },
+  "like-story": {
+    q: "¿Puedo dar me gusta a una historia y quién lo ve?",
+    a: "Sí. Toca el corazón junto al cuadro de respuesta en la historia de cualquier persona para darle me gusta; vuelve a tocarlo para quitarlo. Solo quien publicó la historia puede ver cuántos me gusta tiene y a quién le gustó: al abrir tu propia historia, el corazón junto al número de vistas muestra cuántos hay, y la lista de quién la vio marca con un corazón a todas las personas a las que les gustó. En tu propia historia no hay corazón para tocar. Nadie más puede ver el número ni quién dio me gusta, y tampoco ven tu me gusta. La persona recibe una sola notificación la primera vez que das me gusta a una historia (volver a darlo más tarde no envía otra). Solo puedes dar me gusta a una historia que puedes ver, y los me gusta desaparecen con la historia a las 24 horas. Dar me gusta es distinto de reaccionar con un emoji.",
+  },
 
   "muse-2": {
     q: "¿Qué es Muse?",

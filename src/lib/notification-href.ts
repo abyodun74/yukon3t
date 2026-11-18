@@ -20,6 +20,7 @@ export type NotificationData = {
     | "POST_LIKE"
     | "POST_COMMENT"
     | "STORY_COMMENT"
+    | "STORY_LIKE"
     | "MUSE_LIKE"
     | "MUSE_COMMENT"
     | "COMMENT_REPLY"
@@ -194,6 +195,7 @@ export function notificationHref(notification: NotificationData) {
   if (
     notification.type === "SUBSCRIPTION_STORY" ||
     notification.type === "STORY_COMMENT" ||
+    notification.type === "STORY_LIKE" ||
     (notification.type === "SCREENSHOT_TAKEN" && notification.storyId)
   ) {
     const ownerId = notification.type === "SUBSCRIPTION_STORY" ? notification.actor.id : notification.recipientId;

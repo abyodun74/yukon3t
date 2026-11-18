@@ -34,6 +34,7 @@ import type { HiddenState } from "@/lib/hidden-chats-rules";
 import { absoluteAvatarUrl } from "@/lib/avatar-storage";
 import { loadGiftExport } from "@/lib/gift-export";
 import { loadLiveInviteExport } from "@/lib/live-invite-export";
+import { loadStoryLikeExport } from "@/lib/story-like-export";
 import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
 import { likeGroupsTouchedByUser, recomputeLikeGroups } from "@/lib/like-groups";
 import { birthdayNoticePendingAtSignUp } from "@/lib/birthdays";
@@ -567,8 +568,11 @@ export async function exportMyData(proof?: unknown) {
   const giftsAndChallenges = await loadGiftExport(user.id, hidden);
   // Live stage invites sent and received (src/lib/live-invite-export.ts): the same naming, block and hidden-peer rules.
   const liveStageInvites = await loadLiveInviteExport(user.id, hidden);
+  // Story likes given and received, on stories still up (src/lib/story-like-export.ts): the same naming, block and
+  // hidden-peer rules.
+  const storyLikes = await loadStoryLikeExport(user.id, hidden);
   if (hidden.conversationIds.length === 0 && hidden.peerIds.length === 0) {
-    return { error: null, data: JSON.stringify({ ...data, giftsAndChallenges, liveStageInvites }, null, 2) };
+    return { error: null, data: JSON.stringify({ ...data, giftsAndChallenges, liveStageInvites, storyLikes }, null, 2) };
   }
 
   // A report names who it is about and, for a message, which one (plus its text, from a secret chat): one about a
@@ -591,7 +595,7 @@ export async function exportMyData(proof?: unknown) {
       !(r.targetType === "USER" && hidden.peerIds.includes(r.targetId)) &&
       !(r.targetType === "MESSAGE" && hiddenMessageIds.has(r.targetId)),
   );
-  return { error: null, data: JSON.stringify({ ...data, reportsFiled, giftsAndChallenges, liveStageInvites }, null, 2) };
+  return { error: null, data: JSON.stringify({ ...data, reportsFiled, giftsAndChallenges, liveStageInvites, storyLikes }, null, 2) };
 }
 
 /**

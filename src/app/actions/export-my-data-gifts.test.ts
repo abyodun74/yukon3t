@@ -70,6 +70,8 @@ vi.mock("@/lib/prisma", () => ({
     message: { findMany: async () => [] },
     // Live stage invites (src/lib/live-invite-export.ts) have their own test: none here.
     liveStreamInvite: { findMany: async () => [] },
+    // Story likes (src/lib/story-like-export.ts) have their own test: none here.
+    storyLike: { findMany: async () => [] },
   },
 }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));

@@ -75,6 +75,10 @@ export const de2 = {
     q: "Kann man auf meine Story reagieren, antworten oder sie kommentieren?",
     a: "Ja, alle drei, und sie sind verschieden: **Reagieren** ist ein schnelles Emoji (du siehst, wer reagiert hat, wenn du deine eigene Story öffnest); **Antworten** sendet eine private Direktnachricht und funktioniert nur zwischen Personen, die schon Kontakte sind, wie normale Nachrichten; **Kommentieren** postet einen öffentlichen Kommentar, den alle sehen können, die die Story ansehen, sichtbar über das Kommentarsymbol neben den Reaktionen, und du erhältst eine Benachrichtigung, wenn jemand deine kommentiert. Außerdem gibt es bei jeder Story ein **Teilen**-Symbol neben den Kommentaren: Alle, die die Story sehen können, nicht nur die Person, die sie gepostet hat, können darauf tippen, um sie an eine ihrer Direktnachrichten oder Gruppenchats weiterzuleiten. Wer sie erhält, sieht die echte Story im Chat und kann sie antippen, um sie im Vollbild zu öffnen, mit derselben Ansicht wie aus der Story-Leiste, statt einer bloßen Textnachricht darüber.",
   },
+  "like-story": {
+    q: "Kann ich eine Story mit „Gefällt mir“ markieren, und wer sieht das?",
+    a: "Ja. Tippe auf das Herz neben dem Antwortfeld in der Story einer anderen Person, um sie mit „Gefällt mir“ zu markieren; tippe noch einmal, um es zurückzunehmen. Nur die Person, die die Story gepostet hat, sieht, wie viele „Gefällt mir“-Angaben sie hat und wem sie gefällt: Wenn du deine eigene Story öffnest, zeigt das Herz neben der Anzahl der Aufrufe, wie viele es sind, und die Liste, wer sie gesehen hat, markiert alle mit einem Herz, denen sie gefällt. In deiner eigenen Story gibt es kein Herz zum Antippen. Niemand sonst sieht die Anzahl oder wem sie gefällt, und auch dein „Gefällt mir“ sieht niemand. Die Person bekommt nur eine Benachrichtigung, wenn dir eine Story zum ersten Mal gefällt (eine erneute Markierung später schickt keine weitere). Du kannst nur Storys markieren, die du sehen kannst, und die Angaben verschwinden nach 24 Stunden mit der Story. „Gefällt mir“ ist etwas anderes als eine Reaktion mit einem Emoji.",
+  },
 
   "muse-2": {
     q: "Was ist Muse?",

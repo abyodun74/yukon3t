@@ -75,6 +75,10 @@ export const sw2 = {
     q: "Je, watu wanaweza kuitikia, kujibu au kutoa maoni kwenye Story yangu?",
     a: "Ndiyo, yote matatu, na ni tofauti: **kuitikia** ni emoji ya haraka (utaona nani aliitikia unapofungua Story yako mwenyewe); **kujibu** hutuma ujumbe wa moja kwa moja wa faragha na hufanya kazi tu kati ya watu ambao tayari ni wasiliani, kama ujumbe wa kawaida; **kutoa maoni** huchapisha maoni ya umma ambayo yeyote anayetazama Story anaweza kuyaona, yanayoonekana kutoka kwenye ikoni ya maoni iliyo karibu na miitikio, na unapata arifa mtu anapotoa maoni kwenye yako. Pia kuna ikoni ya **kushiriki** karibu na maoni kwenye Story yoyote: yeyote anayeweza kuona Story, si tu aliyeichapisha, anaweza kuigusa ili kuisambaza kwa mojawapo ya ujumbe wake wa moja kwa moja au magumzo ya vikundi. Mpokeaji huiona Story halisi kwenye gumzo na anaweza kuigusa ili kuifungua kwenye skrini nzima, kwa mwonekano uleule kama kutoka kwenye safu ya Story, badala ya ujumbe wa maandishi tu kuihusu.",
   },
+  "like-story": {
+    q: "Je, ninaweza kupenda Story, na nani anaona hilo?",
+    a: "Ndiyo. Gusa moyo ulio kando ya kisanduku cha kujibu kwenye Story ya mtu yeyote ili uipende; uguse tena ili uache kuipenda. Ni aliyechapisha Story pekee anayeweza kuona imependwa mara ngapi na nani aliipenda: unapofungua Story yako mwenyewe, moyo ulio kando ya idadi ya waliotazama unaonyesha idadi hiyo, na orodha ya walioiona huweka moyo kando ya kila aliyeipenda. Hakuna moyo wa kugusa kwenye Story yako mwenyewe. Hakuna mwingine anayeona idadi wala nani aliipenda, na hakuna anayeona kupenda kwako pia. Mtu huyo hupata arifa moja tu mara ya kwanza unapopenda Story (kuipenda tena baadaye hakutumi nyingine). Unaweza kupenda tu Story unayoweza kuiona, na kupendwa huko hupotea pamoja na Story baada ya saa 24. Kupenda ni tofauti na kuitikia kwa emoji.",
+  },
 
   "muse-2": {
     q: "Muse ni nini?",
