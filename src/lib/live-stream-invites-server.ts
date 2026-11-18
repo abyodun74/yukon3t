@@ -20,6 +20,11 @@ import {
   openInviteWhere,
   type LiveInviteRecallReason,
 } from "@/lib/live-stage";
+import {
+  addsToSelectedAudience,
+  LIVE_SELECTED_AUDIENCE_MAX,
+  selectedAudienceInviteWhere,
+} from "@/lib/live-audience";
 
 // The server half of live stage invites (pure rules: src/lib/live-stage.ts). Shared by startLiveStream (people picked
 // in the Go live sheet) and inviteToLiveStream (the in-room picker), so both apply exactly the same checks.
@@ -29,6 +34,8 @@ export type InviteStream = {
   hostId: string;
   circleId: string | null;
   targetUserId: string | null;
+  /** "Only the people I selected": these invites are the stream's allow-list (src/lib/live-audience.ts). */
+  selectedOnly: boolean;
   status: "LIVE" | "ENDED";
   roomName: string;
 };
@@ -56,14 +63,18 @@ export async function canInviteToStream(stream: InviteStream, inviterId: string)
 }
 
 /**
- * The people among `ids` who may watch this stream under its audience (canAccessLiveStream, in bulk): an invite never
- * widens it. Everyone or a PUBLIC Circle: all of them; a PRIVATE Circle: its members; one specific person: only them.
+ * The people among `ids` who may be invited under this stream's audience (canAccessLiveStream, in bulk). For
+ * Everyone / a Circle / one person an invite never widens who may watch: Everyone or a PUBLIC Circle: all of them; a
+ * PRIVATE Circle: its members; one specific person: only them. For "Only the people I selected" (selectedOnly) the
+ * invite is what lets them watch, so all of them (blocks and eligibility are checked by the caller, the allow-list cap
+ * by sendLiveInvites).
  */
 export async function filterByAudience(
-  stream: Pick<InviteStream, "circleId" | "targetUserId">,
+  stream: Pick<InviteStream, "circleId" | "targetUserId"> & { selectedOnly?: boolean },
   ids: string[],
 ): Promise<string[]> {
   if (ids.length === 0) return [];
+  if (stream.selectedOnly) return ids;
   if (stream.targetUserId) return ids.filter((id) => id === stream.targetUserId);
   if (!stream.circleId) return ids;
   const circle = await prisma.circle.findUnique({ where: { id: stream.circleId }, select: { visibility: true } });
@@ -99,6 +110,29 @@ export async function stageAndInvitedIds(liveStreamId: string, now: Date) {
 }
 
 /**
+ * The people among `ids` that `inviterId` may invite to this stream at all: eligible accounts (liveInviteeUserWhere),
+ * not blocked either way with the inviter or the host, never the host, and within the audience (filterByAudience).
+ * Needs no stream row (only who hosts it and its audience), so startLiveStream can check the Go live sheet's picks
+ * before it creates anything. Which rule refused someone is never returned.
+ */
+export async function invitableIds(
+  stream: Pick<InviteStream, "hostId" | "circleId" | "targetUserId" | "selectedOnly">,
+  inviterId: string,
+  ids: string[],
+): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const blocked = await blockedForInvite(stream, inviterId);
+  blocked.add(stream.hostId);
+  const eligibleRows = await prisma.user.findMany({
+    where: { AND: [liveInviteeUserWhere(inviterId, blocked), { id: { in: ids } }] },
+    select: { id: true },
+  });
+  const allowed = new Set(await filterByAudience(stream, eligibleRows.map((u) => u.id)));
+  // In the order asked, so the start's picks keep their order.
+  return ids.filter((id) => allowed.has(id));
+}
+
+/**
  * Invites `inviteeIds` to come on stage. The caller has already checked that `inviterId` may invite here
  * (canInviteToStream). For each person: eligible (liveInviteeUserWhere, not blocked either way, within the audience),
  * not already on stage, and their row for this stream allows it (inviteSendDecision); then the stream's open-invite cap
@@ -119,16 +153,7 @@ export async function sendLiveInvites(
   const refused: { userId: string; reason: InviteRefusal }[] = [];
   if (inviteeIds.length === 0) return { error: null, invited: [], refused };
 
-  const blocked = await blockedForInvite(stream, inviter.id);
-  blocked.add(stream.hostId);
-  const eligibleRows = await prisma.user.findMany({
-    where: { AND: [liveInviteeUserWhere(inviter.id, blocked), { id: { in: inviteeIds } }] },
-    select: { id: true },
-  });
-  const eligible = await filterByAudience(
-    stream,
-    eligibleRows.map((u) => u.id),
-  );
+  const eligible = await invitableIds(stream, inviter.id, inviteeIds);
   const eligibleSet = new Set(eligible);
   for (const id of inviteeIds) if (!eligibleSet.has(id)) refused.push({ userId: id, reason: "unavailable" });
   if (eligible.length === 0) return { error: null, invited: [], refused };
@@ -178,8 +203,25 @@ export async function sendLiveInvites(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${liveInviteWriteLockKey(stream.id)}))`;
     const open = await tx.liveStreamInvite.count({ where: openInviteWhere(stream.id, now) });
     const room = Math.max(0, LIVE_INVITE_MAX_PENDING - open);
-    const accepted = toSend.slice(0, room);
+    const withinPending = toSend.slice(0, room);
     for (const over of toSend.slice(room)) refused.push({ userId: over.userId, reason: "limit" });
+    // "Only the people I selected": each invite to someone not yet on the allow-list adds them to it, up to
+    // LIVE_SELECTED_AUDIENCE_MAX (counted under this same lock, so racing requests can't pass it together).
+    let accepted = withinPending;
+    if (stream.selectedOnly) {
+      let allowed = await tx.liveStreamInvite.count({ where: selectedAudienceInviteWhere(stream.id) });
+      accepted = [];
+      for (const item of withinPending) {
+        if (addsToSelectedAudience(existingBy.get(item.userId)?.status)) {
+          if (allowed >= LIVE_SELECTED_AUDIENCE_MAX) {
+            refused.push({ userId: item.userId, reason: "limit" });
+            continue;
+          }
+          allowed++;
+        }
+        accepted.push(item);
+      }
+    }
     // Re-checked under the lock: a racing request for the same person may have written their row since it was read,
     // and only the request that actually writes it notifies them.
     const written: string[] = [];

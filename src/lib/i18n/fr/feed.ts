@@ -343,6 +343,9 @@ export const feed: typeof feedEn = {
     onlyCircle:
       "Seuls les membres de ce Circle peuvent le voir ou le rejoindre. Il n'apparaîtra ni sur l'Accueil ni ailleurs.",
     visibleToAll: "Visible par tout le monde sur l'Accueil.",
+    visibleToAllInvited: "Visible par tout le monde sur l'Accueil. Les personnes choisies reçoivent aussi une invitation à vous rejoindre sur scène.",
+    selectedPeople: "Uniquement les personnes que j'ai choisies",
+    onlySelected: "Seules les personnes que vous avez choisies verront ce direct sur leur Accueil et pourront le rejoindre. Personne d'autre ne peut le trouver.",
     start: "Démarrer le direct",
     errors: {
       not_configured: "Les directs ne sont pas encore disponibles.",
@@ -351,6 +354,7 @@ export const feed: typeof feedEn = {
       not_a_member: "Vous n'êtes pas membre de ce Circle.",
       moderation: "Ce titre ne respecte pas nos règles de contenu. Essayez d'autres mots.",
       not_a_connection: "Cette personne ne fait pas partie de vos relations.",
+      no_invitees: "Aucune des personnes choisies ne peut être invitée. Choisissez quelqu'un d'autre ou un autre public.",
       other: "Impossible de démarrer le direct. Réessayez.",
     },
   },

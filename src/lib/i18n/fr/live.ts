@@ -78,7 +78,8 @@ export const live: typeof liveEn = {
   reactWith: "Réagir avec {emoji}",
   invite: {
     goLiveWith: "Passer en direct avec",
-    goLiveWithHint: "Facultatif. Choisissez jusqu'à {max} personnes. Chacune reçoit une invitation à vous rejoindre sur scène.",
+    goLiveWithHint:
+      "Facultatif. Choisissez jusqu'à {max} personnes. Chacune reçoit une invitation à vous rejoindre sur scène. Dès que vous choisissez quelqu'un, le direct est réservé aux personnes choisies ; modifiez « Qui peut regarder » pour le montrer à plus de monde.",
     searchLabel: "Rechercher des personnes à inviter",
     searchPlaceholder: "Rechercher par nom ou @pseudo",
     clearSearch: "Effacer la recherche",
@@ -96,6 +97,13 @@ export const live: typeof liveEn = {
     inviteButton: "Inviter des personnes",
     sheetTitle: "Inviter sur scène",
     sheetHint: "Jusqu'à {max} personnes peuvent être sur scène avec l'hôte. Les invitations expirent après 15 minutes.",
+    selectedAudienceHint: "Seules les personnes invitées à ce direct peuvent le regarder. Les personnes que vous invitez maintenant pourront le regarder aussi.",
+    // A stale invite to an "Only the people I selected" live, opened by someone it no longer admits.
+    selectedGone: {
+      cancelled: "Cette invitation a été annulée : ce direct n'est plus disponible pour vous.",
+      expired: "Cette invitation a expiré : ce direct n'est plus disponible pour vous.",
+      ended: "Cette invitation n'est plus disponible : le direct est terminé.",
+    },
     send: "one: Envoyer # invitation | other: Envoyer # invitations",
     sent: "one: # invitation envoyée | other: # invitations envoyées",
     someNotSent: "one: # personne n'a pas pu être invitée | other: # personnes n'ont pas pu être invitées",

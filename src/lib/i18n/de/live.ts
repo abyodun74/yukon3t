@@ -77,7 +77,8 @@ export const live: typeof liveEn = {
   reactWith: "Mit {emoji} reagieren",
   invite: {
     goLiveWith: "Live gehen mit",
-    goLiveWithHint: "Optional. Wähle bis zu {max} Personen. Jede bekommt eine Einladung, mit dir auf die Bühne zu kommen.",
+    goLiveWithHint:
+      "Optional. Wähle bis zu {max} Personen. Jede bekommt eine Einladung, mit dir auf die Bühne zu kommen. Sobald du jemanden auswählst, ist der Livestream nur für die ausgewählten Personen; ändere „Wer es sehen kann“, um ihn mehr Leuten zu zeigen.",
     searchLabel: "Personen zum Einladen suchen",
     searchPlaceholder: "Nach Name oder @Benutzername suchen",
     clearSearch: "Suche löschen",
@@ -95,6 +96,13 @@ export const live: typeof liveEn = {
     inviteButton: "Personen einladen",
     sheetTitle: "Auf die Bühne einladen",
     sheetHint: "Bis zu {max} Personen können mit dem Host auf der Bühne sein. Einladungen laufen nach 15 Minuten ab.",
+    selectedAudienceHint: "Nur die zu diesem Livestream eingeladenen Personen können ihn ansehen. Wen du jetzt einlädst, kann ihn auch ansehen.",
+    // A stale invite to an "Only the people I selected" live, opened by someone it no longer admits.
+    selectedGone: {
+      cancelled: "Diese Einladung wurde zurückgezogen, daher ist dieser Livestream für dich nicht mehr verfügbar.",
+      expired: "Diese Einladung ist abgelaufen, daher ist dieser Livestream für dich nicht mehr verfügbar.",
+      ended: "Diese Einladung ist nicht mehr verfügbar: Der Livestream ist beendet.",
+    },
     send: "one: # Einladung senden | other: # Einladungen senden",
     sent: "one: # Einladung gesendet | other: # Einladungen gesendet",
     someNotSent: "one: # Person konnte nicht eingeladen werden | other: # Personen konnten nicht eingeladen werden",

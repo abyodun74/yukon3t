@@ -70,6 +70,7 @@ export const FAQ_IDS = [
   "start-join-live-stream",
   "who-see-live-stream-start",
   "start-live-stream-just-one",
+  "live-only-people-i-pick",
   "difference-between-watching-joining-guest",
   "invite-people-on-stage-live",
   "host-mute-guest-co-host",

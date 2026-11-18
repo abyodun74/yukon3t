@@ -21,7 +21,8 @@ const ANNOUNCE_TX_TIMEOUT_MS = 20_000;
 
 /**
  * Tells the people a stream was started for that it's live: the one invited person (LIVE_STREAM_INVITE, bell +
- * push), a Circle's members (CIRCLE_LIVE, bell only) or the host's subscribers (SUBSCRIPTION_LIVE, bell only).
+ * push), a Circle's members (CIRCLE_LIVE, bell only) or the host's subscribers (SUBSCRIPTION_LIVE, bell only). A
+ * "selected people" stream (selectedOnly) only has `announcedAt` set: its invites are the notice (sendLiveInvites).
  *
  * Never part of the host's start: startLiveStream schedules this with next/server `after`, once the host already
  * has their room and token, and the end-inactive-streams cron retries any stream still unannounced
@@ -45,6 +46,7 @@ export async function announceLiveStream(liveStreamId: string): Promise<"announc
             hostId: true,
             circleId: true,
             targetUserId: true,
+            selectedOnly: true,
             status: true,
             roomName: true,
             announcedAt: true,
@@ -83,7 +85,7 @@ export async function announceLiveStream(liveStreamId: string): Promise<"announc
               })),
             });
           }
-        } else {
+        } else if (kind === "subscribers") {
           await notifySubscribers(stream.hostId, "SUBSCRIPTION_LIVE", { liveStreamId: stream.id }, { db: tx });
         }
 

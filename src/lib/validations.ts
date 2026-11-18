@@ -848,9 +848,12 @@ export const liveStreamTitleSchema = z
     // "Who can watch" set to one specific person instead — mutually
     // exclusive with circleId, see the .refine() below.
     targetUserId: z.string().cuid().optional(),
+    // "Only the people I selected" (LiveStream.selectedOnly, src/lib/live-audience.ts): exclusive with both of the
+    // above; startLiveStream also requires at least one person picked.
+    selectedOnly: z.boolean().optional().default(false),
   })
-  .refine((data) => !(data.circleId && data.targetUserId), {
-    message: "A stream can be scoped to a Circle or a specific person, not both.",
+  .refine((data) => [data.circleId, data.targetUserId, data.selectedOnly || undefined].filter(Boolean).length <= 1, {
+    message: "A stream can be scoped to a Circle, a specific person or the selected people, only one of them.",
   });
 
 /** GUEST/COHOST request a stage slot (see joinLiveStream); omitted/undefined means watch-only. */

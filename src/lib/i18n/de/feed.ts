@@ -341,6 +341,9 @@ export const feed: typeof feedEn = {
     onlyCircle:
       "Nur Mitglieder dieses Circles können zuschauen oder beitreten. Er erscheint nicht auf dem Start und auch sonst nirgends.",
     visibleToAll: "Für alle auf dem Start sichtbar.",
+    visibleToAllInvited: "Für alle auf dem Start sichtbar. Die ausgewählten Personen bekommen außerdem eine Einladung, mit dir auf die Bühne zu kommen.",
+    selectedPeople: "Nur die Personen, die ich ausgewählt habe",
+    onlySelected: "Nur die Personen, die du ausgewählt hast, sehen diesen Livestream auf ihrem Start und können beitreten. Niemand sonst kann ihn finden.",
     start: "Livestream starten",
     errors: {
       not_configured: "Livestreams sind noch nicht verfügbar.",
@@ -349,6 +352,7 @@ export const feed: typeof feedEn = {
       not_a_member: "Du bist kein Mitglied dieses Circles.",
       moderation: "Dieser Titel entspricht nicht unseren Inhaltsrichtlinien. Probiere andere Worte.",
       not_a_connection: "Diese Person gehört nicht zu deinen Kontakten.",
+      no_invitees: "Keine der ausgewählten Personen kann eingeladen werden. Wähle jemand anderen oder ein anderes Publikum.",
       other: "Der Livestream konnte nicht gestartet werden. Versuche es noch einmal.",
     },
   },

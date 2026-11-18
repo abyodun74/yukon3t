@@ -17,13 +17,16 @@ import { LiveInvitePicker } from "@/components/live-invite-picker";
 import { useLiveText } from "@/components/live-text";
 import type { LiveInviteCandidate } from "@/app/actions/live-stream-invites";
 import { LIVE_INVITE_MAX_PER_REQUEST } from "@/lib/live-stage";
+import { audienceForInvitees, SELECTED_AUDIENCE_VALUE } from "@/lib/live-audience";
 
 type Circle = { id: string; name: string; parentName: string | null };
 type Connection = { id: string; name: string | null };
 
-// The "who can watch" <select> below encodes its three kinds of value into
+// The "who can watch" <select> below encodes its four kinds of value into
 // one string (plain HTML <select> only ever has one value) — "" for
-// Everyone, these two prefixes for a Circle or a specific person. Parsed
+// Everyone, SELECTED_AUDIENCE_VALUE for "Only the people I selected" (the
+// people picked in "Go live with", src/lib/live-audience.ts), these two
+// prefixes for a Circle or a specific person. Parsed
 // back out via circleIdFrom/targetUserIdFrom rather than threading two
 // separate pieces of state through the same control.
 const CIRCLE_PREFIX = "circle:";
@@ -50,6 +53,19 @@ export function LiveStreamStrip() {
   // Raw <select> value — "", "circle:<id>", or "user:<id>" — see
   // circleIdFrom/targetUserIdFrom above.
   const [audience, setAudience] = useState("");
+  // The host chose Everyone on purpose while people were picked: picking more people must not switch it back to
+  // "Only the people I selected" (audienceForInvitees). Reset once nobody is picked.
+  const [keepEveryone, setKeepEveryone] = useState(false);
+  const selectedOnly = audience === SELECTED_AUDIENCE_VALUE;
+
+  // Every change to the picked people goes through here: picking the first person makes the live "Only the people I
+  // selected" by default, clearing them all goes back to Everyone.
+  function changeInvitees(next: LiveInviteCandidate[]) {
+    const keep = next.length > 0 && keepEveryone;
+    setInvitees(next);
+    setKeepEveryone(keep);
+    setAudience((current) => audienceForInvitees({ audience: current, count: next.length, keepEveryone: keep }));
+  }
   const [circles, setCircles] = useState<Circle[] | null>(null);
   const [circlesFailed, setCirclesFailed] = useState(false);
   const [connections, setConnections] = useState<Connection[] | null>(null);
@@ -121,6 +137,7 @@ export function LiveStreamStrip() {
       fd.set("title", title.trim());
       if (circleId) fd.set("circleId", circleId);
       if (targetUserId) fd.set("targetUserId", targetUserId);
+      if (selectedOnly) fd.set("audience", SELECTED_AUDIENCE_VALUE);
       for (const person of invitees) fd.append("inviteeId", person.id);
       const result = await startLiveStream(fd);
       if (result.error || !result.liveStreamId) {
@@ -131,7 +148,11 @@ export function LiveStreamStrip() {
         return;
       }
       setInvitees([]);
-      router.push(`/live/${result.liveStreamId}`);
+      setAudience("");
+      setKeepEveryone(false);
+      // Some picks couldn't be invited ("Only the people I selected"): the room tells the host how many.
+      const notInvited = "notInvited" in result ? (result.notInvited ?? 0) : 0;
+      router.push(`/live/${result.liveStreamId}${notInvited > 0 ? `?notInvited=${notInvited}` : ""}`);
     });
   }
 
@@ -199,13 +220,19 @@ export function LiveStreamStrip() {
           aria-label={t.live.audience}
           value={audience}
           onChange={(e) => {
-            setAudience(e.target.value);
+            const value = e.target.value;
+            setAudience(value);
+            // Choosing Everyone while people are picked is deliberate: it sticks (they are just invited on stage).
+            setKeepEveryone(value === "" && invitees.length > 0);
             // A stream for one specific person is theirs alone: nobody else can be invited onto its stage.
-            if (e.target.value.startsWith(USER_PREFIX)) setInvitees([]);
+            if (value.startsWith(USER_PREFIX)) setInvitees([]);
           }}
           className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
         >
           <option value="">{t.live.everyone}</option>
+          {(invitees.length > 0 || selectedOnly) && (
+            <option value={SELECTED_AUDIENCE_VALUE}>{t.live.selectedPeople}</option>
+          )}
           {circles && circles.length > 0 && (
             <optgroup label={t.live.aCircle}>
               {circles.map((c) => (
@@ -244,12 +271,16 @@ export function LiveStreamStrip() {
           </p>
         )}
 
-        <p className="mt-1 text-xs text-foreground-soft">
+        <p aria-live="polite" className="mt-1 text-xs text-foreground-soft">
           {targetUserId
             ? format(t.live.onlyPerson, { name: targetUserName ?? shell.common.someone })
             : circleId
               ? t.live.onlyCircle
-              : t.live.visibleToAll}
+              : selectedOnly
+                ? t.live.onlySelected
+                : invitees.length > 0
+                  ? t.live.visibleToAllInvited
+                  : t.live.visibleToAll}
         </p>
 
         {!targetUserId && (
@@ -261,7 +292,7 @@ export function LiveStreamStrip() {
             <LiveInvitePicker
               context={circleId ? { circleId } : {}}
               selected={invitees}
-              onChange={setInvitees}
+              onChange={changeInvitees}
               max={LIVE_INVITE_MAX_PER_REQUEST}
             />
           </div>

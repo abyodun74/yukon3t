@@ -232,6 +232,14 @@ describe("who may know a challenge exists", () => {
     expect(canViewerSeeChallenge({ ...base, stream: stream({ circle: { visibility: "PUBLIC", viewerIsMember: false } }) })).toBe(true);
     expect(canViewerSeeChallenge(base)).toBe(false);
   });
+  it("a live for 'Only the people I selected': the people on its allow-list and the host only", () => {
+    const stream = (over: Record<string, unknown>) => ({ hostId: "h", targetUserId: null, circle: null, selectedOnly: true, ...over });
+    expect(canViewerSeeChallenge({ ...base, stream: stream({ viewerSelected: true }) })).toBe(true);
+    expect(canViewerSeeChallenge({ ...base, stream: stream({ viewerSelected: false }) })).toBe(false);
+    expect(canViewerSeeChallenge({ ...base, stream: stream({}) })).toBe(false);
+    expect(canViewerSeeChallenge({ ...base, stream: stream({ hostId: "v" }) })).toBe(true);
+    expect(canViewerSeeChallenge({ ...base, blockedWithHost: true, stream: stream({ viewerSelected: true }) })).toBe(false);
+  });
 });
 
 describe("links and the record", () => {

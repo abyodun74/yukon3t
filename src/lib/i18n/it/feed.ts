@@ -341,6 +341,9 @@ export const feed: typeof feedEn = {
     onlyCircle:
       "Solo i membri di questo Circle possono vederla o unirsi. Non comparirà nella Home né altrove.",
     visibleToAll: "Visibile a tutti nella Home.",
+    visibleToAllInvited: "Visibile a tutti nella Home. Le persone che hai scelto ricevono anche un invito a raggiungerti sul palco.",
+    selectedPeople: "Solo le persone che ho scelto",
+    onlySelected: "Solo le persone che hai scelto vedranno questa diretta nella loro Home e potranno entrare. Nessun altro può trovarla.",
     start: "Inizia la diretta",
     errors: {
       not_configured: "Le dirette non sono ancora disponibili.",
@@ -349,6 +352,7 @@ export const feed: typeof feedEn = {
       not_a_member: "Non sei membro di quel Circle.",
       moderation: "Questo titolo non rispetta le nostre regole sui contenuti. Prova con altre parole.",
       not_a_connection: "Questa persona non è tra i tuoi contatti.",
+      no_invitees: "Nessuna delle persone che hai scelto può essere invitata. Scegli qualcun altro o cambia chi può vederla.",
       other: "Impossibile avviare la diretta. Riprova.",
     },
   },

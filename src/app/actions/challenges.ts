@@ -140,7 +140,7 @@ export async function listLiveChallenges(
   if (!(await checkRateLimit("challengeList", user.id))) return { error: "rate_limited" };
   const stream = await prisma.liveStream.findUnique({
     where: { id: id.data },
-    select: { id: true, hostId: true, status: true, circleId: true, targetUserId: true },
+    select: { id: true, hostId: true, status: true, circleId: true, targetUserId: true, selectedOnly: true },
   });
   if (!stream || !(await canAccessLiveStream(stream, user))) return { error: "unavailable" };
   const view = await listLiveChallengeViews(stream, user);
@@ -155,7 +155,7 @@ export async function getLiveChallengeMoments(liveStreamId: string): Promise<Res
   if (!id.success) return { error: "invalid" };
   const stream = await prisma.liveStream.findUnique({
     where: { id: id.data },
-    select: { hostId: true, circleId: true, targetUserId: true },
+    select: { id: true, hostId: true, circleId: true, targetUserId: true, selectedOnly: true },
   });
   if (!stream || !(await canAccessLiveStream(stream, user))) return { error: "unavailable" };
   return { error: null, moments: await loadLiveChallengeMoments(id.data, user.id) };

@@ -341,6 +341,9 @@ export const feed: typeof feedEn = {
     onlyCircle:
       "Wanachama wa Circle hii pekee ndio wanaoweza kuyaona au kujiunga. Hayataonekana kwenye Mwanzo wala kwingineko.",
     visibleToAll: "Yanaonekana kwa kila mtu kwenye Mwanzo.",
+    visibleToAllInvited: "Yanaonekana kwa kila mtu kwenye Mwanzo. Watu uliowachagua pia watapata mwaliko wa kujiunga nawe jukwaani.",
+    selectedPeople: "Watu niliowachagua tu",
+    onlySelected: "Watu uliowachagua tu ndio wataona matangazo haya kwenye Mwanzo wao na kuweza kujiunga. Hakuna mwingine anayeweza kuyapata.",
     start: "Anza kutangaza",
     errors: {
       not_configured: "Matangazo ya moja kwa moja bado hayapatikani.",
@@ -349,6 +352,7 @@ export const feed: typeof feedEn = {
       not_a_member: "Wewe si mwanachama wa Circle hiyo.",
       moderation: "Kichwa hicho hakifuati kanuni zetu za maudhui. Jaribu maneno mengine.",
       not_a_connection: "Mtu huyo hayuko kwenye wasiliani wako.",
+      no_invitees: "Hakuna kati ya watu uliowachagua anayeweza kualikwa. Chagua mtu mwingine au badilisha wanaoweza kutazama.",
       other: "Matangazo hayakuweza kuanza. Jaribu tena.",
     },
   },

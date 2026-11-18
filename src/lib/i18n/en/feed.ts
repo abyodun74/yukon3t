@@ -346,6 +346,9 @@ export const feedEn = {
     onlyPerson: "Only {name} can see or join it — nobody else, not even your other connections.",
     onlyCircle: "Only members of this Circle can see or join it. It won't appear on Home or anywhere else.",
     visibleToAll: "Visible to everyone on Home.",
+    visibleToAllInvited: "Visible to everyone on Home. The people you picked also get an invite to join you on stage.",
+    selectedPeople: "Only the people I selected",
+    onlySelected: "Only the people you picked will see this live on their Home and can join it. Nobody else can find it.",
     start: "Start streaming",
     errors: {
       not_configured: "Live streaming isn't set up yet.",
@@ -354,6 +357,7 @@ export const feedEn = {
       not_a_member: "You're not a member of that Circle.",
       moderation: "That title didn't pass our content guidelines. Try different words.",
       not_a_connection: "You're not connected with that person.",
+      no_invitees: "None of the people you picked can be invited. Pick someone else, or choose another audience.",
       other: "Couldn't go live — try again.",
     },
   },

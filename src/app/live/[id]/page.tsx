@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { LiveStreamRoom } from "@/components/live-stream-room";
 import { giftsEnabledFor } from "@/lib/gifts";
 import { challengesEnabledFor } from "@/lib/challenges";
-import { canAccessLiveStream } from "@/lib/live-stream-access";
+import Link from "next/link";
+import { canAccessLiveStream, selectedInviteGoneFor } from "@/lib/live-stream-access";
+import { parseNotInvited } from "@/lib/live-audience";
+import { getDictionary } from "@/lib/i18n/server";
 
 const VALID_ROLES = ["VIEWER", "GUEST", "COHOST"] as const;
 
@@ -13,16 +16,35 @@ export default async function LivePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ role?: string; invite?: string }>;
+  searchParams: Promise<{ role?: string; invite?: string; notInvited?: string }>;
 }) {
   const { id } = await params;
-  const { role, invite } = await searchParams;
+  const { role, invite, notInvited } = await searchParams;
   const me = await getOnboardedUserOrRedirect();
 
   const liveStream = await prisma.liveStream.findUnique({ where: { id } });
   // A Circle-scoped stream is for that Circle's members only — to anyone else it doesn't exist (not even its title).
-  if (!liveStream || !(await canAccessLiveStream(liveStream, me))) {
-    notFound();
+  if (!liveStream) notFound();
+  if (!(await canAccessLiveStream(liveStream, me))) {
+    // "Only the people I selected": someone whose invite was cancelled (or whose live has ended) and who taps the old
+    // push or bell row gets a plain note, not a 404. Only for someone who had an invite row and no block with the host
+    // or inviter; nothing about the stream is rendered (no title, host, room or token). Everyone else: 404.
+    const gone = await selectedInviteGoneFor(liveStream, me.id);
+    if (!gone) notFound();
+    const t = (await getDictionary()).live;
+    return (
+      <main className="mx-auto max-w-md px-4 py-16 text-center">
+        <p role="status" className="text-sm text-foreground-soft">
+          {t.invite.selectedGone[gone]}
+        </p>
+        <Link
+          href="/home"
+          className="mt-4 inline-block rounded-lg border border-line px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent"
+        >
+          {t.backHome}
+        </Link>
+      </main>
+    );
   }
 
   // From LiveStreamFeedCard's Watch/Guest/Co-host buttons (src/components/
@@ -59,7 +81,10 @@ export default async function LivePage({
       // one other person," so the "Record & Post" button isn't offered at
       // all for one (requestLiveStreamRecordingPost re-checks this
       // server-side too, regardless of what the client sends).
-      recordingAutoPostAvailable={!liveStream.targetUserId}
+      // The same for "Only the people I selected" (selectedOnly): no Post tier is limited to a hand-picked list.
+      recordingAutoPostAvailable={!liveStream.targetUserId && !liveStream.selectedOnly}
+      selectedAudience={liveStream.selectedOnly}
+      notInvited={me.id === liveStream.hostId ? parseNotInvited(notInvited) : 0}
       giftsEnabled={giftsOn}
       giftHost={giftHost}
       // Challenges (Gift Universe Phase B): the panel and winner moments, only while challengesEnabledFor is on for the

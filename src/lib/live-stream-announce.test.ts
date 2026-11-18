@@ -8,6 +8,7 @@ type Stream = {
   hostId: string;
   circleId: string | null;
   targetUserId: string | null;
+  selectedOnly?: boolean;
   status: "LIVE" | "ENDED";
   roomName: string;
   announcedAt: Date | null;
@@ -141,6 +142,17 @@ describe("announceLiveStream", () => {
     );
   });
 
+  it("'Only the people I selected' tells nobody else: no subscribers, no Circle, no push (its invites are the notice)", async () => {
+    streams = [stream({ selectedOnly: true })];
+    expect(await announceLiveStream("cls00000000001")).toBe("announced");
+    expect(notifySubscribers).not.toHaveBeenCalled();
+    expect(notificationCreate).not.toHaveBeenCalled();
+    expect(notificationCreateMany).not.toHaveBeenCalled();
+    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(sendFcmActivityToUser).not.toHaveBeenCalled();
+    // Marked announced, so the cron never retries a fan-out for it either.
+    expect(streams[0].announcedAt).toBeInstanceOf(Date);
+  });
   it("a failure never throws, rolls back, sends no push, and leaves it for the retry", async () => {
     streams = [stream({ targetUserId: "ctarget0000001" })];
     notificationCreate.mockRejectedValueOnce(new Error("pool timeout"));

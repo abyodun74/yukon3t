@@ -9,6 +9,7 @@ type Row = {
   hostId: string;
   circleId: string | null;
   targetUserId: string | null;
+  selectedOnly?: boolean;
   title: string;
   status: "LIVE" | "ENDED";
   roomName: string;
@@ -25,7 +26,10 @@ const announceLiveStream = vi.fn(async (id: string) => {
   void id;
   return "announced" as const;
 });
-const publishEvent = vi.fn(async () => undefined);
+const callOrder: string[] = [];
+const publishEvent = vi.fn(async () => {
+  callOrder.push("signal");
+});
 const createLiveStreamRoom = vi.fn(async ({ name }: { name: string }) => ({ name, url: `https://x.daily.co/${name}` }));
 const createMeetingToken = vi.fn(async () => "token");
 const deleteCallRoom = vi.fn(async () => undefined);
@@ -52,6 +56,7 @@ const db = {
         hostId: data.hostId!,
         circleId: data.circleId ?? null,
         targetUserId: data.targetUserId ?? null,
+        selectedOnly: data.selectedOnly ?? false,
         title: data.title!,
         status: "LIVE",
         roomName: data.roomName ?? "",
@@ -122,12 +127,20 @@ vi.mock("@/lib/realtime-server", () => ({ publishEvent: () => publishEvent() }))
 vi.mock("@/lib/error-tracking", () => ({ captureError: vi.fn() }));
 vi.mock("@/lib/live-stream-announce", () => ({ announceLiveStream: (id: string) => announceLiveStream(id) }));
 const sendLiveInvites = vi.fn(async (stream: unknown, inviter: unknown, ids: string[]) => {
+  callOrder.push("invites");
   void stream;
   void inviter;
   return { error: null, invited: ids, refused: [] };
 });
+// Who among the picks can be invited at all (blocks, eligibility): by default everyone, a test narrows it.
+const invitableIds = vi.fn(async (stream: unknown, inviterId: string, ids: string[]) => {
+  void stream;
+  void inviterId;
+  return ids;
+});
 vi.mock("@/lib/live-stream-invites-server", () => ({
   sendLiveInvites: (stream: unknown, inviter: unknown, ids: string[]) => sendLiveInvites(stream, inviter, ids),
+  invitableIds: (stream: unknown, inviterId: string, ids: string[]) => invitableIds(stream, inviterId, ids),
 }));
 
 const { startLiveStream } = await import("@/app/actions/live-streams");
@@ -143,11 +156,13 @@ beforeEach(() => {
   nextId = 1;
   currentUser = { id: "chost000000001", name: "Host" };
   afterCallbacks.length = 0;
+  callOrder.length = 0;
   lockTails.clear();
   lockedKeys.length = 0;
   vi.clearAllMocks();
   createLiveStreamRoom.mockImplementation(async ({ name }) => ({ name, url: `https://x.daily.co/${name}` }));
   createMeetingToken.mockImplementation(async () => "token");
+  invitableIds.mockImplementation(async (_s: unknown, _i: string, ids: string[]) => ids);
 });
 
 describe("startLiveStream", () => {
@@ -276,6 +291,89 @@ describe("startLiveStream", () => {
     await Promise.allSettled(afterCallbacks.map((cb) => Promise.resolve().then(cb)));
     expect(result.error).toBeNull();
     expect(rows[0]?.status).toBe("LIVE");
+  });
+
+  it("'Only the people I selected' stores the audience and invites the picks before Home tabs are nudged", async () => {
+    const fd = form();
+    fd.set("audience", "selected");
+    fd.append("inviteeId", "cuser000000001");
+    fd.append("inviteeId", "cuser000000002");
+    const result = await startLiveStream(fd);
+    expect(result.error).toBeNull();
+    expect(rows[0]).toMatchObject({ selectedOnly: true, circleId: null, targetUserId: null });
+    expect(sendLiveInvites).not.toHaveBeenCalled();
+    for (const cb of afterCallbacks) await cb();
+    const [stream, , ids] = sendLiveInvites.mock.calls[0]!;
+    expect(stream).toMatchObject({ id: result.liveStreamId, selectedOnly: true });
+    expect(ids).toEqual(["cuser000000001", "cuser000000002"]);
+    // The live-streams signal goes out only once the allow-list is written (the invites), never before.
+    expect(callOrder.indexOf("invites")).toBeLessThan(callOrder.lastIndexOf("signal"));
+    expect(callOrder.filter((c) => c === "signal").length).toBeGreaterThanOrEqual(1);
+    expect(callOrder[0]).toBe("invites");
+  });
+
+  it("'Only the people I selected' with nobody picked, or with a Circle or a person too, is refused", async () => {
+    const empty = form();
+    empty.set("audience", "selected");
+    expect(await startLiveStream(empty)).toEqual({ error: "invalid" });
+    const withCircle = form();
+    withCircle.set("audience", "selected");
+    withCircle.set("circleId", "ccircle0000001");
+    withCircle.append("inviteeId", "cuser000000001");
+    expect(await startLiveStream(withCircle)).toEqual({ error: "invalid" });
+    const withPerson = form();
+    withPerson.set("audience", "selected");
+    withPerson.set("targetUserId", "cuser000000009");
+    withPerson.append("inviteeId", "cuser000000001");
+    expect(await startLiveStream(withPerson)).toEqual({ error: "invalid" });
+    expect(rows).toHaveLength(0);
+  });
+
+  it("Everyone chosen on purpose with people picked stays Everyone: they are just invited on stage", async () => {
+    const fd = form();
+    fd.append("inviteeId", "cuser000000001");
+    const result = await startLiveStream(fd);
+    expect(result.error).toBeNull();
+    expect(rows[0]?.selectedOnly).toBe(false);
+    for (const cb of afterCallbacks) await cb();
+    expect(sendLiveInvites.mock.calls[0]![0]).toMatchObject({ selectedOnly: false });
+  });
+
+  it("'Only the people I selected' where nobody picked can be invited: refused before anything is created", async () => {
+    invitableIds.mockImplementation(async () => []);
+    const fd = form();
+    fd.set("audience", "selected");
+    fd.append("inviteeId", "cuser000000001");
+    fd.append("inviteeId", "cuser000000002");
+    expect(await startLiveStream(fd)).toEqual({ error: "no_invitees" });
+    expect(rows).toHaveLength(0);
+    expect(createLiveStreamRoom).not.toHaveBeenCalled();
+    expect(afterCallbacks).toHaveLength(0);
+    // Checked as the host, for a selected-only audience with no Circle or person.
+    expect(invitableIds).toHaveBeenCalledWith(
+      { hostId: currentUser.id, circleId: null, targetUserId: null, selectedOnly: true },
+      currentUser.id,
+      ["cuser000000001", "cuser000000002"],
+    );
+  });
+
+  it("'Only the people I selected' where some picks can't be invited: starts with the rest and says how many", async () => {
+    invitableIds.mockImplementation(async (_s: unknown, _i: string, ids: string[]) => ids.slice(0, 1));
+    const fd = form();
+    fd.set("audience", "selected");
+    for (const id of ["cuser000000001", "cuser000000002", "cuser000000003"]) fd.append("inviteeId", id);
+    const result = await startLiveStream(fd);
+    expect(result).toMatchObject({ error: null, notInvited: 2 });
+    for (const cb of afterCallbacks) await cb();
+    expect(sendLiveInvites.mock.calls[0]![2]).toEqual(["cuser000000001"]);
+  });
+
+  it("Everyone with picks is not pre-checked and reports nobody as not invited", async () => {
+    const fd = form();
+    fd.append("inviteeId", "cuser000000001");
+    const result = await startLiveStream(fd);
+    expect(result).toMatchObject({ error: null, notInvited: 0 });
+    expect(invitableIds).not.toHaveBeenCalled();
   });
 
   it("a working stream still answers already_live with its id", async () => {

@@ -56,8 +56,13 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
   return out;
 }
 
-/** Which kind of announcement a stream gets, from who it was started for (the same three-way choice startLiveStream validates). */
-export function announcementKind(stream: { targetUserId: string | null; circleId: string | null }) {
+/**
+ * Which kind of announcement a stream gets, from who it was started for (the same choice startLiveStream validates).
+ * "Only the people I selected" gets none: its stage invites (bell + push to each person picked) are the notice, and
+ * nobody else may learn about it.
+ */
+export function announcementKind(stream: { targetUserId: string | null; circleId: string | null; selectedOnly?: boolean }) {
+  if (stream.selectedOnly) return "none" as const;
   if (stream.targetUserId) return "invite" as const;
   if (stream.circleId) return "circle" as const;
   return "subscribers" as const;

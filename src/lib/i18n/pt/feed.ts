@@ -341,6 +341,9 @@ export const feed: typeof feedEn = {
     onlyCircle:
       "Só os membros deste Circle podem ver ou entrar. Não vai aparecer no Início nem em nenhum outro lugar.",
     visibleToAll: "Visível para todos no Início.",
+    visibleToAllInvited: "Visível para todos no Início. As pessoas que você escolheu também recebem um convite para entrar no palco com você.",
+    selectedPeople: "Só as pessoas que eu escolhi",
+    onlySelected: "Só as pessoas que você escolheu vão ver esta transmissão no Início delas e poderão entrar. Ninguém mais consegue encontrá-la.",
     start: "Começar a transmitir",
     errors: {
       not_configured: "As transmissões ao vivo ainda não estão disponíveis.",
@@ -349,6 +352,7 @@ export const feed: typeof feedEn = {
       not_a_member: "Você não é membro desse Circle.",
       moderation: "Esse título não está de acordo com nossas diretrizes de conteúdo. Tente outras palavras.",
       not_a_connection: "Essa pessoa não está entre as suas conexões.",
+      no_invitees: "Nenhuma das pessoas que você escolheu pode ser convidada. Escolha outra pessoa ou mude quem pode assistir.",
       other: "Não foi possível iniciar a transmissão. Tente novamente.",
     },
   },

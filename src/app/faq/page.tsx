@@ -912,6 +912,40 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "live-only-people-i-pick",
+        q: "Can I go live just for the people I pick?",
+        a: (
+          <>
+            Yes. Pick the people under &ldquo;Go live with&rdquo; (up to 10).
+            As soon as you pick someone, &ldquo;Who can watch&rdquo; switches
+            to <strong>Only the people I selected</strong> by default. The
+            live then shows on Home only for those people (and you), they get
+            a notification in their language, and nobody else can find it,
+            open it or join it, even with the link. Your subscribers
+            aren&apos;t told.
+            <br />
+            <br />
+            If you&apos;d rather anyone could watch, switch &ldquo;Who can
+            watch&rdquo; back to Everyone (or pick a Circle): the people you
+            picked are then simply invited on stage. Removing everyone you
+            picked switches it back to Everyone.
+            <br />
+            <br />
+            During the live, the host and co-hosts can invite more people, and
+            each person invited can then watch too (up to 50 people in all).
+            Cancelling an invite someone hasn&apos;t accepted yet takes their
+            access away; someone already on stage stays until they leave.
+            Saying &ldquo;Not now&rdquo; to the stage, or letting the invite
+            expire, doesn&apos;t: they can still watch. &ldquo;Record &amp;
+            Post&rdquo; isn&apos;t offered for these lives. If none of the
+            people you picked can be invited, the live doesn&apos;t start and
+            you&apos;re told so; if only some can, it starts and tells you how
+            many couldn&apos;t be invited. Someone whose invite you cancel sees
+            that the live is no longer available to them.
+          </>
+        ),
+      },
+      {
         id: "difference-between-watching-joining-guest",
         q: "What's the difference between watching, joining as a guest, and joining as a co-host?",
         a: (
@@ -948,7 +982,9 @@ const sections: Section[] = [
             people search, never anyone you&apos;ve blocked or who has blocked
             you, and an invite never widens who can watch: for a private
             Circle&apos;s live you can only invite its members, and for a live
-            with one specific person, only that person.
+            with one specific person, only that person. A live for
+            &ldquo;Only the people I selected&rdquo; is the exception: there,
+            inviting someone is exactly what lets them watch.
             <br />
             <br />
             Each person you invite gets a notification in their language and,
@@ -1011,7 +1047,8 @@ const sections: Section[] = [
             so start a new one if you change your mind. This option
             isn&apos;t offered for a stream you started with one specific
             person — that stream is private between the two of you, and a
-            post has no equivalent setting.
+            post has no equivalent setting. The same goes for a live for
+            &ldquo;Only the people I selected&rdquo;.
           </>
         ),
       },

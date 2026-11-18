@@ -19,7 +19,15 @@ type User = {
   verified: boolean;
   trustScore: number;
 };
-type Stream = { id: string; hostId: string; circleId: string | null; targetUserId: string | null; status: "LIVE" | "ENDED"; roomName: string };
+type Stream = {
+  id: string;
+  hostId: string;
+  circleId: string | null;
+  targetUserId: string | null;
+  selectedOnly?: boolean;
+  status: "LIVE" | "ENDED";
+  roomName: string;
+};
 type Viewer = { liveStreamId: string; userId: string; role: Role; joinedAt: Date };
 type Invite = {
   id: string;
@@ -129,6 +137,11 @@ const db = {
       const n = viewers.filter((v) => rowMatches(v as unknown as Record<string, unknown>, where)).length;
       await yieldTick(); // racing accepts interleave here unless the stage lock serializes them
       return n;
+    },
+    deleteMany: async ({ where }: { where: Record<string, unknown> }) => {
+      const before = viewers.length;
+      viewers = viewers.filter((v) => !rowMatches(v as unknown as Record<string, unknown>, where));
+      return { count: before - viewers.length };
     },
     upsert: async ({
       where,
@@ -274,7 +287,21 @@ vi.mock("@/lib/fcm", () => ({
 }));
 vi.mock("@/lib/realtime-server", () => ({ publishEvent: (...a: unknown[]) => publishEvent(...a) }));
 vi.mock("@/lib/error-tracking", () => ({ captureError: vi.fn() }));
-vi.mock("@/lib/live-stream-access", () => ({ canAccessLiveStream: async () => true }));
+// The real rule for "Only the people I selected" streams (it reads this in-memory database's invites and seats); every
+// other audience is let through here, as before (their rules have their own tests in live-stream-access.test.ts).
+vi.mock("@/lib/live-stream-access", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/live-stream-access")>();
+  return {
+    ...real,
+    canAccessLiveStream: (s: Parameters<typeof real.canAccessLiveStream>[0], u: { id: string; isAdmin: boolean }) =>
+      s.selectedOnly ? real.canAccessLiveStream(s, u) : Promise.resolve(true),
+  };
+});
+const ejectFromRoom = vi.fn(async (room: string, ids: string[]) => {
+  void room;
+  void ids;
+});
+vi.mock("@/lib/daily", () => ({ ejectFromRoom: (room: string, ids: string[]) => ejectFromRoom(room, ids) }));
 vi.mock("@/lib/circle-permissions", () => ({ getCircleMembership: async () => ({ role: "MEMBER" }) }));
 vi.mock("@/lib/hidden-chats", () => ({ getHiddenPeerIds: async (id: string) => hiddenPeers[id] ?? [] }));
 vi.mock("@/lib/blocks", () => ({
@@ -693,5 +720,138 @@ describe("correcting a delivered invite push (replacement, not recall)", () => {
     // Never a reason across a block.
     blocks = [["host", "cara"]];
     expect(await getMyLiveInvite("s1")).toEqual({ invite: null, gone: null });
+  });
+});
+
+describe("'Only the people I selected' (selectedOnly): invites are the allow-list", () => {
+  /** The page / join / token gate (canAccessLiveStream), as `userId` would meet it on this in-memory database. */
+  async function canAccessLiveStream(streamId: string, userId: string) {
+    const { canAccessLiveStream: check } = await import("@/lib/live-stream-access");
+    const s = streams.find((x) => x.id === streamId)!;
+    return check({ ...s, selectedOnly: s.selectedOnly ?? false }, { id: userId, isAdmin: false });
+  }
+
+  beforeEach(() => {
+    streams.push({ id: "s2", hostId: "host", circleId: null, targetUserId: null, selectedOnly: true, status: "LIVE", roomName: "live-s2" });
+    viewers.push({ liveStreamId: "s2", userId: "host", role: "COHOST", joinedAt: new Date() });
+  });
+
+  it("a mid-stream invite by the host or a co-host lets that person watch (it widens this audience only)", async () => {
+    viewers.push({ liveStreamId: "s2", userId: "cohost", role: "COHOST", joinedAt: new Date() });
+    expect(await canAccessLiveStream("s2", "amy")).toBe(false);
+    expect(await canAccessLiveStream("s2", "ben")).toBe(false);
+    as("host");
+    expect(await inviteToLiveStream("s2", ["amy"])).toMatchObject({ error: null, invited: ["amy"] });
+    as("cohost");
+    expect(await inviteToLiveStream("s2", ["ben"])).toMatchObject({ error: null, invited: ["ben"] });
+    expect(await canAccessLiveStream("s2", "amy")).toBe(true);
+    expect(await canAccessLiveStream("s2", "ben")).toBe(true);
+    // Not picked: still out.
+    expect(await canAccessLiveStream("s2", "cara")).toBe(false);
+    // They hear about it through the invite (bell row + push), in their own language.
+    expect(notes.filter((n) => n.liveStreamId === "s2").map((n) => n.recipientId).sort()).toEqual(["amy", "ben"]);
+    expect(sendPushToUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("a blocked person is never added, and a block later shuts a picked person out", async () => {
+    blocks = [["amy", "host"]];
+    as("host");
+    expect(await inviteToLiveStream("s2", ["amy"])).toMatchObject({
+      error: null,
+      invited: [],
+      refused: [{ userId: "amy", reason: "unavailable" }],
+    });
+    expect(await canAccessLiveStream("s2", "amy")).toBe(false);
+    blocks = [];
+    await inviteToLiveStream("s2", ["ben"]);
+    blocks = [["host", "ben"]];
+    expect(await canAccessLiveStream("s2", "ben")).toBe(false);
+  });
+
+  it("cancelling an invite that was never accepted removes access and takes a watcher out of the room", async () => {
+    as("host");
+    await inviteToLiveStream("s2", ["amy"]);
+    viewers.push({ liveStreamId: "s2", userId: "amy", role: "VIEWER", joinedAt: new Date() });
+    expect(await canAccessLiveStream("s2", "amy")).toBe(true);
+    expect(await cancelLiveInvite("s2", "amy")).toEqual({ error: null });
+    expect(await canAccessLiveStream("s2", "amy")).toBe(false);
+    expect(viewers.some((v) => v.liveStreamId === "s2" && v.userId === "amy")).toBe(false);
+    expect(ejectFromRoom).toHaveBeenCalledWith("live-s2", ["amy"]);
+    // Inviting them again restores it (a re-send of the cancelled row).
+    expect(await inviteToLiveStream("s2", ["amy"])).toMatchObject({ error: null, invited: ["amy"] });
+    expect(await canAccessLiveStream("s2", "amy")).toBe(true);
+  });
+
+  it("someone already on stage keeps access (and their seat) when their open invite is cancelled, until they leave", async () => {
+    as("host");
+    await inviteToLiveStream("s2", ["amy"]);
+    // On stage through an approved stage request while the invite was still open.
+    viewers.push({ liveStreamId: "s2", userId: "amy", role: "GUEST", joinedAt: new Date() });
+    await cancelLiveInvite("s2", "amy");
+    expect(await canAccessLiveStream("s2", "amy")).toBe(true);
+    expect(viewers.some((v) => v.liveStreamId === "s2" && v.userId === "amy" && v.role === "GUEST")).toBe(true);
+    expect(ejectFromRoom).not.toHaveBeenCalled();
+    // Leaving the stage (the row goes) ends it.
+    viewers = viewers.filter((v) => !(v.liveStreamId === "s2" && v.userId === "amy"));
+    expect(await canAccessLiveStream("s2", "amy")).toBe(false);
+  });
+
+  it("declining or letting the stage invite run out keeps watching access; accepting seats them as usual", async () => {
+    as("host");
+    await inviteToLiveStream("s2", ["amy", "ben", "cara"]);
+    as("amy");
+    expect(await respondToLiveInvite("s2", false)).toEqual({ error: null });
+    expect(await canAccessLiveStream("s2", "amy")).toBe(true);
+    const ben = invites.find((i) => i.liveStreamId === "s2" && i.inviteeId === "ben")!;
+    ben.createdAt = new Date(Date.now() - LIVE_INVITE_TTL_MS - 1000);
+    expect(await canAccessLiveStream("s2", "ben")).toBe(true);
+    as("cara");
+    expect(await respondToLiveInvite("s2", true)).toEqual({ error: null });
+    expect(viewers.some((v) => v.liveStreamId === "s2" && v.userId === "cara" && v.role === "GUEST")).toBe(true);
+  });
+
+  it("the allow-list stops at LIVE_SELECTED_AUDIENCE_MAX; re-inviting someone already on it doesn't count", async () => {
+    const { LIVE_SELECTED_AUDIENCE_MAX } = await import("@/lib/live-audience");
+    for (let i = 0; i < LIVE_SELECTED_AUDIENCE_MAX; i++) {
+      invites.push({
+        id: `full${i}`,
+        liveStreamId: "s2",
+        inviteeId: `old${i}`,
+        invitedById: "host",
+        // Answered or run out: not open, so the pending cap (20) isn't what refuses here.
+        status: i === 0 ? "EXPIRED" : "ACCEPTED",
+        sendCount: 1,
+        createdAt: new Date(Date.now() - LIVE_INVITE_TTL_MS - 1000),
+        respondedAt: new Date(),
+      });
+    }
+    addUser("old0");
+    as("host");
+    expect(await inviteToLiveStream("s2", ["amy"])).toMatchObject({
+      error: null,
+      invited: [],
+      refused: [{ userId: "amy", reason: "limit" }],
+    });
+    expect(await canAccessLiveStream("s2", "amy")).toBe(false);
+    // old0's invite ran out: inviting them again re-sends it without growing the list.
+    expect(await inviteToLiveStream("s2", ["old0"])).toMatchObject({ error: null, invited: ["old0"] });
+    // A cancelled row frees a place.
+    invites.find((i) => i.inviteeId === "old1")!.status = "CANCELLED";
+    expect(await inviteToLiveStream("s2", ["amy"])).toMatchObject({ error: null, invited: ["amy"] });
+  });
+
+  it("existing audiences are unchanged: an Everyone stream's cancel takes nobody out of the room", async () => {
+    as("host");
+    await inviteToLiveStream("s1", ["amy"]);
+    viewers.push({ liveStreamId: "s1", userId: "amy", role: "VIEWER", joinedAt: new Date() });
+    await cancelLiveInvite("s1", "amy");
+    expect(viewers.some((v) => v.liveStreamId === "s1" && v.userId === "amy")).toBe(true);
+    expect(ejectFromRoom).not.toHaveBeenCalled();
+  });
+
+  it("the in-room search on a selected live offers anyone the host could invite, not only people already on it", async () => {
+    as("host");
+    const result = await searchLiveInvitees("ca", { liveStreamId: "s2" });
+    expect(result.items.map((p) => p.id)).toContain("cara");
   });
 });

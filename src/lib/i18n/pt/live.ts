@@ -78,7 +78,8 @@ export const live: typeof liveEn = {
   reactWith: "Reagir com {emoji}",
   invite: {
     goLiveWith: "Transmitir com",
-    goLiveWithHint: "Opcional. Escolha até {max} pessoas. Cada uma recebe um convite para entrar no palco com você.",
+    goLiveWithHint:
+      "Opcional. Escolha até {max} pessoas. Cada uma recebe um convite para entrar no palco com você. Ao escolher alguém, a transmissão fica só para as pessoas escolhidas; mude “Quem pode assistir” para mostrá-la a mais gente.",
     searchLabel: "Buscar pessoas para convidar",
     searchPlaceholder: "Busque por nome ou @usuário",
     clearSearch: "Limpar busca",
@@ -96,6 +97,13 @@ export const live: typeof liveEn = {
     inviteButton: "Convidar pessoas",
     sheetTitle: "Convidar para o palco",
     sheetHint: "Até {max} pessoas podem estar no palco com quem transmite. Os convites expiram após 15 minutos.",
+    selectedAudienceHint: "Só as pessoas convidadas para esta transmissão podem assistir. Quem você convidar agora também poderá assistir.",
+    // A stale invite to an "Only the people I selected" live, opened by someone it no longer admits.
+    selectedGone: {
+      cancelled: "Este convite foi cancelado, então esta transmissão não está mais disponível para você.",
+      expired: "Este convite expirou, então esta transmissão não está mais disponível para você.",
+      ended: "Este convite não está mais disponível: a transmissão terminou.",
+    },
     send: "one: Enviar # convite | other: Enviar # convites",
     sent: "one: # convite enviado | other: # convites enviados",
     someNotSent: "one: Não foi possível convidar # pessoa | other: Não foi possível convidar # pessoas",

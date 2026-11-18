@@ -12,6 +12,7 @@ import { getHiddenPeerIds } from "@/lib/hidden-chats";
 import { isBlockedWithAny } from "@/lib/blocks";
 import { normalizeDiscoverSearchQuery } from "@/lib/discover-search";
 import { claimStageSeat } from "@/lib/live-stage-server";
+import { ejectFromRoom } from "@/lib/daily";
 import {
   LIVE_INVITE_TTL_MS,
   liveInviteGone,
@@ -39,7 +40,15 @@ import {
 /** Most people the picker's search answers with. A broad query gets "keep typing", never the directory. */
 const INVITE_SEARCH_LIMIT = 20;
 
-const STREAM_SELECT = { id: true, hostId: true, circleId: true, targetUserId: true, status: true, roomName: true } as const;
+const STREAM_SELECT = {
+  id: true,
+  hostId: true,
+  circleId: true,
+  targetUserId: true,
+  selectedOnly: true,
+  status: true,
+  roomName: true,
+} as const;
 
 function signalStage(liveStreamId: string) {
   return publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed", { kind: "stage" });
@@ -137,6 +146,8 @@ export async function inviteToLiveStream(liveStreamId: string, rawInviteeIds: un
     const result = await sendLiveInvites(stream, { id: me.id, name: me.name }, inviteeIds);
     if (result.error) return { error: result.error };
     await signalStage(liveStreamId);
+    // "Only the people I selected": the people just invited can now see it, so open Home tabs refetch their strip.
+    if (stream.selectedOnly && result.invited.length > 0) await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
     return { error: null, invited: result.invited, refused: result.refused };
   } catch (err) {
     await captureError(err, { action: "inviteToLiveStream", liveStreamId });
@@ -178,9 +189,37 @@ export async function cancelLiveInvite(liveStreamId: string, inviteeId: string) 
     // Their bell row was still unread, so they haven't acted on it: the push on their devices is corrected in place
     // ("This invite was cancelled"). Only the request that cancelled it gets here (guarded write above).
     if (unread.count > 0) await recallLiveInvitePushes(liveStreamId, [inviteeId], "cancelled");
+    // "Only the people I selected": a cancelled invite they never accepted was their only way in, so watching ends
+    // too (canAccessLiveStream now refuses them everywhere). Someone already on stage keeps their seat, and with it
+    // access, until they leave. A Daily token can't be revoked, so they are also taken out of the room.
+    if (stream.selectedOnly) {
+      await removeUnseatedViewer(stream, inviteeId);
+      await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
+    }
     await signalStage(liveStreamId);
   }
   return { error: null };
+}
+
+/** Takes a watch-only viewer (never a stage seat) off a selectedOnly stream: their presence row and their Daily session. */
+async function removeUnseatedViewer(stream: { id: string; roomName: string; status: string }, userId: string) {
+  try {
+    const seat = await prisma.liveStreamViewer.findUnique({
+      where: { liveStreamId_userId: { liveStreamId: stream.id, userId } },
+      select: { role: true },
+    });
+    if (seat && seat.role !== "VIEWER") return;
+    const removed = await prisma.liveStreamViewer.deleteMany({
+      where: { liveStreamId: stream.id, userId, role: "VIEWER" },
+    });
+    // Ejected whether or not a row was there: a client can sit in the room on a token minted before the cancel.
+    if (stream.status === "LIVE" && stream.roomName) await ejectFromRoom(stream.roomName, [userId]);
+    if (removed.count > 0) {
+      await publishEvent(REALTIME_CHANNELS.liveStream(stream.id), "changed", { kind: "presence" });
+    }
+  } catch (err) {
+    await captureError(err, { action: "cancelLiveInvite", step: "removeViewer", liveStreamId: stream.id });
+  }
 }
 
 /**

@@ -77,7 +77,8 @@ export const live: typeof liveEn = {
   reactWith: "Jibu kwa {emoji}",
   invite: {
     goLiveWith: "Tangaza moja kwa moja pamoja na",
-    goLiveWithHint: "Si lazima. Chagua hadi watu {max}. Kila mmoja atapata mwaliko wa kujiunga nawe jukwaani.",
+    goLiveWithHint:
+      "Si lazima. Chagua hadi watu {max}. Kila mmoja atapata mwaliko wa kujiunga nawe jukwaani. Ukimchagua mtu, matangazo haya yatakuwa ya watu uliowachagua tu; badilisha “Nani anaweza kuyaona” ili yaonekane kwa watu zaidi.",
     searchLabel: "Tafuta watu wa kualika",
     searchPlaceholder: "Tafuta kwa jina au @jina la mtumiaji",
     clearSearch: "Futa utafutaji",
@@ -95,6 +96,13 @@ export const live: typeof liveEn = {
     inviteButton: "Alika watu",
     sheetTitle: "Alika jukwaani",
     sheetHint: "Hadi watu {max} wanaweza kuwa jukwaani pamoja na mwenyeji. Mialiko huisha baada ya dakika 15.",
+    selectedAudienceHint: "Watu walioalikwa kwenye matangazo haya tu ndio wanaweza kuyatazama. Yeyote utakayemwalika sasa ataweza kuyatazama pia.",
+    // A stale invite to an "Only the people I selected" live, opened by someone it no longer admits.
+    selectedGone: {
+      cancelled: "Mwaliko huu ulighairiwa, kwa hiyo matangazo haya hayapatikani tena kwako.",
+      expired: "Mwaliko huu umeisha muda, kwa hiyo matangazo haya hayapatikani tena kwako.",
+      ended: "Mwaliko huu haupatikani tena: matangazo yameisha.",
+    },
     send: "one: Tuma mwaliko # | other: Tuma mialiko #",
     sent: "one: Mwaliko # umetumwa | other: Mialiko # imetumwa",
     someNotSent: "one: Mtu # hakuweza kualikwa | other: Watu # hawakuweza kualikwa",

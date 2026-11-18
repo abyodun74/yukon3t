@@ -309,7 +309,7 @@ export async function createGiftIntent(
     const now = new Date();
     const stream = await prisma.liveStream.findUnique({
       where: { id: where.liveStreamId },
-      select: { id: true, status: true, hostId: true, circleId: true, targetUserId: true },
+      select: { id: true, status: true, hostId: true, circleId: true, targetUserId: true, selectedOnly: true },
     });
     if (!stream || stream.status !== "LIVE" || stream.hostId !== recipientId) return { error: "unavailable" };
     if (!(await canAccessLiveStream(stream, user))) return { error: "unavailable" };
@@ -808,7 +808,7 @@ export async function getLiveGiftEffects(
   if (!id.success) return { error: "unavailable" };
   const stream = await prisma.liveStream.findUnique({
     where: { id: id.data },
-    select: { hostId: true, circleId: true, targetUserId: true },
+    select: { id: true, hostId: true, circleId: true, targetUserId: true, selectedOnly: true },
   });
   if (!stream || !(await canAccessLiveStream(stream, user))) return { error: "unavailable" };
   const since = new Date(Date.now() - LIVE_GIFT_EFFECT_WINDOW_MS);

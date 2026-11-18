@@ -15,7 +15,9 @@ import {
   getRecordingAccessLink,
 } from "@/lib/daily";
 import { getCircleMembership } from "@/lib/circle-permissions";
-import { canAccessLiveStream } from "@/lib/live-stream-access";
+import { canAccessLiveStream, LIVE_STREAM_ACCESS_SELECT } from "@/lib/live-stream-access";
+import { activeLiveStreamsWhere } from "@/lib/live-audience";
+import { getBlockedEitherWayIds } from "@/lib/blocks";
 import { liveStreamTitleSchema, liveStreamJoinRoleSchema, liveStreamCommentSchema } from "@/lib/validations";
 import { moderateText } from "@/lib/moderation";
 import { publishEvent } from "@/lib/realtime-server";
@@ -38,7 +40,7 @@ import {
 } from "@/lib/live-viewer-cap";
 import { MAX_LIVE_STAGE, parseInviteeIds } from "@/lib/live-stage";
 import { claimStageSeat } from "@/lib/live-stage-server";
-import { sendLiveInvites, settleLiveInvites } from "@/lib/live-stream-invites-server";
+import { invitableIds, sendLiveInvites, settleLiveInvites } from "@/lib/live-stream-invites-server";
 
 /** Most live streams Home's "Live now" strip and feed cards list at once (newest first). */
 const ACTIVE_LIVE_STREAMS_LIMIT = 30;
@@ -57,7 +59,9 @@ function publishLiveStreamSignal(liveStreamId: string, kind: LiveStreamSignalKin
  * Starts a new live stream — rejects if the host already has one running (see LiveStream.status). The Go live sheet
  * can name people to go live with (`inviteeId`, repeated, at most LIVE_INVITE_MAX_PER_REQUEST): once the room is
  * attached they are invited onto the stage exactly as the in-room picker would (sendLiveInvites, after the answer,
- * never able to delay or fail the start).
+ * never able to delay or fail the start). `audience=selected` makes the stream "Only the people I selected"
+ * (LiveStream.selectedOnly): only those invitees (and later ones) can see it, see src/lib/live-audience.ts; it needs
+ * at least one `inviteeId` and excludes `circleId` / `targetUserId`.
  */
 export async function startLiveStream(formData: FormData) {
   const user = await requireVerifiedUser();
@@ -75,14 +79,36 @@ export async function startLiveStream(formData: FormData) {
     title: formData.get("title"),
     circleId: formData.get("circleId") || undefined,
     targetUserId: formData.get("targetUserId") || undefined,
+    selectedOnly: formData.get("audience") === "selected",
   });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
-  const { title, circleId, targetUserId } = parsed.data;
-  const inviteeIds = parseInviteeIds(formData.getAll("inviteeId"), user.id);
-  if (!inviteeIds) {
+  const { title, circleId, targetUserId, selectedOnly } = parsed.data;
+  const picked = parseInviteeIds(formData.getAll("inviteeId"), user.id);
+  if (!picked) {
     return { error: "invalid" as const };
+  }
+  // "Only the people I selected" with nobody selected would be a live nobody can see.
+  if (selectedOnly && picked.length === 0) {
+    return { error: "invalid" as const };
+  }
+  // For "Only the people I selected" the picks are the whole audience, so they are checked before anything is
+  // created: if none of them can be invited (blocked either way, no longer eligible, ...) the host is told and nothing
+  // starts; if only some can, the live starts with those and the host is told how many couldn't be invited. Never
+  // why: `no_invitees` and the count read the same whatever rule refused someone, so a block is never revealed.
+  let inviteeIds = picked;
+  let notInvited = 0;
+  if (selectedOnly) {
+    inviteeIds = await invitableIds(
+      { hostId: user.id, circleId: null, targetUserId: null, selectedOnly: true },
+      user.id,
+      picked,
+    );
+    if (inviteeIds.length === 0) {
+      return { error: "no_invitees" as const };
+    }
+    notInvited = picked.length - inviteeIds.length;
   }
   // The title is shown to everyone on Home's "Live now" (and in invites): same text gate as posts, refused if flagged
   // (a stream has no hidden/held state to put it in).
@@ -135,7 +161,7 @@ export async function startLiveStream(formData: FormData) {
       await tx.liveStream.update({ where: { id: existing!.id }, data: { status: "ENDED", endedAt: now } });
     }
     const created = await tx.liveStream.create({
-      data: { hostId: user.id, circleId, targetUserId, title, roomName: "", roomUrl: "" },
+      data: { hostId: user.id, circleId, targetUserId, selectedOnly, title, roomName: "", roomUrl: "" },
       select: { id: true },
     });
     return { liveStreamId: created.id };
@@ -192,26 +218,42 @@ export async function startLiveStream(formData: FormData) {
   after(async () => {
     await announceLiveStream(liveStreamId);
   });
-  after(async () => {
-    await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
-  });
+  // For "Only the people I selected" the invites ARE the audience (src/lib/live-audience.ts): Home tabs are nudged
+  // only once they are written, so the people picked find the live in their strip on the first refetch. Nobody else
+  // is told anything (announceLiveStream sends no "is live" fan-out for this audience); the invite's bell row and push,
+  // in each person's language, are their go-live notice.
+  if (!selectedOnly) {
+    after(async () => {
+      await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
+    });
+  }
   if (inviteeIds.length > 0) {
     after(async () => {
       try {
         await sendLiveInvites(
-          { id: liveStreamId, hostId: user.id, circleId: circleId ?? null, targetUserId: targetUserId ?? null, status: "LIVE", roomName: room.name },
+          {
+            id: liveStreamId,
+            hostId: user.id,
+            circleId: circleId ?? null,
+            targetUserId: targetUserId ?? null,
+            selectedOnly,
+            status: "LIVE",
+            roomName: room.name,
+          },
           { id: user.id, name: user.name },
           inviteeIds,
         );
         await publishLiveStreamSignal(liveStreamId, "stage");
       } catch (err) {
         await captureError(err, { action: "startLiveStream", step: "invites" });
+      } finally {
+        if (selectedOnly) await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
       }
     });
   }
 
   revalidatePath("/home");
-  return { error: null, liveStreamId, roomUrl: room.url, token };
+  return { error: null, liveStreamId, roomUrl: room.url, token, notInvited };
 }
 
 /** Host-only: ends the stream and best-effort tears down the Daily room. */
@@ -608,20 +650,17 @@ export async function leaveLiveStream(liveStreamId: string) {
  * (src/app/circles/[slug]/page.tsx), to its members only. A stream started
  * for one specific person never appears here either, for anyone, including
  * that person — their only way in is the LIVE_STREAM_INVITE notification's
- * own link, same as a PRIVATE Circle's members rely on CIRCLE_LIVE.
+ * own link, same as a PRIVATE Circle's members rely on CIRCLE_LIVE. A stream
+ * for "Only the people I selected" (selectedOnly) is listed only for the
+ * people on its allow-list (src/lib/live-audience.ts) and its host, never
+ * across a block with the host (activeLiveStreamsWhere).
  */
 export async function getActiveLiveStreams() {
   try {
-    await requireVerifiedViewer();
+    const me = await requireVerifiedViewer();
 
     const streams = await prisma.liveStream.findMany({
-      where: {
-        status: "LIVE",
-        // A start still attaching its room isn't listed until it can be joined.
-        roomName: { not: "" },
-        targetUserId: null,
-        OR: [{ circleId: null }, { circle: { visibility: "PUBLIC" } }],
-      },
+      where: activeLiveStreamsWhere(me.id, await getBlockedEitherWayIds(me.id)),
       orderBy: { startedAt: "desc" },
       // Bounded: every open Home tab runs this on each live-streams signal, so its cost must not grow with how
       // many people are live at once.
@@ -674,7 +713,7 @@ export async function getLiveStreamViewerCount(liveStreamId: string, options?: {
 
     const liveStream = await prisma.liveStream.findUnique({
       where: { id: liveStreamId },
-      select: { hostId: true, circleId: true, targetUserId: true },
+      select: LIVE_STREAM_ACCESS_SELECT,
     });
     if (!liveStream || !(await canAccessLiveStream(liveStream, user))) {
       return empty;
@@ -716,7 +755,7 @@ export async function listLiveStreamRecordings(liveStreamId: string) {
 
   const liveStream = await prisma.liveStream.findUnique({
     where: { id: liveStreamId },
-    select: { roomName: true, circleId: true, targetUserId: true, hostId: true },
+    select: { roomName: true, ...LIVE_STREAM_ACCESS_SELECT },
   });
   if (!liveStream?.roomName || !(await canAccessLiveStream(liveStream, user))) {
     return { recordings: [] };
@@ -744,7 +783,7 @@ export async function getLiveStreamRecordingLink(liveStreamId: string, recording
 
   const liveStream = await prisma.liveStream.findUnique({
     where: { id: liveStreamId },
-    select: { roomName: true, circleId: true, targetUserId: true, hostId: true },
+    select: { roomName: true, ...LIVE_STREAM_ACCESS_SELECT },
   });
   if (!liveStream?.roomName || !(await canAccessLiveStream(liveStream, user))) {
     return { error: "unavailable" as const };
@@ -778,7 +817,7 @@ export async function getLiveStreamRecordingLink(liveStreamId: string, recording
  * a different, bigger permission than recording. The button isn't shown to
  * co-hosts either, so this check is a backstop, not the UX.
  *
- * Refuses outright for a targetUserId-scoped stream regardless of what the
+ * Refuses outright for a targetUserId-scoped (or selectedOnly) stream regardless of what the
  * client asked for: there's no Post visibility tier for "private to exactly
  * one other person," so auto-posting one would be a real content-exposure
  * bug. The client gates the button on the same condition
@@ -789,12 +828,13 @@ export async function requestLiveStreamRecordingPost(liveStreamId: string, recor
 
   const liveStream = await prisma.liveStream.findUnique({
     where: { id: liveStreamId },
-    select: { hostId: true, circleId: true, targetUserId: true },
+    select: LIVE_STREAM_ACCESS_SELECT,
   });
   if (!liveStream || liveStream.hostId !== user.id) {
     return { error: "not_found" as const };
   }
-  if (liveStream.targetUserId) {
+  // Same for "Only the people I selected": no Post tier is limited to a hand-picked list of people either.
+  if (liveStream.targetUserId || liveStream.selectedOnly) {
     return { error: "not_available" as const };
   }
 
@@ -880,7 +920,7 @@ export async function getLiveStreamComments(liveStreamId: string, afterId?: stri
     // Same rule as joining: without this anyone signed in who had a restricted stream's id (Circle- or person-scoped) could read its chat.
     const liveStream = await prisma.liveStream.findUnique({
       where: { id: liveStreamId },
-      select: { hostId: true, circleId: true, targetUserId: true },
+      select: LIVE_STREAM_ACCESS_SELECT,
     });
     if (!liveStream || !(await canAccessLiveStream(liveStream, user))) {
       return { comments: [] };

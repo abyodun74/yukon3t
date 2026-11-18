@@ -60,7 +60,7 @@ export const challengeAccessSelect = {
   decidedById: true,
   editableUntil: true,
   circle: { select: { id: true, slug: true, createdById: true, visibility: true } },
-  liveStream: { select: { id: true, hostId: true, status: true, circleId: true, targetUserId: true } },
+  liveStream: { select: { id: true, hostId: true, status: true, circleId: true, targetUserId: true, selectedOnly: true } },
 } as const;
 
 export type ChallengeAccess = {
@@ -75,7 +75,14 @@ export type ChallengeAccess = {
     decidedById: string | null;
     editableUntil: Date | null;
     circle: { id: string; slug: string; createdById: string; visibility: string } | null;
-    liveStream: { id: string; hostId: string; status: string; circleId: string | null; targetUserId: string | null } | null;
+    liveStream: {
+      id: string;
+      hostId: string;
+      status: string;
+      circleId: string | null;
+      targetUserId: string | null;
+      selectedOnly: boolean;
+    } | null;
   };
   context: ChallengeContext;
   /** The viewer may see it at all: a Circle challenge to its members only, a live one to whoever may see the stream. */
@@ -297,6 +304,15 @@ export async function loadVisibleChallengeWins(recipientId: string, viewerId: st
             select: {
               hostId: true,
               targetUserId: true,
+              selectedOnly: true,
+              // The viewer's place on a selectedOnly stream's allow-list (src/lib/live-audience.ts): an invite not
+              // CANCELLED, or a stage seat.
+              stageInvites: {
+                where: { inviteeId: viewerId, status: { not: "CANCELLED" } },
+                select: { id: true },
+                take: 1,
+              },
+              viewers: { where: { userId: viewerId, role: { in: ["GUEST", "COHOST"] } }, select: { id: true }, take: 1 },
               circle: { select: { visibility: true, members: viewerMember } },
             },
           },
@@ -320,6 +336,9 @@ export async function loadVisibleChallengeWins(recipientId: string, viewerId: st
         ? {
             hostId: challenge.liveStream.hostId,
             targetUserId: challenge.liveStream.targetUserId,
+            selectedOnly: challenge.liveStream.selectedOnly,
+            viewerSelected:
+              (challenge.liveStream.stageInvites?.length ?? 0) > 0 || (challenge.liveStream.viewers?.length ?? 0) > 0,
             circle: circleView(challenge.liveStream.circle),
           }
         : null,

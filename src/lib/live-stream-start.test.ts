@@ -44,6 +44,8 @@ describe("announcementKind", () => {
     expect(announcementKind({ targetUserId: "u", circleId: null })).toBe("invite");
     expect(announcementKind({ targetUserId: null, circleId: "c" })).toBe("circle");
     expect(announcementKind({ targetUserId: null, circleId: null })).toBe("subscribers");
+    expect(announcementKind({ targetUserId: null, circleId: null, selectedOnly: true })).toBe("none");
+    expect(announcementKind({ targetUserId: null, circleId: null, selectedOnly: false })).toBe("subscribers");
   });
 });
 

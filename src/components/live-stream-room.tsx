@@ -148,7 +148,13 @@ export function LiveStreamRoom({
   giftHost = null,
   challengesEnabled = false,
   fromInvite = false,
+  selectedAudience = false,
+  notInvited = 0,
 }: {
+  /** How many of the people the host picked couldn't be invited at the start (from `?notInvited=`); host only. */
+  notInvited?: number;
+  /** The stream is for "Only the people I selected" (LiveStream.selectedOnly): inviting someone also lets them watch. */
+  selectedAudience?: boolean;
   /** Opened from a stage invite's push or bell row (`?invite=1`): if that invite can't be answered any more, say why. */
   fromInvite?: boolean;
   liveStreamId: string;
@@ -217,6 +223,8 @@ export function LiveStreamRoom({
   const [inviteAnswerError, setInviteAnswerError] = useState<string | null>(null);
   // Opened from an invite that can't be answered any more (cancelled, expired, answered, the live over): why.
   const [inviteGone, setInviteGone] = useState<LiveInviteGone | null>(null);
+  // People picked in the Go live sheet that couldn't be invited (count only), shown once to the host.
+  const [notInvitedShown, setNotInvitedShown] = useState(notInvited);
   // Whether this page has shown an open invite (so one withdrawn while it's open is explained too), and whether it was
   // answered here (then the settled invite needs no note).
   const hadInviteRef = useRef(false);
@@ -1519,6 +1527,29 @@ export function LiveStreamRoom({
         </div>
       )}
 
+      {/* "Only the people I selected": some of the people picked in the Go live sheet couldn't be invited (the
+          server said how many, never why). Host only, dismissible. */}
+      {isHost && notInvitedShown > 0 && (
+        <div
+          className="fixed inset-x-0 z-[var(--z-viewer)] flex justify-center px-3"
+          style={{ top: "calc(6.5rem + env(safe-area-inset-top))" }}
+        >
+          <div className="hig-material-dark flex w-80 max-w-full items-start justify-between gap-2 rounded-xl bg-black/80 p-3 text-white backdrop-blur-md">
+            <p role="status" className="text-xs">
+              {plural(locale, t.invite.someNotSent, notInvitedShown)}
+            </p>
+            <button
+              type="button"
+              onClick={() => setNotInvitedShown(0)}
+              aria-label={t.dismiss}
+              className="-m-1 shrink-0 p-2 opacity-80"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {canInvite && (
         <Sheet
           open={inviteSheetOpen}
@@ -1528,6 +1559,7 @@ export function LiveStreamRoom({
           title={t.invite.sheetTitle}
         >
           <p className="mb-2 text-xs text-foreground-soft">{format(t.invite.sheetHint, { max: MAX_LIVE_STAGE })}</p>
+          {selectedAudience && <p className="mb-2 text-xs text-foreground-soft">{t.invite.selectedAudienceHint}</p>}
           <LiveInvitePicker
             context={{ liveStreamId }}
             selected={invitePicks}

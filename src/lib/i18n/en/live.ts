@@ -81,7 +81,8 @@ export const liveEn = {
   // list of open invites, and the invitee's Accept / Decline prompt.
   invite: {
     goLiveWith: "Go live with",
-    goLiveWithHint: "Optional. Pick up to {max} people. Each gets an invite to join you on stage.",
+    goLiveWithHint:
+      "Optional. Pick up to {max} people. Each gets an invite to join you on stage. Picking someone makes this live just for the people you picked; change “Who can watch” to show it to more people.",
     searchLabel: "Search people to invite",
     searchPlaceholder: "Search by name or @username",
     clearSearch: "Clear search",
@@ -99,6 +100,13 @@ export const liveEn = {
     inviteButton: "Invite people",
     sheetTitle: "Invite to the stage",
     sheetHint: "Up to {max} people can be on stage with the host. Invites expire after 15 minutes.",
+    selectedAudienceHint: "Only the people invited to this live can watch it. Anyone you invite now can watch too.",
+    // A stale invite to an "Only the people I selected" live, opened by someone it no longer admits.
+    selectedGone: {
+      cancelled: "This invite was cancelled, so this live is no longer available to you.",
+      expired: "This invite has expired, so this live is no longer available to you.",
+      ended: "This invite is no longer available: the live has ended.",
+    },
     send: "one: Send # invite | other: Send # invites",
     sent: "one: # invite sent | other: # invites sent",
     someNotSent: "one: # person couldn't be invited | other: # people couldn't be invited",

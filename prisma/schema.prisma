@@ -2001,6 +2001,10 @@ model LiveStream {
   // canAccessLiveStream for how this changes who may join/view/comment, and
   // LIVE_STREAM_INVITE for how that one person learns about it.
   targetUserId String?
+  // "Who can watch" = "Only the people I selected": the host, the people they (or a co-host) invited
+  // (LiveStreamInvite rows not CANCELLED: that table is the allow-list) and anyone on stage. Never set together with
+  // circleId or targetUserId. Rules: src/lib/live-audience.ts; enforced by canAccessLiveStream and every list.
+  selectedOnly Boolean @default(false)
   title     String
   status    LiveStreamStatus @default(LIVE)
   roomName  String
@@ -2128,8 +2132,9 @@ enum LiveStreamInviteStatus {
  * stream (actions/live-stream-invites.ts). Unlike LiveStreamStageRequest (the viewer asks, the host approves), the
  * stage side has already said yes: accepting takes a stage seat directly, under the same per-stream lock and
  * MAX_LIVE_STAGE cap as an approval. One row per stream and invitee: re-inviting after a cancel or expiry reuses it
- * (sendCount, capped), a decline is final for that stream. An invite never widens who may watch: the invitee must
- * already pass canAccessLiveStream.
+ * (sendCount, capped), a decline is final for that stream. For Everyone / a Circle / one person an invite never widens
+ * who may watch: the invitee must already pass canAccessLiveStream. For a `selectedOnly` stream these rows ARE the
+ * allow-list: every row not CANCELLED lets its invitee watch (src/lib/live-audience.ts).
  */
 model LiveStreamInvite {
   id           String                 @id @default(cuid())

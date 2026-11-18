@@ -251,7 +251,7 @@ export function challengeWinWindowStart(wins: readonly (Date | null | undefined)
  * Whether a viewer may know about a challenge (its existence, for the occasion engine and lists): never across a block
  * with its host; a Circle challenge as far as the Circle's content is visible (PUBLIC, or a member: a PRIVATE Circle
  * doesn't exist for anyone else, site admins included); a live challenge as far as the stream is (its host, the one
- * person it was started for, or, without one, everyone for an "Everyone" stream or a PUBLIC Circle's, members for a
+ * person it was started for, the people it was selected for, or, without one, everyone for an "Everyone" stream or a PUBLIC Circle's, members for a
  * PRIVATE Circle's). No site-admin shortcut anywhere.
  */
 export function canViewerSeeChallenge(input: {
@@ -262,6 +262,9 @@ export function canViewerSeeChallenge(input: {
   stream: {
     hostId: string;
     targetUserId: string | null;
+    /** "Only the people I selected" (src/lib/live-audience.ts): then only `viewerSelected` (allow-list or stage) counts. */
+    selectedOnly?: boolean;
+    viewerSelected?: boolean;
     circle: { visibility: string; viewerIsMember: boolean } | null;
   } | null;
 }): boolean {
@@ -270,6 +273,7 @@ export function canViewerSeeChallenge(input: {
   const stream = input.stream;
   if (!stream) return false;
   if (stream.hostId === input.viewerId) return true;
+  if (stream.selectedOnly) return stream.viewerSelected === true;
   if (stream.targetUserId) return stream.targetUserId === input.viewerId;
   if (!stream.circle) return true;
   return stream.circle.visibility !== "PRIVATE" || stream.circle.viewerIsMember;
