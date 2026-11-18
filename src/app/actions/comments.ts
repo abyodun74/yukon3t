@@ -115,7 +115,7 @@ export async function createComment(formData: FormData) {
     }
   }
 
-  // Hive's Visual Moderation API can't scan past 60s of content — same
+  // The Hive video scan doesn't cover past 60s of content — same
   // routing rule createPost uses for post video (see storage.ts's
   // HIVE_VIDEO_MODERATION_MAX_SECONDS).
   const videoNeedsManualReview =

@@ -1,8 +1,9 @@
 // Netlify Scheduled Function — pings the real Next.js route handler
 // (src/app/api/cron/moderate-videos/route.ts) on a timer, same thin-fetch
 // pattern as expire-stories.mts/event-reminders.mts. This is the only place
-// video-body moderation runs (Hive's Visual Moderation API is synchronous,
-// called from the cron route rather than inline at post creation).
+// video-body moderation runs (Hive's Vision Language Model, a synchronous
+// call made from the cron route rather than inline at post creation). The
+// route keeps its own work inside a 20s budget (src/lib/video-scan-budget.ts).
 async function handler() {
   const baseUrl = process.env.URL ?? process.env.NEXT_PUBLIC_APP_URL;
   const secret = process.env.CRON_SECRET;

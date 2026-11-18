@@ -128,7 +128,74 @@ export function videoScanFailedHoldAuditReason(kind: VideoScanHoldKind, id: stri
   return `${SCAN_FAILED_PREFIX} (${kind}:${id}, VIDEO): ${detail}`;
 }
 
-/** The held item out of a videoScanFailedHoldAuditReason string, or null. */
+// --- Video scan verdict holds -----------------------------------------------
+// The VLM scan (src/lib/hive.ts) answers "unsure" when it can't confidently call a video clean, and names categories
+// when it flags one. Both hide the item (FLAGGED, media kept) and write one CONTENT_FLAGGED_FOR_REVIEW row under
+// VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY with the model's reason, so /admin/moderation can show why. Like a scan-failure
+// hold, it is never deleted unreviewed (the sweep skips both performedBy values): neither is a confirmed violation.
+
+export const VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY = "system:video-scan-review-hold";
+
+/** Every performedBy a moderate-videos hold row is written under (the admin page and the sweep read all of them). */
+export const VIDEO_SCAN_HOLD_PERFORMED_BY_ALL: readonly string[] = [
+  VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+  VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY,
+];
+
+export const VIDEO_SCAN_UNSURE_REASON = "automatic video scan was unsure";
+export const VIDEO_SCAN_FLAGGED_REASON = "automatic video scan flagged this video";
+
+const UNSURE_PREFIX = `Video held for admin review: ${VIDEO_SCAN_UNSURE_REASON}`;
+const FLAGGED_PREFIX = `Video held for admin review: ${VIDEO_SCAN_FLAGGED_REASON}`;
+
+/** Collapses whitespace and strips "; " so the reason stays one line and one reasonsFromMediaAuditReason entry. */
+function oneLine(text: string): string {
+  return text.replace(/\s+/g, " ").replace(/;\s*/g, ", ").trim();
+}
+
+/** e.g. "Video held for admin review: automatic video scan was unsure (post:c1, VIDEO): too dark to tell" */
+export function videoScanUnsureHoldAuditReason(kind: VideoScanHoldKind, id: string, modelReason: string): string {
+  return `${UNSURE_PREFIX} (${kind}:${id}, VIDEO): ${oneLine(modelReason) || "no reason given"}`;
+}
+
+/** e.g. "... automatic video scan flagged this video (muse:c1, VIDEO): sexual_nudity,violence_gore; <reason>" */
+export function videoScanFlaggedHoldAuditReason(
+  kind: VideoScanHoldKind,
+  id: string,
+  categories: readonly string[],
+  modelReason: string,
+): string {
+  const reason = oneLine(modelReason);
+  return `${FLAGGED_PREFIX} (${kind}:${id}, VIDEO): ${categories.join(",") || "flagged"}${reason ? `; ${reason}` : ""}`;
+}
+
+export type VideoScanHoldType = "scan_failed" | "unsure" | "flagged";
+
+/** Which kind of moderate-videos hold a reason string records, or null for any other string. */
+export function videoScanHoldTypeFromAuditReason(reason: string): VideoScanHoldType | null {
+  if (reason.startsWith(SCAN_FAILED_PREFIX)) return "scan_failed";
+  if (reason.startsWith(UNSURE_PREFIX)) return "unsure";
+  if (reason.startsWith(FLAGGED_PREFIX)) return "flagged";
+  return null;
+}
+
+/**
+ * The line /admin/moderation shows first for a moderate-videos hold, from its audit reason, e.g. "Held for review:
+ * automatic video scan was unsure — too dark to tell". The detail is the part after "(kind:id, VIDEO): ".
+ */
+export function videoScanHoldHeadline(reason: string): string {
+  const detail = reasonsFromMediaAuditReason(reason).join("; ");
+  switch (videoScanHoldTypeFromAuditReason(reason)) {
+    case "unsure":
+      return `Held for review: ${VIDEO_SCAN_UNSURE_REASON} — ${detail || "no reason given"}`;
+    case "flagged":
+      return `Hidden: ${VIDEO_SCAN_FLAGGED_REASON} — ${detail || "flagged"}`;
+    default:
+      return `Held for review: ${VIDEO_SCAN_FAILED_REASON}`;
+  }
+}
+
+/** The held item out of a moderate-videos hold reason string (any of the three kinds), or null. */
 export function videoScanHoldTargetFromAuditReason(reason: string): { kind: VideoScanHoldKind; id: string } | null {
   const match = /\((post|comment|muse):([A-Za-z0-9_-]+), VIDEO\)/.exec(reason);
   return match ? { kind: match[1] as VideoScanHoldKind, id: match[2] } : null;

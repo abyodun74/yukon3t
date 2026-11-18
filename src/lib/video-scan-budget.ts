@@ -4,28 +4,71 @@
 // Why (production, 2026-11-16): the cron ran three 20-item batches in parallel, each a chain of synchronous 1-5s Hive
 // calls with a 30s cap, so a run reached ~30s, right at Netlify's function limit (one invocation got a 504), and two
 // ticks overlapped. When Hive then answered 429 to everything, every 5-minute tick re-claimed videos and hit 429 again.
-// Now: one sequential pass over a few videos per kind, taken in turn, inside a fixed budget, and a provider-wide
-// rate-limit / credit / key failure sets a cooldown during which runs don't call Hive at all.
+// Now: a few videos per kind, taken in turn, scanned by a small pool of concurrent workers inside a fixed budget, and
+// a provider-wide rate-limit / credit / key failure sets a cooldown during which runs don't call Hive at all.
+//
+// Numbers re-chosen for Hive's Vision Language Model (src/lib/hive.ts, 2026-11-18). Evidence from live calls: a 10s
+// clip at 0.5 fps (5 frames) answered in 1.3-3.7s, a 20s clip (10 frames) in 6.3s, a 30s clip (15 frames) in 11.2s,
+// and 30 frames of a small 10s file in 3.6s, so the time goes mostly into Hive fetching the file, not the frame count;
+// a 60s video at the 30-frame cap is expected around 10-12s. Hive's default rate limit is 5 requests per second.
 
 import type { HiveFailure } from "@/lib/hive";
 import type { VideoScanItemKind } from "@/lib/video-scan-diagnostics";
 
-/** Wall time a run may spend starting Hive calls. Netlify cuts the function at ~30s; the rest is margin for the
- * post-call work (a failure HEAD of up to 3s, DB writes, Sentry) and the summary. */
+/**
+ * Wall time a run may spend starting Hive calls. Netlify cut a ~30s run with a 504 (2026-11-16), and after the last
+ * call returns a run still does up to ~4s of work (a failure HEAD of up to 3s, DB writes, Sentry, the summary), so the
+ * budget stays at 20s (worst case ~24s) rather than moving toward Netlify's limit. Raising it to 25s would leave almost
+ * no margin for that tail; with three calls in parallel the 20s already fits a full wave of ~10-12s calls.
+ */
 export const VIDEO_SCAN_RUN_BUDGET_MS = 20_000;
-/** Candidates read per kind per run (oldest first). Small on purpose: three kinds x this many, one at a time. */
-export const VIDEO_SCAN_PER_KIND_CAP = 6;
-/** A Hive call is not started with less than this left in the budget: it would most likely be cut short. */
-export const VIDEO_SCAN_MIN_CALL_MS = 4_000;
+/**
+ * Hive calls in flight at once in one run. Three ~10-12s calls fit side by side in the 20s budget (a second wave fits
+ * when the first is quick), and three is under Hive's 5 requests per second even if all start in the same second.
+ */
+export const VIDEO_SCAN_CONCURRENCY = 3;
+/**
+ * Candidates read per kind per run (oldest first): 3 kinds x 3 = 9, which is about what three workers can finish in
+ * one 20s budget (one or two waves). Reading more would only claim videos a run can't reach.
+ */
+export const VIDEO_SCAN_PER_KIND_CAP = 3;
+/**
+ * Minimum gap between two call starts in one run: at most 4 starts per second, under Hive's 5 per second even when
+ * calls fail instantly (an immediate 400 frees a worker at once).
+ */
+export const VIDEO_SCAN_MIN_START_GAP_MS = 250;
+/** Waits `ms` (the start-gap wait). Its own export so tests can replace it. */
+export function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+/**
+ * A Hive call is not started with less than this left in the budget: a VLM call takes ~2-12s, so one started with
+ * less would most likely be cut short (handed back uncounted, but still billed by Hive).
+ */
+export const VIDEO_SCAN_MIN_CALL_MS = 6_000;
 
 /**
  * A Hive call given at least this long that still times out counts against the video (an ordinary `timeout`
- * failure; Hive normally answers in 1-5s). One given less was cut short by the run's budget: the video is handed back
- * without counting an attempt. Since a run's budget (20s) is below Hive's own 30s cap, "less than 30s" can't be the
- * test, or no timeout would ever count. The first call of a run always gets the full budget, and the first kind
- * rotates per tick, so a slow video at the head of its queue does get a fair call within three runs.
+ * failure; the VLM normally answers in 2-12s). One given less was cut short by the run's budget: the video is handed
+ * back without counting an attempt. Since a run's budget (20s) is below the 30s cap in hive.ts, "less than 30s" can't
+ * be the test, or no timeout would ever count. Every call of a run's first wave gets the full budget, and the first
+ * kind rotates per tick, so a slow video at the head of its queue does get a fair call within three runs.
  */
 export const VIDEO_SCAN_FAIR_TIMEOUT_MS = 15_000;
+
+/**
+ * When the next call may start, given the last reserved start (`lastStartMs`, null for none yet) and now. Returns the
+ * reserved start and how long to wait for it; the caller stores `startMs` as the new last start before waiting, so
+ * concurrent workers each get their own slot.
+ */
+export function nextCallStart(
+  lastStartMs: number | null,
+  nowMs: number,
+  gapMs = VIDEO_SCAN_MIN_START_GAP_MS,
+): { startMs: number; waitMs: number } {
+  const startMs = lastStartMs === null ? nowMs : Math.max(nowMs, lastStartMs + gapMs);
+  return { startMs, waitMs: startMs - nowMs };
+}
 
 /** Whether a timeout after a call given `timeoutMs` is the video's (counted) or the budget's (handed back). */
 export function timeoutCountsAgainstVideo(timeoutMs: number): boolean {
@@ -154,7 +197,18 @@ function safeJson(text: string): unknown {
 
 // --- Summary line ----------------------------------------------------------------------------------------------
 
-export type KindRunSummary = { checked: number; flagged: number; cleared: number; failed: number; heldForAdmin: number };
+/**
+ * Per kind: checked = Hive calls made; cleared / flagged / unsure = complete verdicts (unsure = held for review);
+ * failed = no verdict; heldForAdmin = holds written (unsure verdicts and give-ups alike).
+ */
+export type KindRunSummary = {
+  checked: number;
+  flagged: number;
+  cleared: number;
+  unsure: number;
+  failed: number;
+  heldForAdmin: number;
+};
 
 export type VideoScanStop =
   | "done" // ran out of candidates
@@ -174,14 +228,14 @@ export type VideoScanRunSummary = {
 };
 
 export function emptyKindSummary(): KindRunSummary {
-  return { checked: 0, flagged: 0, cleared: 0, failed: 0, heldForAdmin: 0 };
+  return { checked: 0, flagged: 0, cleared: 0, unsure: 0, failed: 0, heldForAdmin: 0 };
 }
 
 /** One log line: counts per kind, why the run stopped, budget used, cooldown. No ids, URLs or Hive text. */
 export function formatVideoScanRunSummary(s: VideoScanRunSummary, nowMs: number): string {
   const kinds = VIDEO_SCAN_KINDS.map((k) => {
     const c = s.kinds[k];
-    return `${k}s checked=${c.checked} cleared=${c.cleared} flagged=${c.flagged} failed=${c.failed} held=${c.heldForAdmin}`;
+    return `${k}s checked=${c.checked} cleared=${c.cleared} flagged=${c.flagged} unsure=${c.unsure} failed=${c.failed} held=${c.heldForAdmin}`;
   }).join("; ");
   let cooldown = "none";
   if (s.cooldown.action !== "none") {

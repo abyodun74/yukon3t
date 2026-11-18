@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mediaHoldAuditReason, videoScanFailedHoldAuditReason } from "@/lib/media-moderation-hold";
+import {
+  mediaHoldAuditReason,
+  videoScanFailedHoldAuditReason,
+  videoScanUnsureHoldAuditReason,
+} from "@/lib/media-moderation-hold";
 
 // sweepExpiredMediaHolds against a mocked database: only held posts still FLAGGED past the review window are deleted
 // (with their media), each with an audit row; a post an admin already published is left alone.
@@ -41,8 +45,8 @@ beforeEach(() => {
   holds = [];
   posts = {};
   scanHolds = [];
-  findManyAudit.mockImplementation(async ({ where }: { where: { performedBy: string } }) =>
-    where.performedBy === "system:video-scan-failed-hold" ? scanHolds : holds,
+  findManyAudit.mockImplementation(async ({ where }: { where: { performedBy: string | { in: string[] } } }) =>
+    typeof where.performedBy === "object" ? scanHolds : holds,
   );
   removeModeratedContent.mockImplementation(async (_type: string, id: string) => ({
     authorId: AUTHOR,
@@ -103,7 +107,15 @@ describe("sweepExpiredMediaHolds", () => {
     expect(removeModeratedContent).toHaveBeenCalledTimes(1);
     expect(removeModeratedContent).toHaveBeenCalledWith("POST", "cother", expect.anything());
     const scanWhere = findManyAudit.mock.calls[1][0].where;
-    expect(scanWhere.performedBy).toBe("system:video-scan-failed-hold");
+    expect(scanWhere.performedBy).toEqual({ in: ["system:video-scan-failed-hold", "system:video-scan-review-hold"] });
     expect(scanWhere.createdAt).toBeUndefined();
+  });
+
+  it("keeps a held post the VLM video scan was unsure about: it waits for an admin too", async () => {
+    holds = [{ reason: mediaHoldAuditReason("cunsure", "VIDEO", ["video frame: sexual"]) }];
+    scanHolds = [{ reason: videoScanUnsureHoldAuditReason("post", "cunsure", "too dark to tell") }];
+    posts = { cunsure: { moderationStatus: "FLAGGED" } };
+    expect(await sweepExpiredMediaHolds()).toEqual({ expired: 0 });
+    expect(removeModeratedContent).not.toHaveBeenCalled();
   });
 });

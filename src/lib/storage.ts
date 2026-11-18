@@ -159,9 +159,10 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
 // short separately; it's bounded by in-browser MediaRecorder memory, not
 // this.
 export const MAX_VIDEO_DURATION_SECONDS = 3600;
-// Hive's Visual Moderation API (src/lib/hive.ts) only scans up to 60s of
-// video content per call — a hard technical ceiling, not a policy choice.
-// A post video longer than this can't get the automated body scan, so
+// The Hive video scan (src/lib/hive.ts, Hive's Vision Language Model) covers
+// up to 60s of video per call: it samples at most 30 frames at up to 0.5 fps,
+// so 60s is as long as its sampling stays that dense (the model itself accepts
+// up to 180s; this ceiling is ours, chosen for coverage and cost). A post video longer than this can't get the automated body scan, so
 // createPost (actions/circles.ts) routes it to moderationStatus FLAGGED for
 // manual admin review instead of publishing immediately, and marks it
 // videoModeratedAt up front so the moderate-videos cron never picks it up

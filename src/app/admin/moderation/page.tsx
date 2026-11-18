@@ -26,9 +26,11 @@ import {
   mediaTypeFromMediaAuditReason,
   postIdFromMediaAuditReason,
   reasonsFromMediaAuditReason,
-  VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
-  VIDEO_SCAN_FAILED_REASON,
+  VIDEO_SCAN_HOLD_PERFORMED_BY_ALL,
+  videoScanHoldHeadline,
   videoScanHoldKey,
+  videoScanHoldTypeFromAuditReason,
+  type VideoScanHoldType,
   videoScanHoldTargetFromAuditReason,
 } from "@/lib/media-moderation-hold";
 
@@ -629,8 +631,9 @@ async function FlaggedContentSection({ limit }: SectionProps) {
     }),
   );
 
-  // Videos the automatic scan gave up on (moderate-videos cron, src/lib/video-scan-retry.ts): held for a decision
-  // here, never deleted unreviewed. Looked up only for the items listed above.
+  // Videos the automatic scan (moderate-videos cron, Hive's VLM) held: it couldn't process the file after every retry
+  // (src/lib/video-scan-retry.ts), its verdict was unsure, or it flagged the video. Held for a decision here, never
+  // deleted unreviewed. Looked up only for the items listed above.
   const scanHoldMarkers = [
     ...flaggedPosts.filter((p) => p.videoUrl).map((p) => `(${videoScanHoldKey("post", p.id)}, VIDEO)`),
     ...flaggedComments.filter((c) => c.videoUrl).map((c) => `(${videoScanHoldKey("comment", c.id)}, VIDEO)`),
@@ -643,7 +646,7 @@ async function FlaggedContentSection({ limit }: SectionProps) {
             prisma.auditLog.findMany({
               where: {
                 action: "CONTENT_FLAGGED_FOR_REVIEW",
-                performedBy: VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
+                performedBy: { in: [...VIDEO_SCAN_HOLD_PERFORMED_BY_ALL] },
                 OR: scanHoldMarkers.map((marker) => ({ reason: { contains: marker } })),
               },
               orderBy: { createdAt: "asc" },
@@ -660,7 +663,12 @@ async function FlaggedContentSection({ limit }: SectionProps) {
         ? [
             [
               videoScanHoldKey(target.kind, target.id),
-              { detail: reasonsFromMediaAuditReason(row.reason).join("; "), heldAt: row.createdAt },
+              {
+                type: videoScanHoldTypeFromAuditReason(row.reason) ?? "scan_failed",
+                headline: videoScanHoldHeadline(row.reason),
+                detail: reasonsFromMediaAuditReason(row.reason).join("; "),
+                heldAt: row.createdAt,
+              },
             ] as const,
           ]
         : [];
@@ -674,8 +682,8 @@ async function FlaggedContentSection({ limit }: SectionProps) {
       </h2>
       <p className="mt-1 text-xs text-foreground-soft">
         Held back automatically — no one has reported these. They failed our
-        content screen, or the automatic video scan couldn&apos;t process the
-        file. Review and publish or remove.
+        content screen, or the automatic video scan flagged the video, was unsure
+        about it, or couldn&apos;t process the file. Review and publish or remove.
       </p>
       <div className="mt-3 space-y-3">
         {flaggedPosts.map((post) => {
@@ -699,12 +707,12 @@ async function FlaggedContentSection({ limit }: SectionProps) {
                     Not visible to anyone but the author. Publish posts it as they intended; Remove deletes it
                     and its media.
                     {scanHold
-                      ? " Not deleted automatically: the video scan couldn't process it, so it waits for a decision."
+                      ? " Not deleted automatically: the video scan also held it, so it waits for a decision."
                       : ` Deleted automatically if not reviewed by ${mediaHoldExpiresAt(hold.heldAt).toLocaleString()}.`}
                   </p>
                 </div>
               )}
-              {scanHold && post.videoUrl && <ScanFailureHold hold={scanHold} videoUrl={post.videoUrl} />}
+              {scanHold && post.videoUrl && <VideoScanHold hold={scanHold} videoUrl={post.videoUrl} />}
               <Link href={`/post/${post.id}`} className="mt-2 inline-block text-xs text-accent hover:underline">
                 Open the post to review it
               </Link>
@@ -718,7 +726,7 @@ async function FlaggedContentSection({ limit }: SectionProps) {
             <div key={comment.id} className="rounded-lg border border-line p-3">
               <p className="text-xs text-foreground-soft">Comment by {comment.author.name}</p>
               <p className="mt-1 break-words text-sm">{comment.content || "(video comment, no text)"}</p>
-              {scanHold && comment.videoUrl && <ScanFailureHold hold={scanHold} videoUrl={comment.videoUrl} />}
+              {scanHold && comment.videoUrl && <VideoScanHold hold={scanHold} videoUrl={comment.videoUrl} />}
               {scanHold && (
                 <Link
                   href={`/post/${comment.postId}`}
@@ -747,7 +755,7 @@ async function FlaggedContentSection({ limit }: SectionProps) {
               </p>
               <p className="mt-1 break-words text-sm">{muse.caption || "(no caption)"}</p>
               {scanHold && muse.videoUrl ? (
-                <ScanFailureHold hold={scanHold} videoUrl={muse.videoUrl} />
+                <VideoScanHold hold={scanHold} videoUrl={muse.videoUrl} />
               ) : (
                 <p className="mt-1 text-xs text-foreground-soft">
                   {muse.videoLongReviewClaimedAt
@@ -767,21 +775,35 @@ async function FlaggedContentSection({ limit }: SectionProps) {
   );
 }
 
+const VIDEO_SCAN_HOLD_NOTES: Record<VideoScanHoldType, string> = {
+  scan_failed: "Not a violation finding: the scan couldn't process the file.",
+  unsure: "Not a violation finding: the AI scan couldn't confidently call it clean. Watch it and decide.",
+  flagged: "The AI scan flagged it; the reason above is the model's own words. Watch it and decide.",
+};
+
 /**
- * A video the automatic scan (Hive, moderate-videos cron) couldn't process after every retry: hidden and held here
- * with the scan's own diagnostic. Not a finding against the author, and never deleted automatically.
+ * A video the automatic scan (Hive's VLM, moderate-videos cron) held: it couldn't process the file after every retry
+ * (with the scan's diagnostic), its verdict was unsure, or it flagged the video (with the model's reason). Hidden and
+ * held here, never deleted automatically.
  */
-function ScanFailureHold({ hold, videoUrl }: { hold: { detail: string; heldAt: Date }; videoUrl: string }) {
+function VideoScanHold({
+  hold,
+  videoUrl,
+}: {
+  hold: { type: VideoScanHoldType; headline: string; detail: string; heldAt: Date };
+  videoUrl: string;
+}) {
   return (
     <div className="mt-2 rounded-md border border-line bg-surface p-2 text-xs">
-      <p>
-        <span className="font-medium">Held for review:</span> {VIDEO_SCAN_FAILED_REASON} (held{" "}
-        {hold.heldAt.toLocaleString()}).
+      <p className="break-words">
+        <span className="font-medium">{hold.headline}</span> (held {hold.heldAt.toLocaleString()}).
       </p>
-      <p className="mt-0.5 break-words text-foreground-soft">Detail: {hold.detail}</p>
+      {hold.type === "scan_failed" && (
+        <p className="mt-0.5 break-words text-foreground-soft">Detail: {hold.detail}</p>
+      )}
       <p className="mt-0.5 text-foreground-soft">
-        Not a violation finding. Hidden from everyone but the author until you decide: Publish makes it visible again;
-        Remove deletes it and its media. It is not deleted automatically.
+        {VIDEO_SCAN_HOLD_NOTES[hold.type]} Hidden from everyone but the author until you decide: Publish makes it
+        visible again; Remove deletes it and its media. It is not deleted automatically.
       </p>
       <video
         src={videoUrl}

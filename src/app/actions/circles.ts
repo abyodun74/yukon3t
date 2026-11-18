@@ -1084,7 +1084,7 @@ export async function createPost(formData: FormData) {
     if ("error" in built) return { error: built.error };
     seriesRule = built.rule;
   }
-  // Hive's Visual Moderation API can't scan past 60s of content — a longer
+  // The Hive video scan doesn't cover past 60s of content — a longer
   // video skips the automated moderate-videos cron entirely (it would just
   // fail/waste a call) and instead goes through the slower Cloudflare
   // Stream long-form review pipeline (video-review.ts) in the background.
@@ -1408,8 +1408,8 @@ export async function createPost(formData: FormData) {
   // Video-body scanning (Hive) happens on the moderate-videos cron, not
   // here — a video 60s or under publishes immediately with videoModeratedAt
   // still null, same "publish immediately, flag retroactively if needed"
-  // approach as text/image moderation, but Hive's Visual Moderation API is a
-  // synchronous call best kept out of this user-facing request path. A video
+  // approach as text/image moderation, but Hive's video scan (its Vision
+  // Language Model) is a synchronous call best kept out of this user-facing request path. A video
   // over 60s skips this path entirely (videoNeedsLongReview above already
   // set videoModeratedAt and videoLongReviewNeeded at creation; videoNeedsHold
   // additionally holds it FLAGGED past VIDEO_INSTANT_PUBLISH_MAX_SECONDS).

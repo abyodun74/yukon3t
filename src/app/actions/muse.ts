@@ -170,8 +170,8 @@ export async function createMuse(formData: FormData) {
     return { error: "moderation" as const, categories: modResult.flaggedCategories };
   }
 
-  // Same reasoning as createPost's own videoNeedsManualReview — Hive's
-  // Visual Moderation API can't scan past HIVE_VIDEO_MODERATION_MAX_SECONDS,
+  // Same reasoning as createPost's own videoNeedsManualReview — the Hive
+  // video scan doesn't cover past HIVE_VIDEO_MODERATION_MAX_SECONDS,
   // so a longer Muse publishes hidden pending a human/automated long-form
   // look instead of going out immediately.
   const videoNeedsManualReview = videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;

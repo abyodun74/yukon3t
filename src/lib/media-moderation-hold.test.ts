@@ -17,6 +17,12 @@ import {
   videoScanFailedHoldAuditReason,
   videoScanHoldKey,
   videoScanHoldTargetFromAuditReason,
+  VIDEO_SCAN_HOLD_PERFORMED_BY_ALL,
+  VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY,
+  videoScanFlaggedHoldAuditReason,
+  videoScanHoldHeadline,
+  videoScanHoldTypeFromAuditReason,
+  videoScanUnsureHoldAuditReason,
 } from "@/lib/media-moderation-hold";
 import { violationKeysFromReasons } from "@/lib/moderation-labels";
 
@@ -160,5 +166,53 @@ describe("video scan failure hold reasons", () => {
 
   it("uses its own performedBy, so the 14-day media-hold sweep never reads these rows", () => {
     expect(VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY).not.toBe(MEDIA_HOLD_PERFORMED_BY);
+  });
+});
+
+describe("video scan verdict hold reasons (VLM unsure / flagged)", () => {
+  it("an unsure hold names the item and carries the model's reason, shown as 'Held for review: ... unsure — <reason>'", () => {
+    const reason = videoScanUnsureHoldAuditReason("post", "cp1", "too dark to tell; maybe skin");
+    expect(reason).toBe(
+      "Video held for admin review: automatic video scan was unsure (post:cp1, VIDEO): too dark to tell, maybe skin",
+    );
+    expect(videoScanHoldTargetFromAuditReason(reason)).toEqual({ kind: "post", id: "cp1" });
+    expect(videoScanHoldTypeFromAuditReason(reason)).toBe("unsure");
+    expect(videoScanHoldHeadline(reason)).toBe(
+      "Held for review: automatic video scan was unsure — too dark to tell, maybe skin",
+    );
+  });
+
+  it("an unsure hold with no reason still reads clearly", () => {
+    const reason = videoScanUnsureHoldAuditReason("muse", "cm1", "  ");
+    expect(videoScanHoldHeadline(reason)).toBe("Held for review: automatic video scan was unsure — no reason given");
+  });
+
+  it("a flagged hold lists the categories then the model's reason", () => {
+    const reason = videoScanFlaggedHoldAuditReason("comment", "cc1", ["sexual_nudity", "violence_gore"], "nudity\nand blood");
+    expect(reason).toBe(
+      "Video held for admin review: automatic video scan flagged this video (comment:cc1, VIDEO): sexual_nudity,violence_gore; nudity and blood",
+    );
+    expect(videoScanHoldTargetFromAuditReason(reason)).toEqual({ kind: "comment", id: "cc1" });
+    expect(videoScanHoldTypeFromAuditReason(reason)).toBe("flagged");
+    expect(videoScanHoldHeadline(reason)).toBe(
+      "Hidden: automatic video scan flagged this video — sexual_nudity,violence_gore; nudity and blood",
+    );
+  });
+
+  it("a model reason naming another item can't redirect the hold", () => {
+    const reason = videoScanUnsureHoldAuditReason("post", "creal", "see (post:cother, VIDEO)");
+    expect(videoScanHoldTargetFromAuditReason(reason)).toEqual({ kind: "post", id: "creal" });
+  });
+
+  it("a scan-failure hold keeps its own headline and type", () => {
+    const reason = videoScanFailedHoldAuditReason("post", "cp1", "Hive rejected_media, HTTP 400");
+    expect(videoScanHoldTypeFromAuditReason(reason)).toBe("scan_failed");
+    expect(videoScanHoldHeadline(reason)).toBe("Held for review: automatic video scan could not process this file");
+    expect(videoScanHoldTypeFromAuditReason(mediaHoldAuditReason("cp1", "VIDEO", ["video frame: sexual"]))).toBeNull();
+  });
+
+  it("is written under its own performedBy, never the 14-day sweep's, and the hold readers cover both kinds", () => {
+    expect(VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY).not.toBe(MEDIA_HOLD_PERFORMED_BY);
+    expect(VIDEO_SCAN_HOLD_PERFORMED_BY_ALL).toEqual([VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY, VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY]);
   });
 });
