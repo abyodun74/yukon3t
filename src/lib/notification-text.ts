@@ -68,6 +68,8 @@ export const NOTIFICATION_VERB: Record<NotificationType, string> = {
   // hrefFor's link (straight to the stream) carries that context instead.
   CIRCLE_LIVE: "started a live stream",
   LIVE_STREAM_INVITE: "started a live stream with you",
+  // A LiveStreamInvite (src/lib/live-stream-invites-server.ts): actor = the host or co-host who invited them.
+  LIVE_STAGE_INVITE: "invited you to join them live on stage",
   COLLAB_SESSION_REMINDER: "A collaboration session you're part of is starting soon",
   // Same Notification.message-carries-the-detail convention as
   // VIDEO_FLAGGED_FOR_REVIEW above (notifyLiveRecordingPostFailed in

@@ -4,7 +4,7 @@ import { OverlayLayerProvider } from "@/components/overlay-root";
 import { OVERLAY_LAYERS } from "@/lib/overlay-layers";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Circle as RecordIcon, Download, Eye, Home, Send, Smile, Users, X } from "lucide-react";
+import { Camera, Check, Circle as RecordIcon, Download, Eye, Home, Send, Smile, UserPlus, Users, X } from "lucide-react";
 import { useCallSession } from "@/lib/call-session";
 import { useGuestPreview } from "@/components/guest-preview";
 import {
@@ -33,7 +33,19 @@ import { LiveGiftLayer } from "@/components/live-gift-layer";
 import { SendGiftButton } from "@/components/profile-gifts";
 import { LiveChallengePanel } from "@/components/live-challenge-panel";
 import { formatDuration } from "@/lib/format-date";
-import { byCode, format, intlLocale, type Locale } from "@/lib/i18n/locales";
+import { byCode, format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
+import {
+  cancelLiveInvite,
+  getLiveStreamInvites,
+  getMyLiveInvite,
+  inviteToLiveStream,
+  respondToLiveInvite,
+  type LiveInviteCandidate,
+} from "@/app/actions/live-stream-invites";
+import { LiveInvitePicker } from "@/components/live-invite-picker";
+import { Sheet } from "@/components/sheet";
+import { UserAvatar } from "@/components/user-link";
+import { LIVE_INVITE_MAX_PER_REQUEST, MAX_LIVE_STAGE, type LiveInviteGone } from "@/lib/live-stage";
 
 // Not migrated to realtime — this is a periodic "I'm still here" keepalive
 // the end-inactive-streams cron watches for, not a "refetch when something
@@ -68,6 +80,8 @@ type StageRequest = {
   role: StageRole;
   user: { id: string; name: string | null; avatarUrl: string | null };
 };
+type OpenInvite = { user: { id: string; name: string | null; avatarUrl: string | null } };
+type MyInvite = { inviter: { id: string; name: string | null; avatarUrl: string | null }; expiresAt: string };
 type StreamComment = {
   id: string;
   content: string;
@@ -122,7 +136,7 @@ async function captureScreenshot(filenameHint: string) {
   }
 }
 
-/** Host-broadcasts/viewers-watch live room, plus up to 3 guest/co-host stage slots (see joinLiveStream's owner_only_broadcast + permissions.canSend). */
+/** Host-broadcasts/viewers-watch live room, plus up to MAX_LIVE_STAGE guest/co-host stage slots (see joinLiveStream's owner_only_broadcast + permissions.canSend). The host and co-hosts can invite people onto the stage; an invitee sees Accept / Decline here. */
 export function LiveStreamRoom({
   liveStreamId,
   isHost,
@@ -133,7 +147,10 @@ export function LiveStreamRoom({
   giftsEnabled = false,
   giftHost = null,
   challengesEnabled = false,
+  fromInvite = false,
 }: {
+  /** Opened from a stage invite's push or bell row (`?invite=1`): if that invite can't be answered any more, say why. */
+  fromInvite?: boolean;
   liveStreamId: string;
   isHost: boolean;
   title: string;
@@ -163,7 +180,7 @@ export function LiveStreamRoom({
   const [error, setError] = useState<string | null>(initiallyEnded ? "not_found" : null);
   const [viewerCount, setViewerCount] = useState(0);
   const [stageCount, setStageCount] = useState(0);
-  const [stageCapacity, setStageCapacity] = useState(3);
+  const [stageCapacity, setStageCapacity] = useState(MAX_LIVE_STAGE);
   const [recording, setRecording] = useState(false);
   // Feedback for the "Record & Post" button specifically — the request to
   // auto-post happens in a Daily event handler well after the tap, so
@@ -186,6 +203,24 @@ export function LiveStreamRoom({
   // Host-only: who's currently asking for a stage slot.
   const [stageRequests, setStageRequests] = useState<StageRequest[]>([]);
   const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
+  // Host / co-host: open invites to the stage, and the Invite sheet (picker, sending, its outcome).
+  const [openInvites, setOpenInvites] = useState<OpenInvite[]>([]);
+  const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
+  const [invitePicks, setInvitePicks] = useState<LiveInviteCandidate[]>([]);
+  const [sendingInvites, setSendingInvites] = useState(false);
+  const [inviteOutcome, setInviteOutcome] = useState<{ sent: number; notSent: number } | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [cancellingInviteId, setCancellingInviteId] = useState<string | null>(null);
+  // Invitee: their open invite to this stage (Accept / Decline), and the answer in flight or its error.
+  const [myInvite, setMyInvite] = useState<MyInvite | null>(null);
+  const [answeringInvite, setAnsweringInvite] = useState(false);
+  const [inviteAnswerError, setInviteAnswerError] = useState<string | null>(null);
+  // Opened from an invite that can't be answered any more (cancelled, expired, answered, the live over): why.
+  const [inviteGone, setInviteGone] = useState<LiveInviteGone | null>(null);
+  // Whether this page has shown an open invite (so one withdrawn while it's open is explained too), and whether it was
+  // answered here (then the settled invite needs no note).
+  const hadInviteRef = useRef(false);
+  const answeredHereRef = useRef(false);
   const [comments, setComments] = useState<StreamComment[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
@@ -327,6 +362,76 @@ export function LiveStreamRoom({
       .catch(() => setRespondingRequestId(null));
   }
 
+  function sendInvites() {
+    if (sendingInvites || invitePicks.length === 0) return;
+    setSendingInvites(true);
+    setInviteError(null);
+    setInviteOutcome(null);
+    inviteToLiveStream(
+      liveStreamId,
+      invitePicks.map((p) => p.id),
+    )
+      .then((result) => {
+        setSendingInvites(false);
+        if (result.error) {
+          setInviteError(result.error);
+          return;
+        }
+        setInviteOutcome({ sent: result.invited.length, notSent: result.refused.length });
+        setInvitePicks([]);
+        fetchStage().catch(() => {});
+      })
+      .catch(() => {
+        setSendingInvites(false);
+        setInviteError("other");
+      });
+  }
+
+  function cancelInvite(inviteeId: string) {
+    if (cancellingInviteId) return;
+    setCancellingInviteId(inviteeId);
+    cancelLiveInvite(liveStreamId, inviteeId)
+      .then((result) => {
+        setCancellingInviteId(null);
+        if (!result.error) setOpenInvites((prev) => prev.filter((i) => i.user.id !== inviteeId));
+      })
+      .catch(() => setCancellingInviteId(null));
+  }
+
+  /**
+   * The invitee answers. Accepting takes a stage seat on the server; someone still choosing then joins straight onto
+   * the stage as a guest, and someone already watching is moved there by the role-change reconnect below once the
+   * next stage fetch reads their new GUEST role.
+   */
+  function answerInvite(accept: boolean) {
+    if (answeringInvite) return;
+    setAnsweringInvite(true);
+    setInviteAnswerError(null);
+    answeredHereRef.current = true;
+    setInviteGone(null);
+    respondToLiveInvite(liveStreamId, accept)
+      .then((result) => {
+        setAnsweringInvite(false);
+        if (result.error) {
+          setInviteAnswerError(result.error);
+          // An invite that's gone can't be answered again; a full stage leaves it open to try once more.
+          if (result.error !== "stage_full" && result.error !== "rate_limited") setMyInvite(null);
+          return;
+        }
+        setMyInvite(null);
+        if (!accept) return;
+        if (phase === "choosing" || phase === "error") {
+          doJoin("GUEST");
+        } else {
+          fetchStage().catch(() => {});
+        }
+      })
+      .catch(() => {
+        setAnsweringInvite(false);
+        setInviteAnswerError("other");
+      });
+  }
+
   // The full refetch, split into the four independent fetches it's made of so
   // a realtime signal can re-run only the one its `kind` is about (see
   // handleSignal below) instead of all four for every viewer on every event.
@@ -367,11 +472,26 @@ export function LiveStreamRoom({
 
   const fetchStage = useCallback(async () => {
     if (isHost) {
-      const { requests } = await getLiveStreamStageRequests(liveStreamId);
+      const [{ requests }, { invites }] = await Promise.all([
+        getLiveStreamStageRequests(liveStreamId),
+        getLiveStreamInvites(liveStreamId),
+      ]);
       setStageRequests(requests);
+      setOpenInvites(invites);
     } else {
       const status = await getMyLiveStreamStatus(liveStreamId);
       setRole(status.role);
+      // A guest-preview session can't invite or be invited (the member-only actions below would refuse it).
+      if (!isGuest) {
+        const [{ invites }, mine] = await Promise.all([
+          status.role === "COHOST" ? getLiveStreamInvites(liveStreamId) : { invites: [] },
+          status.role === "VIEWER" ? getMyLiveInvite(liveStreamId) : { invite: null, gone: null },
+        ]);
+        setOpenInvites(invites);
+        setMyInvite(mine.invite);
+        if (mine.invite) hadInviteRef.current = true;
+        if ((fromInvite || hadInviteRef.current) && !answeredHereRef.current) setInviteGone(mine.gone);
+      }
       const prevStatus = lastRequestStatusRef.current;
       lastRequestStatusRef.current = status.requestStatus;
       if (status.requestStatus === "PENDING") {
@@ -383,7 +503,7 @@ export function LiveStreamRoom({
         }
       }
     }
-  }, [liveStreamId, isHost]);
+  }, [liveStreamId, isHost, isGuest, fromInvite]);
 
   const refetch = useCallback(async () => {
     await Promise.all([fetchViewerCount(), fetchRecordings(), fetchComments(), fetchStage()]);
@@ -796,10 +916,90 @@ export function LiveStreamRoom({
     );
   }
 
+  function renderInvitePrompt(variant: "themed" | "dark") {
+    const dark = variant === "dark";
+    const name = myInvite?.inviter.name ?? t.stage.someone;
+    return (
+      <div
+        role="region"
+        aria-label={myInvite ? format(t.invite.prompt, { name }) : undefined}
+        className={`mb-4 rounded-xl p-3 text-start ${
+          dark ? "hig-material-dark bg-black/80 text-white backdrop-blur-md" : "border border-line bg-surface"
+        }`}
+      >
+        {myInvite && (
+          <>
+            <div className="flex items-center gap-2.5">
+              <UserAvatar avatarUrl={myInvite.inviter.avatarUrl} name={myInvite.inviter.name} size={36} />
+              <p className="min-w-0 text-sm font-medium">{format(t.invite.prompt, { name })}</p>
+            </div>
+            <p className={`mt-1.5 text-xs ${dark ? "text-white/70" : "text-foreground-soft"}`}>{t.invite.promptHint}</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                disabled={answeringInvite}
+                onClick={() => answerInvite(true)}
+                className="min-h-11 flex-1 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
+              >
+                {t.invite.accept}
+              </button>
+              <button
+                type="button"
+                disabled={answeringInvite}
+                onClick={() => answerInvite(false)}
+                className={`min-h-11 flex-1 rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-50 ${
+                  dark ? "border-white/30" : "border-line hover:border-accent hover:text-accent"
+                }`}
+              >
+                {t.invite.decline}
+              </button>
+            </div>
+          </>
+        )}
+        {!myInvite && !inviteAnswerError && inviteGone && (
+          <div className="flex items-start justify-between gap-2">
+            <p role="status" className={`text-xs ${dark ? "text-white" : "text-foreground-soft"}`}>
+              {t.invite.gone[inviteGone]}
+            </p>
+            <button
+              type="button"
+              onClick={() => setInviteGone(null)}
+              aria-label={t.dismiss}
+              className="-m-1 shrink-0 p-2 opacity-80"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+        {inviteAnswerError && (
+          <div className={`flex items-start justify-between gap-2 ${myInvite ? "mt-2" : ""}`}>
+            <p role="alert" className={`text-xs ${dark ? "text-white" : "text-danger"}`}>
+              {byCode(t.invite.responseErrors, inviteAnswerError)}
+            </p>
+            {!myInvite && (
+              <button
+                type="button"
+                onClick={() => setInviteAnswerError(null)}
+                aria-label={t.dismiss}
+                className="-m-1 shrink-0 p-2 opacity-80"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (phase === "error") {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <p className="text-sm text-foreground-soft">{byCode(t.errors, error)}</p>
+        {myInvite && renderInvitePrompt("themed")}
+        <p className="text-sm text-foreground-soft">
+          {/* A stale invite tap on a live that is over: say so in the invite's own words, not as a failure. */}
+          {fromInvite && error === "not_found" ? t.invite.gone.ended : byCode(t.errors, error)}
+        </p>
         <div className="mt-4 flex items-center justify-center gap-2">
           {error === "stale_deployment" ? (
             // Retrying with the same "Try again" click would just hit the
@@ -861,6 +1061,7 @@ export function LiveStreamRoom({
     const stageFull = stageCount >= stageCapacity;
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
+        {(myInvite || inviteAnswerError || inviteGone) && renderInvitePrompt("themed")}
         <p dir="auto" className="break-words text-sm font-medium">{title}</p>
         <p className="mt-1 text-xs text-foreground-soft">
           {format(t.choosing.spots, { filled: stageCount, capacity: stageCapacity })}
@@ -904,6 +1105,8 @@ export function LiveStreamRoom({
   }
 
   const canRecord = isHost || role === "COHOST";
+  // Host and co-hosts only; the server checks the same rule on every invite action.
+  const canInvite = isHost || role === "COHOST";
 
   return (
     // Sheets, pickers and popups opened from the room (gift picker, challenges, the emoji picker) stack above its
@@ -986,6 +1189,26 @@ export function LiveStreamRoom({
                 <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-accent-ink">
                   <Home size={9} />
                 </span>
+              </button>
+            )}
+            {canInvite && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInviteOutcome(null);
+                  setInviteError(null);
+                  setInviteSheetOpen(true);
+                }}
+                title={t.invite.inviteButton}
+                aria-label={t.invite.inviteButton}
+                className="relative flex h-9 w-9 items-center justify-center rounded-full hig-material-dark bg-black/60 backdrop-blur-md text-white"
+              >
+                <UserPlus size={14} />
+                {openInvites.length > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[0.5625rem] font-bold text-accent-ink">
+                    {openInvites.length}
+                  </span>
+                )}
               </button>
             )}
             <button
@@ -1285,6 +1508,78 @@ export function LiveStreamRoom({
           gifts={giftsEnabled}
           challenges={challengesEnabled}
         />
+      )}
+
+      {!isHost && role === "VIEWER" && (myInvite || inviteAnswerError || inviteGone) && (
+        <div
+          className="fixed inset-x-0 z-[var(--z-viewer)] flex justify-center px-3"
+          style={{ top: "calc(6.5rem + env(safe-area-inset-top))" }}
+        >
+          <div className="w-80 max-w-full">{renderInvitePrompt("dark")}</div>
+        </div>
+      )}
+
+      {canInvite && (
+        <Sheet
+          open={inviteSheetOpen}
+          onClose={() => setInviteSheetOpen(false)}
+          variant="bottom-sheet"
+          responsive
+          title={t.invite.sheetTitle}
+        >
+          <p className="mb-2 text-xs text-foreground-soft">{format(t.invite.sheetHint, { max: MAX_LIVE_STAGE })}</p>
+          <LiveInvitePicker
+            context={{ liveStreamId }}
+            selected={invitePicks}
+            onChange={setInvitePicks}
+            max={LIVE_INVITE_MAX_PER_REQUEST}
+          />
+          {inviteError && (
+            <p role="alert" className="mt-2 text-xs text-danger">
+              {byCode(t.invite.errors, inviteError)}
+            </p>
+          )}
+          {inviteOutcome && (
+            <p role="status" className="mt-2 text-xs text-foreground-soft">
+              {plural(locale, t.invite.sent, inviteOutcome.sent)}
+              {inviteOutcome.notSent > 0 && <> · {plural(locale, t.invite.someNotSent, inviteOutcome.notSent)}</>}
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={invitePicks.length === 0 || sendingInvites}
+            onClick={sendInvites}
+            className="mt-3 min-h-11 w-full rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink disabled:opacity-50"
+          >
+            {plural(locale, t.invite.send, Math.max(invitePicks.length, 1))}
+          </button>
+          {openInvites.length > 0 && (
+            <div className="mt-4 border-t border-line pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground-soft">{t.invite.invitedTitle}</p>
+              <ul className="mt-1.5 space-y-1">
+                {openInvites.map((invite) => {
+                  const name = invite.user.name ?? t.stage.someone;
+                  return (
+                    <li key={invite.user.id} className="flex items-center gap-2 text-sm">
+                      <UserAvatar avatarUrl={invite.user.avatarUrl} name={invite.user.name} size={28} />
+                      <bdi className="min-w-0 flex-1 truncate">{name}</bdi>
+                      <button
+                        type="button"
+                        disabled={cancellingInviteId === invite.user.id}
+                        onClick={() => cancelInvite(invite.user.id)}
+                        aria-label={format(t.invite.cancelInvite, { name })}
+                        title={format(t.invite.cancelInvite, { name })}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-foreground-soft hover:border-danger hover:text-danger disabled:opacity-50"
+                      >
+                        <X size={16} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </Sheet>
       )}
 
       {!isHost && !pendingStageRole && declinedNotice && (

@@ -13,6 +13,10 @@ import { captureError } from "@/lib/error-tracking";
 import { useFeedText } from "@/components/feed-text";
 import { useShellText } from "@/components/ui-text";
 import { format, byCode } from "@/lib/i18n/locales";
+import { LiveInvitePicker } from "@/components/live-invite-picker";
+import { useLiveText } from "@/components/live-text";
+import type { LiveInviteCandidate } from "@/app/actions/live-stream-invites";
+import { LIVE_INVITE_MAX_PER_REQUEST } from "@/lib/live-stage";
 
 type Circle = { id: string; name: string; parentName: string | null };
 type Connection = { id: string; name: string | null };
@@ -36,6 +40,9 @@ function targetUserIdFrom(audience: string) {
 export function LiveStreamStrip() {
   const { t } = useFeedText();
   const { t: shell } = useShellText();
+  const { t: live } = useLiveText();
+  // People to go live with (invited onto the stage once the stream starts): the picker's chips.
+  const [invitees, setInvitees] = useState<LiveInviteCandidate[]>([]);
   // Shared with the feed cards and coalesced across signals (see use-active-live-streams.ts).
   const streams = useActiveLiveStreams();
   const [composing, setComposing] = useState(false);
@@ -114,6 +121,7 @@ export function LiveStreamStrip() {
       fd.set("title", title.trim());
       if (circleId) fd.set("circleId", circleId);
       if (targetUserId) fd.set("targetUserId", targetUserId);
+      for (const person of invitees) fd.append("inviteeId", person.id);
       const result = await startLiveStream(fd);
       if (result.error || !result.liveStreamId) {
         setError(byCode(t.live.errors, result.error));
@@ -122,6 +130,7 @@ export function LiveStreamStrip() {
         }
         return;
       }
+      setInvitees([]);
       router.push(`/live/${result.liveStreamId}`);
     });
   }
@@ -189,7 +198,11 @@ export function LiveStreamStrip() {
         <select
           aria-label={t.live.audience}
           value={audience}
-          onChange={(e) => setAudience(e.target.value)}
+          onChange={(e) => {
+            setAudience(e.target.value);
+            // A stream for one specific person is theirs alone: nobody else can be invited onto its stage.
+            if (e.target.value.startsWith(USER_PREFIX)) setInvitees([]);
+          }}
           className="mt-1 w-full rounded-md border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
         >
           <option value="">{t.live.everyone}</option>
@@ -238,6 +251,21 @@ export function LiveStreamStrip() {
               ? t.live.onlyCircle
               : t.live.visibleToAll}
         </p>
+
+        {!targetUserId && (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-foreground-soft">{live.invite.goLiveWith}</p>
+            <p className="mb-1.5 text-[0.6875rem] text-foreground-soft">
+              {format(live.invite.goLiveWithHint, { max: LIVE_INVITE_MAX_PER_REQUEST })}
+            </p>
+            <LiveInvitePicker
+              context={circleId ? { circleId } : {}}
+              selected={invitees}
+              onChange={setInvitees}
+              max={LIVE_INVITE_MAX_PER_REQUEST}
+            />
+          </div>
+        )}
 
         {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
 

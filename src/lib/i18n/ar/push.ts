@@ -36,6 +36,7 @@ export const push: typeof pushEn = {
     MUSE_SHARE: "مشاركة لمقطع Muse الخاص بك",
     SCREENSHOT_TAKEN: "تم التقاط لقطة شاشة",
     LIVE_STREAM_INVITE: "بث مباشر معك الآن",
+    LIVE_STAGE_INVITE: "يدعوك للانضمام إليه على منصة البث المباشر",
     CIRCLE_INVITE: "دعوة للانضمام إلى Circle خاص",
     COLLAB_SESSION_STARTED: "جلسة تعاون مباشرة بدأت الآن",
     POLL_SCHEDULED: "حدّد موعدًا من استطلاع رأي صوّتّ فيه",
@@ -75,4 +76,10 @@ export const push: typeof pushEn = {
   },
   videoReviewTitle: "فيديو قيد المراجعة",
   recordingFailedTitle: "لم يُنشر التسجيل",
+  liveInviteRecall: {
+    title: "دعوة إلى بث مباشر",
+    cancelled: "أُلغيت هذه الدعوة",
+    expired: "انتهت صلاحية هذه الدعوة",
+    ended: "انتهى البث المباشر",
+  },
 };

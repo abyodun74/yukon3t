@@ -33,6 +33,7 @@ export const push: typeof pushEn = {
     MUSE_SHARE: "ने आपका Muse शेयर किया",
     SCREENSHOT_TAKEN: "ने स्क्रीनशॉट लिया",
     LIVE_STREAM_INVITE: "ने आपके साथ लाइव स्ट्रीम शुरू की",
+    LIVE_STAGE_INVITE: "ने आपको अपनी लाइव स्ट्रीम के स्टेज पर आने का न्योता दिया",
     CIRCLE_INVITE: "ने आपको एक प्राइवेट Circle से जुड़ने के लिए इनवाइट किया",
     COLLAB_SESSION_STARTED: "ने लाइव कोलैबोरेशन सेशन शुरू किया",
     POLL_SCHEDULED: "ने उस पोल से एक तारीख तय की जिसमें आपने वोट दिया था",
@@ -72,4 +73,10 @@ export const push: typeof pushEn = {
   },
   videoReviewTitle: "वीडियो रिव्यू में है",
   recordingFailedTitle: "रिकॉर्डिंग प्रकाशित नहीं हुई",
+  liveInviteRecall: {
+    title: "लाइव का न्योता",
+    cancelled: "यह न्योता रद्द कर दिया गया",
+    expired: "इस न्योते की समय-सीमा खत्म हो गई",
+    ended: "लाइव खत्म हो गया",
+  },
 };

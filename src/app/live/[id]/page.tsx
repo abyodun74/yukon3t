@@ -13,10 +13,10 @@ export default async function LivePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ role?: string }>;
+  searchParams: Promise<{ role?: string; invite?: string }>;
 }) {
   const { id } = await params;
-  const { role } = await searchParams;
+  const { role, invite } = await searchParams;
   const me = await getOnboardedUserOrRedirect();
 
   const liveStream = await prisma.liveStream.findUnique({ where: { id } });
@@ -52,6 +52,8 @@ export default async function LivePage({
       title={liveStream.title}
       initiallyEnded={liveStream.status === "ENDED"}
       initialRole={initialRole}
+      // Opened from a stage invite's push or bell row (liveInviteHref): a stale one says why it can't be answered.
+      fromInvite={invite === "1"}
       // A stream started with one specific person can never auto-post its
       // recording — there's no Post visibility tier for "private to exactly
       // one other person," so the "Record & Post" button isn't offered at

@@ -107,6 +107,7 @@ export const pages: typeof pagesEn = {
       APP_FEEDBACK_SUBMITTED: "رأي حول التطبيق من {name}",
       CIRCLE_LIVE: "بث مباشر من {name}",
       LIVE_STREAM_INVITE: "بث مباشر من {name} معك",
+      LIVE_STAGE_INVITE: "دعاك {name} للانضمام إليه على منصة البث المباشر",
       COLLAB_SESSION_REMINDER: "جلسة تعاون تشارك فيها تبدأ قريبًا",
       LIVE_RECORDING_POST_FAILED: "تعذّر نشر تسجيل بث مباشر طلبتَ نشره",
       CIRCLE_INVITE: "دعوة من {name} للانضمام إلى Circle خاص",

@@ -146,12 +146,20 @@ self.addEventListener("push", (event) => {
       body: payload.body,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      // A quiet notice (the midnight birthday reminder): shown without sound or vibration.
+      // A quiet notice (the midnight birthday reminder, a live-invite correction): shown without sound or vibration.
       silent: payload.silent === true,
+      // A notification with a tag replaces one already shown with the same tag (a cancelled live invite's correction,
+      // src/lib/push-replace.ts) instead of stacking, and doesn't alert again. Same key rules as the server's.
+      ...(notificationTag(payload.tag) ? { tag: notificationTag(payload.tag), renotify: false } : {}),
       data: { url: notificationTarget(payload.url) },
     }),
   );
 });
+
+// A replacement tag from the payload: printable ASCII, at most 64 characters (safeReplaceKey in push-replace.ts), else none.
+function notificationTag(raw) {
+  return typeof raw === "string" && raw.length > 0 && raw.length <= 64 && /^[!-~]+$/.test(raw) ? raw : null;
+}
 
 // The absolute URL a notification opens: its `url` (the exact post, Muse,
 // story, chat, event, Circle... — the same path the in-app bell row links

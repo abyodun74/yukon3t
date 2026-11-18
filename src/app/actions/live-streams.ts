@@ -36,9 +36,9 @@ import {
   slotHoldingViewerWhere,
   viewerCapDecision,
 } from "@/lib/live-viewer-cap";
-
-/** Co-host + guest slots available per stream, on top of the host — up to MAX_LIVE_VIEWERS (live-viewer-cap.ts) watch alongside them. */
-const MAX_STAGE_PARTICIPANTS = 3;
+import { MAX_LIVE_STAGE, parseInviteeIds } from "@/lib/live-stage";
+import { claimStageSeat } from "@/lib/live-stage-server";
+import { sendLiveInvites, settleLiveInvites } from "@/lib/live-stream-invites-server";
 
 /** Most live streams Home's "Live now" strip and feed cards list at once (newest first). */
 const ACTIVE_LIVE_STREAMS_LIMIT = 30;
@@ -53,7 +53,12 @@ function publishLiveStreamSignal(liveStreamId: string, kind: LiveStreamSignalKin
   return publishEvent(REALTIME_CHANNELS.liveStream(liveStreamId), "changed", { kind });
 }
 
-/** Starts a new live stream — rejects if the host already has one running (see LiveStream.status). */
+/**
+ * Starts a new live stream — rejects if the host already has one running (see LiveStream.status). The Go live sheet
+ * can name people to go live with (`inviteeId`, repeated, at most LIVE_INVITE_MAX_PER_REQUEST): once the room is
+ * attached they are invited onto the stage exactly as the in-room picker would (sendLiveInvites, after the answer,
+ * never able to delay or fail the start).
+ */
 export async function startLiveStream(formData: FormData) {
   const user = await requireVerifiedUser();
 
@@ -75,6 +80,10 @@ export async function startLiveStream(formData: FormData) {
     return { error: "invalid" as const };
   }
   const { title, circleId, targetUserId } = parsed.data;
+  const inviteeIds = parseInviteeIds(formData.getAll("inviteeId"), user.id);
+  if (!inviteeIds) {
+    return { error: "invalid" as const };
+  }
   // The title is shown to everyone on Home's "Live now" (and in invites): same text gate as posts, refused if flagged
   // (a stream has no hidden/held state to put it in).
   const titleCheck = await moderateText(title);
@@ -186,6 +195,20 @@ export async function startLiveStream(formData: FormData) {
   after(async () => {
     await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
   });
+  if (inviteeIds.length > 0) {
+    after(async () => {
+      try {
+        await sendLiveInvites(
+          { id: liveStreamId, hostId: user.id, circleId: circleId ?? null, targetUserId: targetUserId ?? null, status: "LIVE", roomName: room.name },
+          { id: user.id, name: user.name },
+          inviteeIds,
+        );
+        await publishLiveStreamSignal(liveStreamId, "stage");
+      } catch (err) {
+        await captureError(err, { action: "startLiveStream", step: "invites" });
+      }
+    });
+  }
 
   revalidatePath("/home");
   return { error: null, liveStreamId, roomUrl: room.url, token };
@@ -209,6 +232,11 @@ export async function endLiveStream(liveStreamId: string) {
   });
   await deleteCallRoom(liveStream.roomName);
   await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
+  // Open stage invites can't be accepted any more: settled and their pushes corrected after the answer (the
+  // end-inactive-streams cron does the same for every other way a live ends, and for invites that ran out).
+  after(async () => {
+    await settleLiveInvites({ liveStreamId });
+  });
 
   revalidatePath("/home");
   revalidatePath(`/live/${liveStreamId}`);
@@ -250,7 +278,7 @@ export async function recordLiveStreamHeartbeat(liveStreamId: string) {
  * Mints a meeting token for the room. Plain viewers get a view-only token —
  * owner_only_broadcast on the room (see createLiveStreamRoom) is what
  * actually keeps them from unmuting camera/mic. A caller can instead request
- * `role: "GUEST"` or `"COHOST"` to ask for one of MAX_STAGE_PARTICIPANTS
+ * `role: "GUEST"` or `"COHOST"` to ask for one of MAX_LIVE_STAGE
  * stage slots alongside the host — as of the stage-request workflow below,
  * that request no longer grants the role immediately: it creates a PENDING
  * LiveStreamStageRequest and the caller still joins as a plain VIEWER,
@@ -481,7 +509,7 @@ export async function getLiveStreamStageRequests(liveStreamId: string) {
  * actually turns it into a LiveStreamViewer role change — respondToStageRequest
  * is the only place that happens for a non-host outside of the
  * already-on-stage reconnect shortcut in joinLiveStream above. Capacity
- * (MAX_STAGE_PARTICIPANTS) is enforced here, not at request time, since a
+ * (MAX_LIVE_STAGE) is enforced here, not at request time, since a
  * request can sit pending through a momentarily full stage.
  */
 export async function respondToStageRequest(requestId: string, approve: boolean) {
@@ -504,22 +532,19 @@ export async function respondToStageRequest(requestId: string, approve: boolean)
   }
 
   if (approve) {
-    const stageCount = await prisma.liveStreamViewer.count({
-      where: {
+    // Count and seat under the stream's stage lock (claimStageSeat), shared with accepted invites, so approvals and
+    // acceptances landing together can't take the stage past MAX_LIVE_STAGE.
+    const seat = await prisma.$transaction((tx) =>
+      claimStageSeat(tx, {
         liveStreamId: request.liveStreamId,
-        role: { in: ["GUEST", "COHOST"] },
-        userId: { not: request.liveStream.hostId },
-      },
-    });
-    if (stageCount >= MAX_STAGE_PARTICIPANTS) {
+        hostId: request.liveStream.hostId,
+        userId: request.userId,
+        role: request.role as "GUEST" | "COHOST",
+      }),
+    );
+    if (seat === "full") {
       return { error: "stage_full" as const };
     }
-
-    await prisma.liveStreamViewer.upsert({
-      where: { liveStreamId_userId: { liveStreamId: request.liveStreamId, userId: request.userId } },
-      create: { liveStreamId: request.liveStreamId, userId: request.userId, role: request.role },
-      update: { role: request.role },
-    });
   }
 
   await prisma.liveStreamStageRequest.update({
@@ -636,14 +661,14 @@ export async function getActiveLiveStreams() {
 
 /**
  * Polled by the live room to show a live watching-viewer count plus how many
- * of the MAX_STAGE_PARTICIPANTS co-host/guest stage slots are filled. The
+ * of the MAX_LIVE_STAGE co-host/guest stage slots are filled. The
  * host is excluded from both counts (see joinLiveStream's doc comment).
  * `withFull` (the Home feed card only) also answers whether the stream is at
  * its viewer cap, so the card can stop showing "Full" once a slot opens; the
  * room itself doesn't ask, so its frequent refetches cost no extra count.
  */
 export async function getLiveStreamViewerCount(liveStreamId: string, options?: { withFull?: boolean }) {
-  const empty = { count: 0, stageCount: 0, stageCapacity: MAX_STAGE_PARTICIPANTS, full: false };
+  const empty = { count: 0, stageCount: 0, stageCapacity: MAX_LIVE_STAGE, full: false };
   try {
     const user = await requireVerifiedViewer();
 
@@ -668,7 +693,7 @@ export async function getLiveStreamViewerCount(liveStreamId: string, options?: {
           })
         : Promise.resolve(0),
     ]);
-    return { count, stageCount, stageCapacity: MAX_STAGE_PARTICIPANTS, full: isStreamFull(slotsHeld) };
+    return { count, stageCount, stageCapacity: MAX_LIVE_STAGE, full: isStreamFull(slotsHeld) };
   } catch {
     return empty;
   }

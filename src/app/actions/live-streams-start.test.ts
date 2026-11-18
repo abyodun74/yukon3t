@@ -121,6 +121,14 @@ vi.mock("@/lib/live-stream-access", () => ({ canAccessLiveStream: async () => tr
 vi.mock("@/lib/realtime-server", () => ({ publishEvent: () => publishEvent() }));
 vi.mock("@/lib/error-tracking", () => ({ captureError: vi.fn() }));
 vi.mock("@/lib/live-stream-announce", () => ({ announceLiveStream: (id: string) => announceLiveStream(id) }));
+const sendLiveInvites = vi.fn(async (stream: unknown, inviter: unknown, ids: string[]) => {
+  void stream;
+  void inviter;
+  return { error: null, invited: ids, refused: [] };
+});
+vi.mock("@/lib/live-stream-invites-server", () => ({
+  sendLiveInvites: (stream: unknown, inviter: unknown, ids: string[]) => sendLiveInvites(stream, inviter, ids),
+}));
 
 const { startLiveStream } = await import("@/app/actions/live-streams");
 
@@ -226,6 +234,48 @@ describe("startLiveStream", () => {
     const result = await startLiveStream(form());
     expect(result.error).toBeNull();
     expect(rows.find((r) => r.id === "cstale00000001")?.status).toBe("ENDED");
+  });
+
+  it("people picked to go live with are invited onto the stage after the answer, never before", async () => {
+    const fd = form();
+    for (const id of ["cuser000000001", "cuser000000002", "cuser000000001", currentUser.id]) fd.append("inviteeId", id);
+    const result = await startLiveStream(fd);
+    expect(result.error).toBeNull();
+    expect(sendLiveInvites).not.toHaveBeenCalled();
+    for (const cb of afterCallbacks) await cb();
+    expect(sendLiveInvites).toHaveBeenCalledTimes(1);
+    const [stream, inviter, ids] = sendLiveInvites.mock.calls[0]!;
+    // De-duplicated, never the host themself.
+    expect(ids).toEqual(["cuser000000001", "cuser000000002"]);
+    expect(inviter).toMatchObject({ id: currentUser.id });
+    expect(stream).toMatchObject({ id: result.liveStreamId, hostId: currentUser.id, status: "LIVE" });
+  });
+
+  it("no picks means no invite work at all", async () => {
+    await startLiveStream(form());
+    for (const cb of afterCallbacks) await cb();
+    expect(sendLiveInvites).not.toHaveBeenCalled();
+  });
+
+  it("refuses more than ten picks, or a malformed id, before creating anything", async () => {
+    const tooMany = form();
+    for (let i = 0; i < 11; i++) tooMany.append("inviteeId", `cuser00000000${String(i).padStart(2, "0")}`);
+    expect(await startLiveStream(tooMany)).toEqual({ error: "invalid" });
+    const bad = form();
+    bad.append("inviteeId", "not an id!");
+    expect(await startLiveStream(bad)).toEqual({ error: "invalid" });
+    expect(rows).toHaveLength(0);
+    expect(createLiveStreamRoom).not.toHaveBeenCalled();
+  });
+
+  it("a failing invite run can't touch the started stream", async () => {
+    sendLiveInvites.mockRejectedValueOnce(new Error("db down"));
+    const fd = form();
+    fd.append("inviteeId", "cuser000000001");
+    const result = await startLiveStream(fd);
+    await Promise.allSettled(afterCallbacks.map((cb) => Promise.resolve().then(cb)));
+    expect(result.error).toBeNull();
+    expect(rows[0]?.status).toBe("LIVE");
   });
 
   it("a working stream still answers already_live with its id", async () => {

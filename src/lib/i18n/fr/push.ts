@@ -34,6 +34,7 @@ export const push: typeof pushEn = {
     MUSE_SHARE: "A partagé votre Muse",
     SCREENSHOT_TAKEN: "A fait une capture d'écran",
     LIVE_STREAM_INVITE: "A démarré un direct avec vous",
+    LIVE_STAGE_INVITE: "Vous invite à le rejoindre sur scène en direct",
     CIRCLE_INVITE: "Vous invite à rejoindre un Circle privé",
     COLLAB_SESSION_STARTED: "A démarré une session de collaboration en direct",
     POLL_SCHEDULED: "A fixé une date à partir d'un sondage auquel vous avez participé",
@@ -73,4 +74,10 @@ export const push: typeof pushEn = {
   },
   videoReviewTitle: "Vidéo en attente d'examen",
   recordingFailedTitle: "Enregistrement non publié",
+  liveInviteRecall: {
+    title: "Invitation à un direct",
+    cancelled: "Cette invitation a été annulée",
+    expired: "Cette invitation a expiré",
+    ended: "Le direct est terminé",
+  },
 };

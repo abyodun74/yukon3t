@@ -155,6 +155,7 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
   APP_FEEDBACK_SUBMITTED: [{ data: {}, href: "/admin/feedback" }],
   CIRCLE_LIVE: [{ data: { ...circle, ...live }, href: "/live/l1" }],
   LIVE_STREAM_INVITE: [{ data: live, href: "/live/l1" }],
+  LIVE_STAGE_INVITE: [{ data: live, href: "/live/l1?invite=1" }],
   COLLAB_SESSION_REMINDER: [{ data: collab, href: "/collab/k1" }],
   LIVE_RECORDING_POST_FAILED: [{ data: live, href: "/live/l1" }],
   CIRCLE_INVITE: [{ data: circle, href: "/circles/runners" }],

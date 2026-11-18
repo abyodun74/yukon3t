@@ -33,6 +33,7 @@ import { getHiddenState, isHiddenUnlocked } from "@/lib/hidden-chats";
 import type { HiddenState } from "@/lib/hidden-chats-rules";
 import { absoluteAvatarUrl } from "@/lib/avatar-storage";
 import { loadGiftExport } from "@/lib/gift-export";
+import { loadLiveInviteExport } from "@/lib/live-invite-export";
 import { collectAccountMedia, deleteAccountMedia } from "@/lib/account-media";
 import { likeGroupsTouchedByUser, recomputeLikeGroups } from "@/lib/like-groups";
 import { birthdayNoticePendingAtSignUp } from "@/lib/birthdays";
@@ -564,8 +565,10 @@ export async function exportMyData(proof?: unknown) {
   // only as the app shows them to them (src/lib/gift-export.ts), with the same hidden-chat rule and nobody blocked
   // either way named. Exact selects there; nothing from the gift tables rides on the `include` above.
   const giftsAndChallenges = await loadGiftExport(user.id, hidden);
+  // Live stage invites sent and received (src/lib/live-invite-export.ts): the same naming, block and hidden-peer rules.
+  const liveStageInvites = await loadLiveInviteExport(user.id, hidden);
   if (hidden.conversationIds.length === 0 && hidden.peerIds.length === 0) {
-    return { error: null, data: JSON.stringify({ ...data, giftsAndChallenges }, null, 2) };
+    return { error: null, data: JSON.stringify({ ...data, giftsAndChallenges, liveStageInvites }, null, 2) };
   }
 
   // A report names who it is about and, for a message, which one (plus its text, from a secret chat): one about a
@@ -588,7 +591,7 @@ export async function exportMyData(proof?: unknown) {
       !(r.targetType === "USER" && hidden.peerIds.includes(r.targetId)) &&
       !(r.targetType === "MESSAGE" && hiddenMessageIds.has(r.targetId)),
   );
-  return { error: null, data: JSON.stringify({ ...data, reportsFiled, giftsAndChallenges }, null, 2) };
+  return { error: null, data: JSON.stringify({ ...data, reportsFiled, giftsAndChallenges, liveStageInvites }, null, 2) };
 }
 
 /**

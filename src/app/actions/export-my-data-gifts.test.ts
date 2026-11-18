@@ -68,6 +68,8 @@ vi.mock("@/lib/prisma", () => ({
     challengeParticipant: { findMany: async (a: { take: number }) => participantRows.slice(0, a.take) },
     challengeWinner: { findMany: async (a: { take: number }) => winnerRows.slice(0, a.take) },
     message: { findMany: async () => [] },
+    // Live stage invites (src/lib/live-invite-export.ts) have their own test: none here.
+    liveStreamInvite: { findMany: async () => [] },
   },
 }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));

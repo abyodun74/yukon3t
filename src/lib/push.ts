@@ -4,7 +4,9 @@ import { perLocale, storedLocale, type Localized } from "@/lib/push-text";
 
 // `silent`: shown without sound or vibration (public/sw.js passes it to showNotification). Only the birthday-reminders
 // cron's reminder sets it.
-type PushPayload = { title: string; body: string; url?: string; silent?: boolean };
+// `tag`: a later push with the same tag replaces this notification instead of stacking (public/sw.js shows it with
+// `renotify: false`); see src/lib/push-replace.ts.
+type PushPayload = { title: string; body: string; url?: string; silent?: boolean; tag?: string };
 
 // What every per-user send reads of a subscription: where to send, and the recipient's language to word it in (one
 // query for both, see push-text.ts).

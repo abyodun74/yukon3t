@@ -1,12 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Mic, MicOff, ScreenShare, ScreenShareOff, Video, VideoOff } from "lucide-react";
 import type { DailyCall, DailyEventObjectRecordingStarted, DailyParticipant } from "@daily-co/daily-js";
 import { useCallsText } from "@/components/calls-text";
 import { format } from "@/lib/i18n/locales";
 import { createCallObjectWhenReady, trackDailyDestroy } from "@/lib/call-prewarm";
 import { trackIsOn } from "@/lib/daily-tracks";
+import { stageGrid, stageQuality } from "@/lib/live-stage";
+
+const LANDSCAPE_QUERY = "(orientation: landscape)";
+function subscribeOrientation(onChange: () => void) {
+  const query = window.matchMedia(LANDSCAPE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+/** Whether the screen is wider than tall (a rotated phone, a desktop window), for the stage grid's shape. */
+function useLandscape() {
+  return useSyncExternalStore(
+    subscribeOrientation,
+    () => window.matchMedia(LANDSCAPE_QUERY).matches,
+    () => false,
+  );
+}
 
 /**
  * Renders live streams' video with an in-app CSS grid instead of Daily's
@@ -193,6 +209,23 @@ export function LiveVideoFrame({
     .sort((a, b) => Number(b.local) - Number(a.local) || Number(b.owner) - Number(a.owner));
   const localCanBroadcast = Boolean(local && canBroadcast(local));
 
+  // Quality steps down as the stage grows (src/lib/live-stage.ts stageQuality): full up to 4 people on stage besides
+  // the host, then each broadcaster publishes fewer simulcast layers (lower top resolution and bitrate) and every
+  // client asks for a lower layer of everyone, so 11 tiles stay smooth on a phone and on a weak connection.
+  const landscape = useLandscape();
+  const quality = stageQuality(Math.max(0, broadcasters.length - 1));
+  const grid = stageGrid(broadcasters.length, landscape);
+  const joined = Boolean(local);
+  useEffect(() => {
+    const call = callRef.current;
+    if (!call || !joined) return;
+    // Both are best effort: a rejected update leaves Daily's own adaptive defaults in place, never breaks the call.
+    if (localCanBroadcast) {
+      call.updateSendSettings({ video: { maxQuality: quality.sendMaxQuality } }).catch(() => undefined);
+    }
+    call.updateReceiveSettings({ base: { video: { layer: quality.receiveLayer } } }).catch(() => undefined);
+  }, [joined, localCanBroadcast, quality.sendMaxQuality, quality.receiveLayer]);
+
   return (
     <div className="relative flex h-full w-full flex-col bg-black">
       {broadcasters.length === 0 ? (
@@ -200,14 +233,21 @@ export function LiveVideoFrame({
           {joinError ? <span className="text-danger">{calls.direct.errors.join}</span> : calls.direct.connecting}
         </div>
       ) : (
+        // Every tile fits on one screen (no scrolling away from someone on stage): a fixed columns x rows grid for the
+        // tile count and orientation, each cell sharing the height equally.
         <div
-          className="grid flex-1 gap-1 p-1"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}
+          className="grid min-h-0 flex-1 gap-1 p-1"
+          data-quality={quality.tier}
+          style={{
+            gridTemplateColumns: `repeat(${grid.columns}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${grid.rows}, minmax(0, 1fr))`,
+          }}
         >
           {broadcasters.map((p) => (
             <ParticipantTile
               key={p.session_id}
               participant={p}
+              compact={quality.tier !== "full"}
               // Only this stream's actual host gets the control, and never
               // on your own tile — that's the bottom tray's toggleAudio
               // above, a normal self-mute, not this force-mute-someone-else
@@ -286,8 +326,11 @@ export function LiveVideoFrame({
 function ParticipantTile({
   participant,
   onToggleMute,
+  compact = false,
 }: {
   participant: DailyParticipant;
+  /** A crowded stage (more than 4 besides the host): smaller name label and mute control so the video keeps the room. */
+  compact?: boolean;
   /** Present only for the host, on every tile but their own — see the broadcasters.map call site. */
   onToggleMute?: () => void;
 }) {
@@ -327,7 +370,7 @@ function ParticipantTile({
   const audioOn = trackIsOn(audioTrack.state);
 
   return (
-    <div className="relative flex min-h-[140px] items-center justify-center overflow-hidden rounded-lg bg-white/5">
+    <div className="relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-lg bg-white/5">
       {/* Mirrored for the local participant only — standard self-view
           convention, same as direct-call-frame.tsx's SelfVideo ("Local
           self-view: camera only, muted..., mirrored like any other
@@ -347,7 +390,12 @@ function ParticipantTile({
       />
       {!participant.local && <audio ref={audioRef} autoPlay playsInline />}
       {!hasVideo && <span dir="auto" className="text-xs text-white/50">{name}</span>}
-      <span className="absolute bottom-1.5 left-1.5 rounded hig-material-dark bg-black/50 backdrop-blur-md px-1.5 py-0.5 text-[0.625rem] text-white">
+      <span
+        dir="auto"
+        className={`absolute bottom-1.5 left-1.5 max-w-[calc(100%-2.5rem)] truncate rounded hig-material-dark bg-black/50 backdrop-blur-md text-white ${
+          compact ? "px-1 py-px text-[0.5625rem]" : "px-1.5 py-0.5 text-[0.625rem]"
+        }`}
+      >
         {name}
       </span>
       {onToggleMute && (

@@ -110,6 +110,7 @@ export const pagesEn = {
       APP_FEEDBACK_SUBMITTED: "{name} submitted app feedback",
       CIRCLE_LIVE: "{name} started a live stream",
       LIVE_STREAM_INVITE: "{name} started a live stream with you",
+      LIVE_STAGE_INVITE: "{name} invited you to join them live on stage",
       COLLAB_SESSION_REMINDER: "A collaboration session you're part of is starting soon",
       LIVE_RECORDING_POST_FAILED: "A live stream recording you asked to be posted couldn't be posted",
       CIRCLE_INVITE: "{name} invited you to join a private Circle",

@@ -3,6 +3,7 @@ import { birthdayWishHref } from "@/lib/birthdays";
 import { giftsHref } from "@/lib/gifts";
 import { challengeResultHref } from "@/lib/challenges";
 import { museCommentHref } from "@/lib/muse-comment-threads";
+import { liveInviteHref } from "@/lib/live-stage";
 
 // Where a notification leads when opened. Shared by the notification list
 // (components/notification-row.tsx) and markReadByTarget
@@ -57,6 +58,7 @@ export type NotificationData = {
     | "APP_FEEDBACK_SUBMITTED"
     | "CIRCLE_LIVE"
     | "LIVE_STREAM_INVITE"
+    | "LIVE_STAGE_INVITE"
     | "COLLAB_SESSION_REMINDER"
     | "LIVE_RECORDING_POST_FAILED"
     | "CIRCLE_INVITE"
@@ -153,6 +155,9 @@ export function notificationHref(notification: NotificationData) {
   // Site admins' oversight notice about a new Circle. A PRIVATE Circle's page doesn't exist for a non-member, site
   // admins included (lib/circle-visibility.ts), so a private one opens the admin Circles list instead.
   if (notification.type === "CIRCLE_CREATED" && notification.circle?.visibility === "PRIVATE") return "/admin/circles";
+  // A stage invite opens the stream marked as from an invite (its push uses the same URL, so a tap marks this row
+  // read): a stale one shows "this invite is no longer available" there.
+  if (notification.type === "LIVE_STAGE_INVITE" && notification.liveStreamId) return liveInviteHref(notification.liveStreamId);
   if (notification.liveStreamId) return `/live/${notification.liveStreamId}`;
   if (notification.postId) return `/post/${notification.postId}`;
   if (notification.channel && notification.circle) {

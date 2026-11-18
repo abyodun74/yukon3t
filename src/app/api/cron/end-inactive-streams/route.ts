@@ -7,6 +7,7 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { sweepUnannouncedLiveStreams } from "@/lib/live-stream-announce";
 import { LIVE_START_PENDING_STALE_MS, ROOM_DELETE_CONCURRENCY, runWithConcurrency } from "@/lib/live-stream-start";
 import { captureError } from "@/lib/error-tracking";
+import { settleLiveInvites } from "@/lib/live-stream-invites-server";
 
 /** A stream whose host and co-hosts have sent no heartbeat for this long is ended. */
 const INACTIVE_AFTER_MS = 30 * 60 * 1000;
@@ -25,6 +26,9 @@ const END_BATCH = 100;
  * 2. Retries "X is live" announcements that the start's own `after` callback lost or failed
  *    (sweepUnannouncedLiveStreams), exactly once per stream.
  * 3. Tells open Home tabs when it ended anything, so an ended stream doesn't linger in "Live now".
+ * 4. Settles live stage invites that ran out (LIVE_INVITE_TTL_MS) or whose live ended, and corrects the pushes of
+ *    the ones nobody acted on (settleLiveInvites, src/lib/live-stream-invites-server.ts). After step 1, so a stream
+ *    it just ended gets "The live has ended".
  */
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -75,9 +79,12 @@ export async function GET(request: Request) {
     await captureError(err, { cron: "end-inactive-streams", step: "announce" });
   }
 
+  // Never throws (it reports its own failures).
+  const invites = await settleLiveInvites({ now: new Date(now) });
+
   if (ended > 0) {
     await publishEvent(REALTIME_CHANNELS.liveStreams(), "changed");
   }
 
-  return NextResponse.json({ error: null, ended, ...announce });
+  return NextResponse.json({ error: null, ended, ...announce, invitesSettled: invites.settled, invitePushesCorrected: invites.recalled });
 }

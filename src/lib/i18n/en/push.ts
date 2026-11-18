@@ -39,6 +39,7 @@ export const pushEn = {
     MUSE_SHARE: "shared your Muse",
     SCREENSHOT_TAKEN: "took a screenshot",
     LIVE_STREAM_INVITE: "started a live stream with you",
+    LIVE_STAGE_INVITE: "invited you to join them live on stage",
     CIRCLE_INVITE: "invited you to join a private Circle",
     COLLAB_SESSION_STARTED: "started a live collaboration session",
     POLL_SCHEDULED: "scheduled a time from a poll you voted in",
@@ -83,4 +84,11 @@ export const pushEn = {
   },
   videoReviewTitle: "Video pending review",
   recordingFailedTitle: "Recording not posted",
+  // The quiet correction that replaces a live stage invite's push on the device (src/lib/push-replace.ts).
+  liveInviteRecall: {
+    title: "Live invite",
+    cancelled: "This invite was cancelled",
+    expired: "This invite has expired",
+    ended: "The live has ended",
+  },
 };

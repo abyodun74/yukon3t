@@ -106,6 +106,7 @@ export const pages: typeof pagesEn = {
       APP_FEEDBACK_SUBMITTED: "{name} envió una opinión sobre la aplicación",
       CIRCLE_LIVE: "{name} inició una transmisión en vivo",
       LIVE_STREAM_INVITE: "{name} inició una transmisión en vivo contigo",
+      LIVE_STAGE_INVITE: "{name} te invitó a unirte a su transmisión en el escenario",
       COLLAB_SESSION_REMINDER: "Una sesión de colaboración en la que participas está por empezar",
       LIVE_RECORDING_POST_FAILED: "No se pudo publicar la grabación de una transmisión en vivo que pediste publicar",
       CIRCLE_INVITE: "{name} te invitó a unirte a un Circle privado",

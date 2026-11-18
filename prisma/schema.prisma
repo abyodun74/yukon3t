@@ -402,6 +402,8 @@ model User {
   liveStreamInvites       LiveStream[]             @relation("LiveStreamTarget")
   liveStreamsWatching     LiveStreamViewer[]
   liveStreamStageRequests LiveStreamStageRequest[]
+  liveStageInvitesReceived LiveStreamInvite[]     @relation("LiveStreamInvitee")
+  liveStageInvitesSent     LiveStreamInvite[]     @relation("LiveStreamInviter")
   liveStreamComments      LiveStreamComment[]
 
   stories        Story[]
@@ -1603,6 +1605,10 @@ enum NotificationType {
   // liveStreamId so a PRIVATE Circle's row hides from a non-member like any other). Removed again if the winner is
   // taken off within 24h, or the challenge is cancelled or reversed. Never names the challenge or the Circle.
   CHALLENGE_RESULT
+  // "<name> invited you to join their live": a LiveStreamInvite (src/lib/live-stage.ts) from the stream's host or a
+  // co-host, to the invitee only (actorId = the inviter, liveStreamId set). Bell + push in the invitee's language.
+  // Opens the stream, which shows Accept / Decline. Deleted again if the invite is cancelled while still unread.
+  LIVE_STAGE_INVITE
 }
 
 model Notification {
@@ -2018,6 +2024,7 @@ model LiveStream {
   circle         Circle?                   @relation(fields: [circleId], references: [id], onDelete: Cascade)
   viewers        LiveStreamViewer[]
   stageRequests  LiveStreamStageRequest[]
+  stageInvites   LiveStreamInvite[]
   notifications  Notification[]
   comments       LiveStreamComment[]
   recordingPosts LiveStreamRecordingPost[]
@@ -2100,6 +2107,50 @@ model LiveStreamStageRequest {
 
   @@unique([liveStreamId, userId])
   @@index([liveStreamId, status])
+}
+
+/**
+ * Where a LiveStreamInvite stands. Only PENDING can move: to ACCEPTED or DECLINED by the invitee, to CANCELLED by the
+ * host or a co-host. EXPIRED is written lazily, when someone answers a PENDING row that ran out; until then a PENDING
+ * row older than LIVE_INVITE_TTL_MS, or on a stream that has ended, already reads as expired everywhere through
+ * liveInviteStatus in src/lib/live-stage.ts.
+ */
+enum LiveStreamInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
+}
+
+/**
+ * The host or a co-host asking someone to come on stage ("go live with me"), from the Go live sheet or during the
+ * stream (actions/live-stream-invites.ts). Unlike LiveStreamStageRequest (the viewer asks, the host approves), the
+ * stage side has already said yes: accepting takes a stage seat directly, under the same per-stream lock and
+ * MAX_LIVE_STAGE cap as an approval. One row per stream and invitee: re-inviting after a cancel or expiry reuses it
+ * (sendCount, capped), a decline is final for that stream. An invite never widens who may watch: the invitee must
+ * already pass canAccessLiveStream.
+ */
+model LiveStreamInvite {
+  id           String                 @id @default(cuid())
+  liveStreamId String
+  inviteeId    String
+  invitedById  String
+  status       LiveStreamInviteStatus @default(PENDING)
+  /** How many times this person was invited to this stream (re-invites after a cancel or expiry); capped. */
+  sendCount    Int                    @default(1)
+  /** When the current invite was sent: what the expiry counts from (reset on a re-invite). */
+  createdAt    DateTime               @default(now())
+  respondedAt  DateTime?
+
+  liveStream LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  invitee    User       @relation("LiveStreamInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  invitedBy  User       @relation("LiveStreamInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([liveStreamId, inviteeId])
+  @@index([liveStreamId, status])
+  @@index([inviteeId, status])
+  @@index([invitedById, inviteeId, createdAt])
 }
 
 /**

@@ -33,6 +33,7 @@ export const push: typeof pushEn = {
     MUSE_SHARE: "Ameshiriki Muse yako",
     SCREENSHOT_TAKEN: "Amepiga picha ya skrini",
     LIVE_STREAM_INVITE: "Ameanzisha matangazo ya moja kwa moja pamoja nawe",
+    LIVE_STAGE_INVITE: "Amekualika ujiunge naye jukwaani mubashara",
     CIRCLE_INVITE: "Amekualika ujiunge na Circle ya faragha",
     COLLAB_SESSION_STARTED: "Ameanzisha kipindi cha ushirikiano cha moja kwa moja",
     POLL_SCHEDULED: "Amepanga tarehe kutokana na kura uliyoshiriki",
@@ -72,4 +73,10 @@ export const push: typeof pushEn = {
   },
   videoReviewTitle: "Video inakaguliwa",
   recordingFailedTitle: "Rekodi haikuchapishwa",
+  liveInviteRecall: {
+    title: "Mwaliko wa matangazo mubashara",
+    cancelled: "Mwaliko huu umeghairiwa",
+    expired: "Mwaliko huu umeisha muda wake",
+    ended: "Matangazo mubashara yamekwisha",
+  },
 };

@@ -921,12 +921,45 @@ const sections: Section[] = [
             camera and mic on the stage in a split-screen view alongside the
             host (co-host is meant for someone helping present, guest for
             someone dropping in briefly, but they work the same way). There
-            are 3 stage spots total, shared between guests and co-hosts, on
+            are 10 stage spots total, shared between guests and co-hosts, on
             top of the host. A live also has a limit on how many people can
             watch at once: if it&apos;s full, you&apos;ll see a message
             saying so, and you can try again shortly. You watch one live at a
             time: starting to watch another one leaves the one you were
-            watching.
+            watching. With up to 4 people on stage besides the host, video
+            is at full quality; with more, the tiles get smaller and video
+            quality steps down automatically so everything stays smooth.
+          </>
+        ),
+      },
+      {
+        id: "invite-people-on-stage-live",
+        q: "Can I invite other people to go live with me?",
+        a: (
+          <>
+            Yes. When you tap &ldquo;Go Live&rdquo;, &ldquo;Go live
+            with&rdquo; lets you search people by name or @username and pick
+            up to 10; each shows as a chip you can remove before you start.
+            During the live, the host and co-hosts (nobody else) can invite
+            more people with the &ldquo;Invite people&rdquo; button.
+            <br />
+            <br />
+            The search only shows your connections and people who appear in
+            people search, never anyone you&apos;ve blocked or who has blocked
+            you, and an invite never widens who can watch: for a private
+            Circle&apos;s live you can only invite its members, and for a live
+            with one specific person, only that person.
+            <br />
+            <br />
+            Each person you invite gets a notification in their language and,
+            when they open the live, can choose &ldquo;Join on stage&rdquo; or
+            &ldquo;Not now&rdquo;. Accepting puts them straight on stage as a
+            guest, with no further approval, as long as there&apos;s a spot
+            (up to 10 besides the host). Invites expire after 15 minutes or
+            when the live ends, and the host or a co-host can cancel them.
+            Someone who says &ldquo;Not now&rdquo; can&apos;t be invited to
+            that live again; the same person can be invited at most twice per
+            live, and there&apos;s a limit on invites per hour.
           </>
         ),
       },

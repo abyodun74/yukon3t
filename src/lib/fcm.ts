@@ -6,6 +6,7 @@ import { getFirebaseAdminApp, isFirebaseAdminConfigured } from "@/lib/firebase-a
 import { groupByLocale, perLocale, storedLocale, type Localized } from "@/lib/push-text";
 import { SILENT_CALL_APNS, incomingCallData, missedCallApns, missedCallData } from "@/lib/call-push-data";
 import { quietAndroidConfig, quietApnsConfig } from "@/lib/quiet-push";
+import { replaceableFcmConfig } from "@/lib/push-replace";
 
 // The recipient's language comes back with their tokens (one query, see push-text.ts).
 const TOKEN_SELECT = { id: true, token: true, user: { select: { locale: true } } } as const;
@@ -156,8 +157,14 @@ export async function sendFcmMissedCallToUser(
  * foregrounded but won't match any of its existing `type` branches and
  * no-ops, since the in-app bell notification already covers that case live.
  * Best-effort, same contract as sendFcmDataToUser/sendPushToUser.
+ * `replaceKey`: a later push with the same key replaces this one on the device instead of stacking (Android drawer tag,
+ * iOS apns-collapse-id; src/lib/push-replace.ts); `quiet` sends it without sound or vibration.
  */
-export async function sendFcmActivityToUser(userId: string, localizedPayload: Localized<ActivityPayload>) {
+export async function sendFcmActivityToUser(
+  userId: string,
+  localizedPayload: Localized<ActivityPayload>,
+  options: { replaceKey?: string; quiet?: boolean } = {},
+) {
   if (!isFcmConfigured || !app) return;
 
   const tokens: Token[] = await prisma.fcmToken.findMany({ where: { userId }, select: TOKEN_SELECT });
@@ -170,7 +177,11 @@ export async function sendFcmActivityToUser(userId: string, localizedPayload: Lo
       tokens: tokens.map((t) => t.token),
       notification: { title: payload.title, body: payload.body },
       data: { type: payload.type, ...(payload.url ? { url: payload.url } : {}) },
-      android: { priority: "high" },
+      ...(options.replaceKey
+        ? replaceableFcmConfig(options.replaceKey, { quiet: options.quiet })
+        : options.quiet
+          ? { android: quietAndroidConfig(), apns: quietApnsConfig() }
+          : { android: { priority: "high" as const } }),
     });
   } catch {
     // Best-effort — a push failure should never break the action that triggered it.

@@ -121,3 +121,25 @@ describe("service worker notification click", () => {
     expect(sw.showNotification.mock.calls[0][1].data).toEqual({ url: `${ORIGIN}/post/p1` });
   });
 });
+
+describe("service worker replacement tags", () => {
+  it("shows a tagged push with its tag and renotify off, so a later one with the same tag replaces it", async () => {
+    const sw = load();
+    await sw.push({ title: "Amy", body: "invited you", url: "/live/s1?invite=1", tag: "live-invite:s1" });
+    expect(sw.showNotification).toHaveBeenCalledWith(
+      "Amy",
+      expect.objectContaining({ tag: "live-invite:s1", renotify: false, data: { url: `${ORIGIN}/live/s1?invite=1` } }),
+    );
+  });
+
+  it("ignores a tag that isn't a short printable key, and adds none to an untagged push", async () => {
+    const sw = load();
+    await sw.push({ title: "A", body: "b", tag: "x".repeat(65) });
+    await sw.push({ title: "A", body: "b", tag: "has space" });
+    await sw.push({ title: "A", body: "b" });
+    for (const call of sw.showNotification.mock.calls) {
+      expect(call[1]).not.toHaveProperty("tag");
+      expect(call[1]).not.toHaveProperty("renotify");
+    }
+  });
+});

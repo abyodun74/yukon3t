@@ -106,6 +106,7 @@ export const pages: typeof pagesEn = {
       APP_FEEDBACK_SUBMITTED: "{name} ametuma maoni kuhusu programu",
       CIRCLE_LIVE: "{name} ameanzisha matangazo ya moja kwa moja",
       LIVE_STREAM_INVITE: "{name} ameanzisha matangazo ya moja kwa moja pamoja nawe",
+      LIVE_STAGE_INVITE: "{name} amekualika ujiunge naye jukwaani mubashara",
       COLLAB_SESSION_REMINDER: "Kipindi cha ushirikiano unaoshiriki kinakaribia kuanza",
       LIVE_RECORDING_POST_FAILED: "Rekodi ya matangazo ya moja kwa moja uliyoomba kuchapishwa haikuweza kuchapishwa",
       CIRCLE_INVITE: "{name} amekualika ujiunge na Circle ya faragha",

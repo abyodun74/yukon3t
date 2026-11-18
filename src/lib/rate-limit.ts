@@ -163,6 +163,10 @@ const limiterDefinitions = {
   liveStreamStart: makeLimiter(5, "10 m"),
   liveStreamJoin: makeLimiter(30, "1 m"),
   liveStreamComment: makeLimiter(20, "1 m"),
+  // Inviting people onto a live's stage (src/lib/live-stream-invites-server.ts): charged one per person actually
+  // invited (each gets a push), per inviter per hour. Re-inviting the same person is capped separately in the database
+  // (LIVE_INVITE_MAX_SENDS per stream, LIVE_INVITE_PAIR_DAILY_MAX a day), which holds even if Upstash is down.
+  liveInvite: makeLimiter(30, "1 h", "liveInvite"),
   dataExport: makeLimiter(3, "1 h"),
   circleModerate: makeLimiter(30, "10 m"),
   channelManage: makeLimiter(30, "10 m"),

@@ -14,7 +14,8 @@ import { getListablePostsWhere, NOT_MEMBERS_ONLY, LEAD_POST_ONLY } from "@/lib/p
 import { getConnectionsStories } from "@/app/actions/stories";
 import { feedCategoryValues } from "@/lib/validations";
 import { buildCategoryFilter } from "@/lib/feed-category";
-import { getDictionary } from "@/lib/i18n/server";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { LiveTextProvider } from "@/components/live-text";
 import { isAccountVerified } from "@/lib/account-verification";
 import { getFeedOrder } from "@/lib/feed-order-server";
 import { loadHomeRotatedPage } from "@/lib/home-feed-rotation";
@@ -121,7 +122,10 @@ export default async function HomePage({
           currentStreak={me.currentStreak}
           longestStreak={me.longestStreak}
         />
-        <LiveStreamStrip />
+        {/* The Go live sheet's "Go live with" people picker is worded by the live room's dictionary. */}
+        <LiveTextProvider locale={await getLocale()} text={dictionary.live}>
+          <LiveStreamStrip />
+        </LiveTextProvider>
       </div>
 
       <div className="mt-4">

@@ -71,6 +71,7 @@ export const FAQ_IDS = [
   "who-see-live-stream-start",
   "start-live-stream-just-one",
   "difference-between-watching-joining-guest",
+  "invite-people-on-stage-live",
   "host-mute-guest-co-host",
   "record-go-live-stream-take",
   "recording-stream-posted-automatically",
