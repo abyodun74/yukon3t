@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { absoluteUrl } from "@/lib/seo";
 import { isViewOnceConfigured } from "@/lib/storage";
 
 const title = "Terms of Service | YuKon3t";
@@ -8,6 +9,8 @@ const description =
 export const metadata: Metadata = {
   title: { absolute: title },
   description,
+  // The one address search engines should index, whatever query string a link added (src/lib/seo.ts).
+  alternates: { canonical: absoluteUrl("/legal/terms") },
   openGraph: {
     type: "website",
     url: "/legal/terms",

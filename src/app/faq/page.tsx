@@ -6,36 +6,22 @@ import { ACCORDION_CARD, ACCORDION_GROUP, ACCORDION_LABEL, AccordionIndicator } 
 import { auth } from "@/lib/auth";
 import { isViewOnceConfigured } from "@/lib/storage";
 import { PRIVATE_AVATARS_NOTE } from "./content/private-avatars";
-import { getLocale } from "@/lib/i18n/server";
+import { getDictionary, getLocale, getSeoLocaleOverride } from "@/lib/i18n/server";
+import { JsonLd } from "@/components/json-ld";
+import { absoluteUrl, faqPageJsonLd, localizedPageMetadata } from "@/lib/seo";
+import { localizedSeoPath } from "@/lib/seo-locale";
+import { faqMarkupToText, reactNodeToText } from "./plain-text";
 import { FaqAnswer } from "./answer";
 import { faqContentFor } from "./content";
 import type { FaqId, FaqSectionId } from "./ids";
 
-const title = "YuKon3t FAQ — How Verification & Circles Work";
-const description =
-  "Answers on YuKon3t's email and phone verification, free Circles, Collab Boards, messaging, and moderation policy — everything before you sign up.";
-
-// title uses { absolute: ... } rather than a plain string — it already
-// carries the brand name, so the root layout's "%s | YuKon3t" template
-// would otherwise double it up (see src/app/page.tsx for the same pattern).
-export const metadata: Metadata = {
-  title: { absolute: title },
-  description,
-  openGraph: {
-    type: "website",
-    url: "/faq",
-    siteName: "YuKon3t",
-    title,
-    description,
-    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
-  },
-  twitter: {
-    card: "summary",
-    title,
-    description,
-    images: ["/icons/icon-512.png"],
-  },
-};
+// Title and description in the reader's language (dictionary `seo.faq`), with a canonical link and hreflang
+// alternates for the `?lang=` addresses (src/lib/seo-locale.ts, src/lib/seo.ts). The title is absolute: it already
+// carries the brand name, so the root layout's "%s | YuKon3t" template would double it.
+export async function generateMetadata(): Promise<Metadata> {
+  const [locale, seoLocale, dictionary] = await Promise.all([getLocale(), getSeoLocaleOverride(), getDictionary()]);
+  return localizedPageMetadata({ path: "/faq", locale, seoLocale, text: dictionary.seo.faq });
+}
 
 // This file is the FAQ in English. The other languages are in content/, keyed by the same ids (ids.ts), and the
 // page shows the reader's language (faqContentFor). A change to an answer here needs the same change in each of
@@ -3284,10 +3270,30 @@ export default async function FaqPage() {
   const viewOnceAvailable = isViewOnceConfigured();
   // English is the JSX above; any other language comes from its content/ module (server-side only, so the browser
   // is only ever sent the one language it shows).
-  const locale = await getLocale();
+  const [locale, seoLocale] = await Promise.all([getLocale(), getSeoLocaleOverride()]);
   const translated = faqContentFor(locale);
+  const shows = (item: Faq) => viewOnceAvailable || !item.requiresViewOnce;
+  // Structured data: the questions this page shows, in order, with the same answer text. Sections hidden in the iOS
+  // app are left out, so nothing is marked up that a reader of this page might not see.
+  const structuredData = faqPageJsonLd({
+    url: absoluteUrl(localizedSeoPath("/faq", seoLocale)),
+    locale,
+    entries: sections
+      .filter((section) => !section.hideInIosApp)
+      .flatMap((section) => section.items.filter(shows))
+      .map((item) => ({
+        question: translated?.items[item.id].q ?? item.q,
+        answer: [
+          translated ? faqMarkupToText(translated.items[item.id].a) : reactNodeToText(item.a),
+          item.privateAvatarsNote ? PRIVATE_AVATARS_NOTE[locale] : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      })),
+  });
   return (
     <div className="mx-auto max-w-2xl px-4 py-14">
+      <JsonLd data={structuredData} />
       <BackButton href={session?.user ? "/home" : "/"} />
       <h1 className="font-display text-3xl font-semibold">{translated?.heading ?? heading}</h1>
       <p className="mt-2 text-sm text-foreground-soft">
@@ -3309,7 +3315,7 @@ export default async function FaqPage() {
               </h2>
               <div className="mt-3 space-y-2">
                 {section.items
-                  .filter((item) => viewOnceAvailable || !item.requiresViewOnce)
+                  .filter(shows)
                   .map((item) => (
                   <details
                     key={item.id}

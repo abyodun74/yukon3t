@@ -13,6 +13,7 @@ import {
 import { allowWithCredits, createCreditCache } from "@/lib/page-limit-credits";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile-shared";
+import { SEO_LOCALE_HEADER, seoLocaleFromUrl } from "@/lib/seo-locale";
 
 // Every proxy rate-limit check that isn't covered by local credit (pageLimitCredits below) costs one Upstash command,
 // so requests that are machine-driven or static skip the per-IP pageRequest limiter. They still
@@ -269,6 +270,11 @@ export async function proxy(request: NextRequest) {
   // browser has stored and resent the Set-Cookie below (see
   // src/lib/device-id.ts's getDeviceId).
   requestHeaders.set(DEVICE_ID_HEADER, deviceId);
+  // `/?lang=es`, `/faq?lang=es`: the crawlable address of a public page in one language (src/lib/seo-locale.ts). Only
+  // this proxy may say so: a copy sent by the client is dropped, then set again only from a valid parameter.
+  requestHeaders.delete(SEO_LOCALE_HEADER);
+  const seoLocale = seoLocaleFromUrl(request.nextUrl.pathname, request.nextUrl.searchParams);
+  if (seoLocale) requestHeaders.set(SEO_LOCALE_HEADER, seoLocale);
 
   const response = NextResponse.next({
     request: { headers: requestHeaders },

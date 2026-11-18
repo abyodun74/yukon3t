@@ -1,7 +1,9 @@
 "use client";
 
 import { useId, useOptimistic, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { setLocale } from "@/app/actions/locale";
+import { SEO_LANG_PARAM } from "@/lib/seo-locale";
 import { cn } from "@/lib/utils";
 import { LOCALE_NAMES, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/locales";
 
@@ -23,6 +25,7 @@ export function LanguagePicker({
   const id = useId();
   const [isPending, startTransition] = useTransition();
   const [shown, setShown] = useOptimistic(locale);
+  const router = useRouter();
 
   return (
     <div
@@ -41,6 +44,13 @@ export function LanguagePicker({
           startTransition(async () => {
             setShown(next);
             await setLocale(next);
+            // A `?lang=` address (src/lib/seo-locale.ts) outranks the cookie, so drop it: otherwise the page would stay
+            // in the language the address names whatever was just picked.
+            const url = new URL(window.location.href);
+            if (url.searchParams.has(SEO_LANG_PARAM)) {
+              url.searchParams.delete(SEO_LANG_PARAM);
+              router.replace(`${url.pathname}${url.search}${url.hash}`);
+            }
           });
         }}
         className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"

@@ -41,8 +41,13 @@ import { ContentTranslationProvider } from "@/components/content-translation";
 import { LinkCopyMenu } from "@/components/link-copy-menu";
 import { isTranslationConfigured } from "@/lib/translation-server";
 import { sessionAutoTranslate } from "@/lib/auth-guards";
+import { accountEn } from "@/lib/i18n/en/account";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yukon3t.com";
+// The fallback for pages with no metadata of their own (every signed-in screen): the landing page's English wording.
+// The public pages set their own, in the reader's language (src/lib/seo.ts).
+const defaultTitle = accountEn.seo.landing.title;
+const defaultDescription = accountEn.seo.landing.description;
 
 // Self-hosted (next/font/local) instead of next/font/google — a Netlify
 // production build started failing outright (`next/font`'s Google fetch:
@@ -86,15 +91,14 @@ const fraunces = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: {
-    default: "YuKon3t — Connect across cultures, interests, and borders",
+    default: defaultTitle,
     // Pages that set their own title (via `title: "..."` in a page-level
     // metadata export) get "<page title> | YuKon3t" instead of replacing
     // the brand entirely — search results and browser tabs stay
     // identifiable as YuKon3t even from a deep link.
     template: "%s | YuKon3t",
   },
-  description:
-    "YuKon3t connects people worldwide through verified communities, cross-cultural friendship, and cross-country collaboration.",
+  description: defaultDescription,
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
@@ -117,16 +121,14 @@ export const metadata: Metadata = {
     type: "website",
     url: appUrl,
     siteName: "YuKon3t",
-    title: "YuKon3t — Connect across cultures, interests, and borders",
-    description:
-      "YuKon3t connects people worldwide through verified communities, cross-cultural friendship, and cross-country collaboration.",
+    title: defaultTitle,
+    description: defaultDescription,
     images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
   },
   twitter: {
     card: "summary",
-    title: "YuKon3t — Connect across cultures, interests, and borders",
-    description:
-      "YuKon3t connects people worldwide through verified communities, cross-cultural friendship, and cross-country collaboration.",
+    title: defaultTitle,
+    description: defaultDescription,
     images: ["/icons/icon-512.png"],
   },
   other: {

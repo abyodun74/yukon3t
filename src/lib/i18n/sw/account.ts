@@ -37,6 +37,60 @@ export const account: typeof accountEn = {
       title: "Collab Boards",
       body: "Kubadilishana ujuzi kati ya nchi, kujitolea, vikundi vya kujisomea na miradi: aina ya mawasiliano ambayo programu nyingi za kimataifa huipuuza.",
     },
+    // Use-case blocks under the pillars: what the app actually does, in words people search for. Each claim is
+    // checked against the FAQ (verification, Stories, Muse, Circles, live stage, shopping lists, reminders, languages).
+    features: {
+      heading: "Unachoweza kufanya kwenye YuKon3t",
+      intro:
+        "Kaa karibu na marafiki na familia walio ng'ambo ya mipaka, na ukutane na watu wanaoshiriki mapendeleo yako, lugha yako au utamaduni wako.",
+      items: [
+        {
+          title: "Marafiki wa tamaduni nyingine na wa diaspora",
+          body: "Tafuta watu kwa nchi, lugha au mapendeleo, na useme uko hapa kwa ajili ya nini: urafiki, kubadilishana tamaduni, jumuiya, mawasiliano ya kikazi au vidokezo vya safari.",
+        },
+        {
+          title: "Story ambazo marafiki wanaweza kupenda kwa moyo",
+          body: "Shiriki picha na video zinazopotea baada ya saa 24. Marafiki wanaweza kujibu au kugusa moyo, na ni wewe tu unayeona waliopenda Story yako.",
+        },
+        {
+          title: "Video fupi za Muse",
+          body: "Mlisho wa skrini nzima wa video fupi, za kuchekesha na za ubunifu ambazo kila mtu kwenye YuKon3t anaweza kutazama, kupenda na kutolea maoni.",
+        },
+        {
+          title: "Circles za faragha na Collab Boards",
+          body: "Anzisha Circle bila malipo kwa ajili ya burudani, harakati au utamaduni, na uifanye ya mwaliko tu ukipenda. Collab Boards huwaleta pamoja watu wa nchi mbalimbali kwa kubadilishana ujuzi, vikundi vya kusoma na miradi.",
+        },
+        {
+          title: "Mubashara na hadi wageni 10",
+          body: "Tangaza mubashara, alika hadi watu 10 jukwaani pamoja nawe, na uchague nani anaweza kutazama, hata watu uliowachagua tu.",
+        },
+        {
+          title: "Orodha za ununuzi za pamoja kwenye gumzo",
+          body: "Tuma orodha ya ununuzi kwenye gumzo: kila mtu ndani yake anaweza kuweka alama kwenye bidhaa, kuongeza zaidi na kuona mabadiliko papo hapo. Simu za sauti na video zipo hapo pia.",
+        },
+        {
+          title: "Vikumbusho vya siku za kuzaliwa na sikukuu",
+          body: "Pata kikumbusho kwenye siku za kuzaliwa ambazo marafiki zako wanachagua kushiriki, na taarifa kwenye sikukuu za umma za nchi yako, ambayo unaweza kuzima kwenye Mipangilio.",
+        },
+        {
+          title: "Lugha tisa, jumuiya moja",
+          body: "Tumia YuKon3t kwa Kiingereza, Kihispania, Kifaransa, Kireno, Kiarabu, Kijerumani, Kiitaliano, Kihindi au Kiswahili, na ubadilishe lugha wakati wowote.",
+        },
+      ],
+    },
+  },
+  // Search results and link previews (src/lib/seo.ts): title at most 60 characters, description 140 to 160.
+  seo: {
+    landing: {
+      title: "YuKon3t: marafiki wa tamaduni zote, Circles na mubashara",
+      description:
+        "Marafiki wa tamaduni nyingine na diaspora: Story, video za Muse, Circles za faragha, mubashara na hadi wageni 10. Akaunti huthibitishwa kwa barua pepe au simu.",
+    },
+    faq: {
+      title: "Maswali ya YuKon3t: uthibitishaji, Circles na mubashara",
+      description:
+        "YuKon3t kwa ufupi: uthibitishaji kwa barua pepe au simu, Circles za faragha, Collab Boards, Story, video za Muse, mubashara, simu, siku za kuzaliwa na faragha.",
+    },
   },
   common: {
     signIn: "Ingia",

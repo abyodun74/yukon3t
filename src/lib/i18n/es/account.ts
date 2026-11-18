@@ -37,6 +37,60 @@ export const account: typeof accountEn = {
       title: "Collab Boards",
       body: "Intercambios de habilidades entre países, voluntariado, grupos de estudio y proyectos: el tipo de conexión que la mayoría de las aplicaciones globales pasan por alto.",
     },
+    // Use-case blocks under the pillars: what the app actually does, in words people search for. Each claim is
+    // checked against the FAQ (verification, Stories, Muse, Circles, live stage, shopping lists, reminders, languages).
+    features: {
+      heading: "Lo que puedes hacer en YuKon3t",
+      intro:
+        "Mantente cerca de amigos y familia al otro lado de la frontera, y conoce a personas que comparten tus intereses, tu idioma o tu cultura.",
+      items: [
+        {
+          title: "Amigos de otras culturas y de la diáspora",
+          body: "Encuentra personas por país, idioma o interés, y di qué buscas: amistad, intercambio cultural, comunidad, contactos profesionales o consejos de viaje.",
+        },
+        {
+          title: "Historias que tus amigos pueden marcar con un corazón",
+          body: "Comparte fotos y vídeos que desaparecen a las 24 horas. Tus amigos pueden responder o tocar el corazón, y solo tú ves a quién le ha gustado tu historia.",
+        },
+        {
+          title: "Vídeos cortos en Muse",
+          body: "Un feed a pantalla completa de vídeos cortos, divertidos y creativos que todo el mundo en YuKon3t puede ver, marcar con me gusta y comentar.",
+        },
+        {
+          title: "Circles privados y Collab Boards",
+          body: "Crea gratis un Circle para una afición, una causa o una cultura, y hazlo solo por invitación si quieres. Los Collab Boards reúnen a personas de distintos países para intercambiar habilidades, estudiar en grupo o sacar adelante proyectos.",
+        },
+        {
+          title: "Directos con hasta 10 invitados",
+          body: "Emite en directo, invita a hasta 10 personas a subir al escenario contigo y elige quién puede verlo, incluso solo las personas que tú elijas.",
+        },
+        {
+          title: "Listas de la compra compartidas en el chat",
+          body: "Envía una lista de la compra en un chat: todos pueden marcar artículos, añadir más y ver los cambios al momento. Las llamadas de voz y vídeo también están ahí.",
+        },
+        {
+          title: "Recordatorios de cumpleaños y festivos",
+          body: "Recibe un recordatorio en los cumpleaños que tus amigos deciden compartir y un aviso en los días festivos de tu país, que puedes desactivar en Ajustes.",
+        },
+        {
+          title: "Nueve idiomas, una comunidad",
+          body: "Usa YuKon3t en inglés, español, francés, portugués, árabe, alemán, italiano, hindi o suajili, y cambia de idioma cuando quieras.",
+        },
+      ],
+    },
+  },
+  // Search results and link previews (src/lib/seo.ts): title at most 60 characters, description 140 to 160.
+  seo: {
+    landing: {
+      title: "YuKon3t: amigos de otras culturas, Circles y directos",
+      description:
+        "Amigos de otras culturas y de la diáspora: historias, vídeos Muse, Circles privados y directos con hasta 10 invitados. Cuentas verificadas por email o teléfono.",
+    },
+    faq: {
+      title: "Preguntas frecuentes de YuKon3t: verificación y Circles",
+      description:
+        "Cómo funciona YuKon3t: verificación por email o teléfono, Circles privados, Collab Boards, historias, vídeos Muse, directos, llamadas, cumpleaños y privacidad.",
+    },
   },
   common: {
     signIn: "Iniciar sesión",

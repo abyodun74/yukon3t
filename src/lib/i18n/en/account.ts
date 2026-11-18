@@ -40,6 +40,60 @@ export const accountEn = {
       title: "Collab Boards",
       body: "Cross-country skill exchanges, volunteering, study groups, and projects — the connection type most global apps skip.",
     },
+    // Use-case blocks under the pillars: what the app actually does, in words people search for. Each claim is
+    // checked against the FAQ (verification, Stories, Muse, Circles, live stage, shopping lists, reminders, languages).
+    features: {
+      heading: "What you can do on YuKon3t",
+      intro:
+        "Stay close to friends and family across borders, and meet people who share your interests, your language or your culture.",
+      items: [
+        {
+          title: "Friends across cultures and the diaspora",
+          body: "Find people by country, language or interest, and say what you're here for: friendship, cultural exchange, community, professional ties or travel tips.",
+        },
+        {
+          title: "Stories your friends can heart",
+          body: "Share photos and videos that disappear after 24 hours. Friends can reply or tap the heart, and only you see who liked your Story.",
+        },
+        {
+          title: "Muse short videos",
+          body: "A full-screen feed of short, funny and creative videos that everyone on YuKon3t can watch, like and comment on.",
+        },
+        {
+          title: "Private Circles and Collab Boards",
+          body: "Start a free Circle for a hobby, a cause or a culture, and keep it invite-only if you like. Collab Boards bring people together across countries for skill swaps, study groups and projects.",
+        },
+        {
+          title: "Go live with up to 10 guests",
+          body: "Stream live, invite up to 10 people onto the stage with you, and choose who can watch, down to only the people you pick.",
+        },
+        {
+          title: "Shared shopping lists in chat",
+          body: "Send a shopping list in a chat: everyone in it can tick items off, add more and see changes as they happen. Voice and video calls are right there too.",
+        },
+        {
+          title: "Birthday and holiday reminders",
+          body: "Get a reminder on the birthdays your friends choose to share, and a note on public holidays in your country, which you can turn off in Settings.",
+        },
+        {
+          title: "Nine languages, one community",
+          body: "Use YuKon3t in English, Spanish, French, Portuguese, Arabic, German, Italian, Hindi or Swahili, and switch language whenever you like.",
+        },
+      ],
+    },
+  },
+  // Search results and link previews (src/lib/seo.ts): title at most 60 characters, description 140 to 160.
+  seo: {
+    landing: {
+      title: "YuKon3t: Cross-Cultural Friends, Circles & Live Video",
+      description:
+        "Make friends across cultures and the diaspora: Stories, Muse videos, private Circles and live streams with up to 10 guests. Email- or phone-verified accounts.",
+    },
+    faq: {
+      title: "YuKon3t FAQ: Verification, Circles, Stories & Live",
+      description:
+        "How YuKon3t works: email or phone verification, private Circles, Collab Boards, Stories, Muse videos, live streams, calls, birthdays and privacy.",
+    },
   },
   common: {
     signIn: "Sign in",

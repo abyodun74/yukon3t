@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { absoluteUrl } from "@/lib/seo";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { BotProtectionFields } from "@/components/bot-protection-fields";
@@ -16,6 +17,8 @@ const description =
 export const metadata: Metadata = {
   title: { absolute: title },
   description,
+  // The one address search engines should index, whatever query string a link added (src/lib/seo.ts).
+  alternates: { canonical: absoluteUrl("/sign-up") },
   openGraph: {
     type: "website",
     url: "/sign-up",

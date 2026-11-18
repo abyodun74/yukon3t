@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { absoluteUrl } from "@/lib/seo";
 
 const title = "Community Guidelines — No Silent Bans | YuKon3t";
 const description =
@@ -7,6 +8,8 @@ const description =
 export const metadata: Metadata = {
   title: { absolute: title },
   description,
+  // The one address search engines should index, whatever query string a link added (src/lib/seo.ts).
+  alternates: { canonical: absoluteUrl("/legal/guidelines") },
   openGraph: {
     type: "website",
     url: "/legal/guidelines",

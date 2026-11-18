@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { absoluteUrl } from "@/lib/seo";
 import { isPaymentsConfigured } from "@/lib/stripe";
 import { AD_PRICE_PER_DAY_CENTS, formatCents } from "@/lib/ads";
 import { AdBookingForm } from "@/components/ad-booking-form";
@@ -12,6 +13,8 @@ const description =
 export const metadata: Metadata = {
   title: { absolute: title },
   description,
+  // The one address search engines should index, whatever query string a link added (src/lib/seo.ts).
+  alternates: { canonical: absoluteUrl("/advertise") },
   openGraph: {
     type: "website",
     url: "/advertise",
