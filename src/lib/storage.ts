@@ -160,14 +160,17 @@ const VIDEO_KINDS: ReadonlySet<UploadKind> = new Set([
 // this.
 export const MAX_VIDEO_DURATION_SECONDS = 3600;
 // The Hive video scan (src/lib/hive.ts, Hive's Vision Language Model) covers
-// up to 60s of video per call: it samples at most 30 frames at up to 0.5 fps,
-// so 60s is as long as its sampling stays that dense (the model itself accepts
-// up to 180s; this ceiling is ours, chosen for coverage and cost). A post video longer than this can't get the automated body scan, so
-// createPost (actions/circles.ts) routes it to moderationStatus FLAGGED for
-// manual admin review instead of publishing immediately, and marks it
+// videos up to 59s per call. Hive refuses a video of about 59.95s or longer with
+// HTTP 400 "issue processing your file" whatever its codec, size or sampling rate
+// (measured 2026-11-19: the same file cut at 59.9s is accepted, at 59.95s and up
+// it is rejected). Durations are sent rounded to whole seconds (Math.round in the
+// composers), so a stored 59 means under 59.5s (scannable) and a stored 60 means
+// 59.5s or more (not). A post video longer than this can't get the automated body scan, so
+// createPost (actions/circles.ts) routes it to the Cloudflare Stream long-form
+// review instead, and marks it
 // videoModeratedAt up front so the moderate-videos cron never picks it up
 // and wastes/fails a Hive call on it.
-export const HIVE_VIDEO_MODERATION_MAX_SECONDS = 60;
+export const HIVE_VIDEO_MODERATION_MAX_SECONDS = 59;
 // Post videos from HIVE_VIDEO_MODERATION_MAX_SECONDS up to this ceiling
 // publish immediately (moderationStatus PUBLISHED) instead of staying
 // FLAGGED/hidden — same "publish now, react if the background check finds

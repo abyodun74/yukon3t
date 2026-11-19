@@ -73,7 +73,7 @@ export const VLM_POLICY_PROMPT = [
 
 /** Most frames one call samples (~23,500 input tokens at the measured ~770 per frame; verified accepted live). */
 export const VLM_MAX_FRAMES = 30;
-/** Highest sampling rate: a 60s video (HIVE_VIDEO_MODERATION_MAX_SECONDS) gets exactly VLM_MAX_FRAMES. */
+/** Highest sampling rate: a video at the HIVE_VIDEO_MODERATION_MAX_SECONDS (59s) limit gets 30 frames, VLM_MAX_FRAMES. */
 export const VLM_MAX_FPS = 0.5;
 /**
  * Rate when the duration isn't known (older rows). Stays at or under VLM_MAX_FRAMES up to 120s of video; a longer file
