@@ -1,4 +1,5 @@
 import type { FaqContent } from "../ids";
+import { hi0 } from "./hi-0";
 import { hi1 } from "./hi-1";
 import { hi2 } from "./hi-2";
 import { hi3 } from "./hi-3";
@@ -12,6 +13,7 @@ export const hi: FaqContent = {
   intro:
     "YuKon3t में अपना रास्ता खोजने के लिए आपको जो कुछ चाहिए, सब यहाँ है। यहाँ जवाब नहीं मिला? किसी भी मॉडरेशन ईमेल का जवाब दें, या संबंधित पेज पर रिपोर्ट करने के विकल्प से हमें लिखें।",
   sections: {
+    "meet-people-worldwide": "दुनिया भर के लोगों से मिलना",
     "getting-around": "शुरुआती जानकारी",
     "android-app": "Android ऐप",
     "posts-media": "पोस्ट और मीडिया",
@@ -28,5 +30,5 @@ export const hi: FaqContent = {
     "your-account-data": "आपका अकाउंट और आपका डेटा",
     "privacy-safety-trust": "प्राइवेसी, सुरक्षा और भरोसा",
   },
-  items: { ...hi1, ...hi2, ...hi3, ...hi4, ...hi5 },
+  items: { ...hi0, ...hi1, ...hi2, ...hi3, ...hi4, ...hi5 },
 };

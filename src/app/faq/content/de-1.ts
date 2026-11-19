@@ -22,7 +22,7 @@ export const de1 = {
   },
   "difference-between-home-discover-connections": {
     q: "Was ist der Unterschied zwischen Start, Entdecken und Kontakten?",
-    a: "**Start** ist dein Feed: Beiträge deiner Kontakte und aller, die öffentlich posten, einschließlich der Beiträge öffentlicher Circles. Beiträge eines privaten Circles bleiben in diesem Circle und erscheinen hier nie. **Entdecken** hilft dir, neue Leute nach Land, Sprache oder Interesse zu finden. **Kontakte** ist deine Liste angenommener Kontakte sowie die offenen Anfragen, die du gesendet oder erhalten hast.",
+    a: "**Start** ist dein Feed: Beiträge deiner Kontakte und aller, die öffentlich posten, einschließlich der Beiträge öffentlicher Circles. Beiträge eines privaten Circles bleiben in diesem Circle und erscheinen hier nie. **Entdecken** hilft dir, neue Leute nach Land oder Interesse zu finden. **Kontakte** ist deine Liste angenommener Kontakte sowie die offenen Anfragen, die du gesendet oder erhalten hast.",
   },
   "switch-between-light-dark-mode": {
     q: "Wie wechsle ich zwischen hellem und dunklem Modus?",
@@ -50,7 +50,7 @@ export const de1 = {
   },
   "search-people-discover": {
     q: "Wie finde ich auf Entdecken eine bestimmte Person und vernetze mich mit ihr?",
-    a: "Tippe oben auf Entdecken auf das Lupensymbol und gib mindestens zwei Buchstaben ihres Namens oder ihres @Benutzernamens ein. Die Ergebnisse erscheinen während der Eingabe, jeweils mit einer Schaltfläche, die zeigt, wo ihr gerade steht: „Vernetzen“, „Anfrage gesendet“, „Annehmen“ (sie hat dir schon eine Anfrage gesendet) oder „Verbunden“, dazu „Nachricht“. Hier findest du nur Personen, die auf Entdecken erscheinen: verifizierte Konten, die „Mein Profil auf Entdecken anzeigen“ nicht ausgeschaltet haben, und nie jemanden, den du blockiert hast oder der dich blockiert hat. Eine Suche zeigt höchstens 60 Personen, wenn du also die gesuchte Person nicht siehst, gib mehr von ihrem Namen ein. Gesucht wird nur nach Namen und Benutzernamen; E-Mail-Adressen, Telefonnummern und Geburtstage werden nie durchsucht oder angezeigt.",
+    a: "Tippe oben auf Entdecken auf das Lupensymbol und gib mindestens zwei Buchstaben ihres Namens oder ihres @Benutzernamens ein. Die Ergebnisse erscheinen während der Eingabe, jeweils mit einer Schaltfläche, die zeigt, wo ihr gerade steht: „Vernetzen“, „Anfrage gesendet“, „Annehmen“ (sie hat dir schon eine Anfrage gesendet) oder „Verbunden“, dazu „Nachricht“. Hier findest du nur Personen, die auf Entdecken erscheinen: verifizierte Konten, die „Mein Profil auf Entdecken anzeigen“ nicht ausgeschaltet haben, und nie jemanden, den du blockiert hast oder der dich blockiert hat. Eine Suche zeigt höchstens 60 Personen, wenn du also die gesuchte Person nicht siehst, gib mehr von ihrem Namen ein. Dieses Feld sucht nur nach Namen und Benutzernamen (die Suchseite in der oberen Leiste durchsucht auch Bios und Interessen und hat einen Länderfilter); E-Mail-Adressen, Telefonnummern und Geburtstage werden nie durchsucht oder angezeigt.",
   },
   "new-member-alerts": {
     q: "Warum habe ich eine Benachrichtigung bekommen, dass jemand gerade YuKon3t beigetreten ist?",

@@ -22,7 +22,7 @@ export const sw1 = {
   },
   "difference-between-home-discover-connections": {
     q: "Kuna tofauti gani kati ya Mwanzo, Gundua na Wasiliani?",
-    a: "**Mwanzo** ni mtiririko wako: machapisho ya wasiliani wako na ya watu wote wanaochapisha hadharani, ikiwemo machapisho ya Circles za umma. Machapisho ya Circle ya faragha hubaki kwenye Circle hiyo na hayaonekani kamwe hapa. **Gundua** ni ya kupata watu wapya kwa nchi, lugha au mapendeleo. **Wasiliani** ni orodha ya wasiliani wako waliokubaliwa, pamoja na maombi yanayosubiri ambayo umetuma au kupokea.",
+    a: "**Mwanzo** ni mtiririko wako: machapisho ya wasiliani wako na ya watu wote wanaochapisha hadharani, ikiwemo machapisho ya Circles za umma. Machapisho ya Circle ya faragha hubaki kwenye Circle hiyo na hayaonekani kamwe hapa. **Gundua** ni ya kupata watu wapya kwa nchi au mapendeleo. **Wasiliani** ni orodha ya wasiliani wako waliokubaliwa, pamoja na maombi yanayosubiri ambayo umetuma au kupokea.",
   },
   "switch-between-light-dark-mode": {
     q: "Ninabadilishaje kati ya hali angavu na hali nyeusi?",
@@ -50,7 +50,7 @@ export const sw1 = {
   },
   "search-people-discover": {
     q: "Ninampataje mtu mahususi kwenye Gundua na kuwasiliana naye?",
-    a: "Gusa ikoni ya kioo cha kukuza juu ya Gundua na uandike angalau herufi mbili za jina lake au za @jinalamtumiaji lake. Matokeo huonekana unapoandika, kila moja likiwa na kitufe kinachoonyesha hali yenu: «Wasiliana», «Ombi limetumwa», «Kubali» (tayari ameomba kuwasiliana nawe) au «Mnawasiliana», pamoja na «Ujumbe». Hapa unaweza kupata tu watu wanaoonekana kwenye Gundua: akaunti zilizothibitishwa ambazo hazijazima «Onyesha wasifu wangu kwenye Gundua», na kamwe si mtu uliyemzuia au aliyekuzuia. Utafutaji huonyesha watu 60 kwa upeo, kwa hiyo usipomwona unayemtafuta, andika sehemu zaidi ya jina lake. Ni majina na majina ya watumiaji tu yanayotafutwa; barua pepe, nambari za simu na tarehe za kuzaliwa hazitafutwi wala kuonyeshwa kamwe.",
+    a: "Gusa ikoni ya kioo cha kukuza juu ya Gundua na uandike angalau herufi mbili za jina lake au za @jinalamtumiaji lake. Matokeo huonekana unapoandika, kila moja likiwa na kitufe kinachoonyesha hali yenu: «Wasiliana», «Ombi limetumwa», «Kubali» (tayari ameomba kuwasiliana nawe) au «Mnawasiliana», pamoja na «Ujumbe». Hapa unaweza kupata tu watu wanaoonekana kwenye Gundua: akaunti zilizothibitishwa ambazo hazijazima «Onyesha wasifu wangu kwenye Gundua», na kamwe si mtu uliyemzuia au aliyekuzuia. Utafutaji huonyesha watu 60 kwa upeo, kwa hiyo usipomwona unayemtafuta, andika sehemu zaidi ya jina lake. Kisanduku hiki hutafuta majina na majina ya watumiaji tu (ukurasa wa utafutaji kwenye upau wa juu hutafuta pia kwenye wasifu na mapendeleo, na una kichujio cha nchi); barua pepe, nambari za simu na tarehe za kuzaliwa hazitafutwi wala kuonyeshwa kamwe.",
   },
   "new-member-alerts": {
     q: "Kwa nini nilipata arifa kwamba mtu amejiunga na YuKon3t sasa hivi?",

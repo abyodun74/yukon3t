@@ -49,7 +49,7 @@ export const accountEn = {
       items: [
         {
           title: "Friends across cultures and the diaspora",
-          body: "Find people by country, language or interest, and say what you're here for: friendship, cultural exchange, community, professional ties or travel tips.",
+          body: "Find people by country or interest, and say what you're here for: friendship, cultural exchange, community, professional ties or travel tips.",
         },
         {
           title: "Stories your friends can heart",

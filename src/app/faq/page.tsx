@@ -38,6 +38,111 @@ const heading = "Frequently asked questions";
 
 const sections: Section[] = [
   {
+    id: "meet-people-worldwide",
+    title: "Meeting people around the world",
+    items: [
+      {
+        id: "make-friends-other-countries",
+        q: "How do I make friends from other countries on YuKon3t?",
+        a: (
+          <>
+            Open Discover and filter by country or by what people are looking
+            for: Friendship, Cultural Exchange, Professional, Community or
+            Travel Tips. You can also search for a name, a username or an
+            interest. When you find someone, tap Connect and say hello. On your
+            own profile, pick what you&apos;re open to here, so people know why
+            you joined. Once you&apos;re connected you can keep in touch with
+            chat, Stories and voice or video calls.
+          </>
+        ),
+      },
+      {
+        id: "find-people-home-country-language",
+        q: "How can I find people from my home country or who speak my language?",
+        a: (
+          <>
+            In Discover, set &ldquo;Filter by country&rdquo; to your home
+            country to see people who chose it on their profile; search has the
+            same country filter. Search also looks through names, usernames,
+            bios and interests, so you can try the name of a language, a city
+            or a culture. Members can list the languages they speak on their
+            profile. For a group, look for a Circle about your country, culture
+            or language, or start one.
+          </>
+        ),
+      },
+      {
+        id: "pen-pals-cultural-exchange",
+        q: "Is YuKon3t good for pen pals and cultural exchange?",
+        a: (
+          <>
+            It can be. Choose Cultural Exchange as what you&apos;re open to,
+            find people in other countries in Discover, and keep in touch with
+            chat, Stories and voice or video calls. Messages written in another
+            language show a Translate button. YuKon3t is not a language-lesson
+            or tutoring app: it is for talking with people, not for lessons.
+          </>
+        ),
+      },
+      {
+        id: "moved-abroad-meet-people",
+        q: "I just moved abroad. How can I meet people and stay close to home?",
+        a: (
+          <>
+            To meet people where you live now, use Discover or search with the
+            country filter set to your new country, and look for Circles about
+            your hobbies, your culture or your language. To stay close to home,
+            connect with family and friends and keep in touch with chat,
+            Stories and voice or video calls.
+          </>
+        ),
+      },
+      {
+        id: "start-private-community-free-circle",
+        q: "How do I start a private community or a free Circle?",
+        a: (
+          <>
+            Create a Circle: creating and joining are always free. You choose
+            whether it is public or private. A private Circle is invite-only,
+            so nobody else can find it or ask to join, and you invite people
+            from your connections. For skill swaps, mentorship or projects,
+            post on a Collab Board, which can also be public or invite-only.
+          </>
+        ),
+      },
+      {
+        id: "go-live-with-friends-guests",
+        q: "How do I go live with friends, and how many guests can join?",
+        a: (
+          <>
+            Tap &ldquo;Go Live&rdquo; and pick the people under &ldquo;Go live
+            with&rdquo; (up to 10). Up to 10 guests can be on stage with you.
+            &ldquo;Who can watch&rdquo; lets you choose Everyone, one of your
+            Circles, or only the people you picked. As more people join the
+            stage, video quality adjusts automatically so everything stays
+            smooth.
+          </>
+        ),
+      },
+      {
+        id: "safe-talk-people-other-countries",
+        q: "Is it safe to talk to people from other countries on YuKon3t?",
+        a: (
+          <>
+            Every account confirms an email address or a phone number before it
+            can send messages. That is not an ID check, so it doesn&apos;t tell
+            you who someone is. You can block someone you don&apos;t want to
+            hear from, report them (see &ldquo;How do I report someone or
+            something?&rdquo;), and choose who sees your posts and profile (see
+            &ldquo;Who can see my posts and profile?&rdquo;). Use common sense:
+            don&apos;t send money or share private details with people you
+            haven&apos;t met.
+          </>
+        ),
+      },
+    ],
+  },
+  {
     id: "getting-around",
     title: "Getting around",
     items: [
@@ -117,7 +222,7 @@ const sections: Section[] = [
             including posts in public Circles. Posts in a private Circle
             stay in that Circle and never show up here.{" "}
             <strong>Discover</strong>{" "}
-            is how you find new people by country, language, or interest.{" "}
+            is how you find new people by country or interest.{" "}
             <strong>Connections</strong> is your list of accepted connections
             plus any pending requests you&apos;ve sent or received.
           </>
@@ -220,8 +325,9 @@ const sections: Section[] = [
             turned off &ldquo;Show my profile in Discover&rdquo;, and never
             anyone you&apos;ve blocked or who has blocked you. One search shows
             at most 60 people, so if the person you want isn&apos;t there,
-            type more of their name. Only names and usernames are searched;
-            email addresses, phone numbers and birthdays are never searched or
+            type more of their name. This box searches names and usernames
+            only (the search page in the top bar also looks through bios and
+            interests and has a country filter); email addresses, phone numbers and birthdays are never searched or
             shown.
           </>
         ),

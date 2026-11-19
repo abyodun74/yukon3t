@@ -1,4 +1,5 @@
 import type { FaqContent } from "../ids";
+import { de0 } from "./de-0";
 import { de1 } from "./de-1";
 import { de2 } from "./de-2";
 import { de3 } from "./de-3";
@@ -12,6 +13,7 @@ export const de: FaqContent = {
   intro:
     "Alles, was du brauchst, um dich bei YuKon3t zurechtzufinden. Du findest hier keine Antwort? Antworte auf eine beliebige Moderations-E-Mail oder schreibe uns über die Meldeoption der jeweiligen Seite.",
   sections: {
+    "meet-people-worldwide": "Menschen aus aller Welt kennenlernen",
     "getting-around": "Sich zurechtfinden",
     "android-app": "Die Android-App",
     "posts-media": "Beiträge und Medien",
@@ -28,5 +30,5 @@ export const de: FaqContent = {
     "your-account-data": "Dein Konto und deine Daten",
     "privacy-safety-trust": "Privatsphäre, Sicherheit und Vertrauen",
   },
-  items: { ...de1, ...de2, ...de3, ...de4, ...de5 },
+  items: { ...de0, ...de1, ...de2, ...de3, ...de4, ...de5 },
 };

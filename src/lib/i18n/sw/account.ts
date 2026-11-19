@@ -46,7 +46,7 @@ export const account: typeof accountEn = {
       items: [
         {
           title: "Marafiki wa tamaduni nyingine na wa diaspora",
-          body: "Tafuta watu kwa nchi, lugha au mapendeleo, na useme uko hapa kwa ajili ya nini: urafiki, kubadilishana tamaduni, jumuiya, mawasiliano ya kikazi au vidokezo vya safari.",
+          body: "Tafuta watu kwa nchi au mapendeleo, na useme uko hapa kwa ajili ya nini: urafiki, kubadilishana tamaduni, jumuiya, mawasiliano ya kikazi au vidokezo vya safari.",
         },
         {
           title: "Story ambazo marafiki wanaweza kupenda kwa moyo",

@@ -1,4 +1,5 @@
 import type { FaqContent } from "../ids";
+import { ar0 } from "./ar-0";
 import { ar1 } from "./ar-1";
 import { ar2 } from "./ar-2";
 import { ar3 } from "./ar-3";
@@ -14,6 +15,7 @@ export const ar: FaqContent = {
   intro:
     "كل ما تحتاج إليه لتعرف طريقك في YuKon3t. لم تجد إجابة هنا؟ ردّ على أي رسالة بريد إلكتروني تصلك من فريق الإشراف، أو تواصل معنا عبر خيار الإبلاغ في الصفحة المعنية.",
   sections: {
+    "meet-people-worldwide": "التعرف على أشخاص من أنحاء العالم",
     "getting-around": "التنقل في التطبيق",
     "android-app": "تطبيق Android",
     "posts-media": "المنشورات والوسائط",
@@ -30,5 +32,5 @@ export const ar: FaqContent = {
     "your-account-data": "حسابك وبياناتك",
     "privacy-safety-trust": "الخصوصية والأمان والثقة",
   },
-  items: { ...ar1, ...ar2, ...ar3, ...ar4, ...ar5 },
+  items: { ...ar0, ...ar1, ...ar2, ...ar3, ...ar4, ...ar5 },
 };

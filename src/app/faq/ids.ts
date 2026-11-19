@@ -3,6 +3,7 @@
 // wording. page.tsx holds the English; content.test.ts keeps the three in step.
 
 export const FAQ_SECTION_IDS = [
+  "meet-people-worldwide",
   "getting-around",
   "android-app",
   "posts-media",
@@ -21,6 +22,14 @@ export const FAQ_SECTION_IDS = [
 ] as const;
 
 export const FAQ_IDS = [
+  // Meeting people around the world
+  "make-friends-other-countries",
+  "find-people-home-country-language",
+  "pen-pals-cultural-exchange",
+  "moved-abroad-meet-people",
+  "start-private-community-free-circle",
+  "go-live-with-friends-guests",
+  "safe-talk-people-other-countries",
   // Getting around
   "who-join-yukon3t",
   "try-without-signing-up",

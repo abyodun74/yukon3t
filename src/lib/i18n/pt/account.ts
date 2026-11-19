@@ -46,7 +46,7 @@ export const account: typeof accountEn = {
       items: [
         {
           title: "Amigos de outras culturas e da diáspora",
-          body: "Encontre pessoas por país, idioma ou interesse e diga o que você procura: amizade, intercâmbio cultural, comunidade, contatos profissionais ou dicas de viagem.",
+          body: "Encontre pessoas por país ou interesse e diga o que você procura: amizade, intercâmbio cultural, comunidade, contatos profissionais ou dicas de viagem.",
         },
         {
           title: "Stories que seus amigos podem curtir com um coração",

@@ -1,4 +1,5 @@
 import type { FaqContent } from "../ids";
+import { pt0 } from "./pt-0";
 import { pt1 } from "./pt-1";
 import { pt2 } from "./pt-2";
 import { pt3 } from "./pt-3";
@@ -12,6 +13,7 @@ export const pt: FaqContent = {
   intro:
     "Tudo o que você precisa para se orientar no YuKon3t. Não encontrou uma resposta aqui? Responda a qualquer e-mail de moderação ou fale conosco pela opção de denunciar da página em questão.",
   sections: {
+    "meet-people-worldwide": "Conhecer pessoas do mundo todo",
     "getting-around": "Como se orientar",
     "android-app": "O aplicativo para Android",
     "posts-media": "Publicações e mídia",
@@ -28,5 +30,5 @@ export const pt: FaqContent = {
     "your-account-data": "Sua conta e seus dados",
     "privacy-safety-trust": "Privacidade, segurança e confiança",
   },
-  items: { ...pt1, ...pt2, ...pt3, ...pt4, ...pt5 },
+  items: { ...pt0, ...pt1, ...pt2, ...pt3, ...pt4, ...pt5 },
 };

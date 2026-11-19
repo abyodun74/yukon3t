@@ -46,7 +46,7 @@ export const account: typeof accountEn = {
       items: [
         {
           title: "Des amis de toutes cultures et de la diaspora",
-          body: "Trouvez des personnes par pays, langue ou centre d'intérêt, et dites ce que vous cherchez : amitié, échange culturel, communauté, contacts professionnels ou conseils de voyage.",
+          body: "Trouvez des personnes par pays ou centre d'intérêt, et dites ce que vous cherchez : amitié, échange culturel, communauté, contacts professionnels ou conseils de voyage.",
         },
         {
           title: "Des stories que vos amis peuvent liker d'un cœur",

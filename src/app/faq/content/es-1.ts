@@ -22,7 +22,7 @@ export const es1 = {
   },
   "difference-between-home-discover-connections": {
     q: "¿Qué diferencia hay entre Inicio, Descubrir y Contactos?",
-    a: "**Inicio** es tu feed: publicaciones de tus contactos y de todas las personas que publican de forma pública, incluidas las publicaciones de los Circles públicos. Las publicaciones de un Circle privado se quedan en ese Circle y nunca aparecen aquí. **Descubrir** sirve para encontrar personas nuevas por país, idioma o interés. **Contactos** es tu lista de contactos aceptados, más las solicitudes pendientes que hayas enviado o recibido.",
+    a: "**Inicio** es tu feed: publicaciones de tus contactos y de todas las personas que publican de forma pública, incluidas las publicaciones de los Circles públicos. Las publicaciones de un Circle privado se quedan en ese Circle y nunca aparecen aquí. **Descubrir** sirve para encontrar personas nuevas por país o interés. **Contactos** es tu lista de contactos aceptados, más las solicitudes pendientes que hayas enviado o recibido.",
   },
   "switch-between-light-dark-mode": {
     q: "¿Cómo cambio entre el modo claro y el oscuro?",
@@ -50,7 +50,7 @@ export const es1 = {
   },
   "search-people-discover": {
     q: "¿Cómo encuentro a una persona concreta en Descubrir y conecto con ella?",
-    a: "Toca el ícono de la lupa en la parte superior de Descubrir y escribe al menos dos letras de su nombre o de su @usuario. Los resultados aparecen mientras escribes, cada uno con un botón que muestra en qué punto están: «Conectar», «Solicitud enviada», «Aceptar» (ya te pidió conectar) o «Conectados», además de «Mensaje». Aquí solo se puede encontrar a quienes aparecen en Descubrir: cuentas verificadas que no desactivaron «Mostrar mi perfil en Descubrir», y nunca a nadie que hayas bloqueado o que te haya bloqueado. Una búsqueda muestra como máximo 60 personas, así que si no ves a quien buscas, escribe más de su nombre. Solo se buscan nombres y nombres de usuario; los correos electrónicos, los números de teléfono y las fechas de cumpleaños nunca se buscan ni se muestran.",
+    a: "Toca el ícono de la lupa en la parte superior de Descubrir y escribe al menos dos letras de su nombre o de su @usuario. Los resultados aparecen mientras escribes, cada uno con un botón que muestra en qué punto están: «Conectar», «Solicitud enviada», «Aceptar» (ya te pidió conectar) o «Conectados», además de «Mensaje». Aquí solo se puede encontrar a quienes aparecen en Descubrir: cuentas verificadas que no desactivaron «Mostrar mi perfil en Descubrir», y nunca a nadie que hayas bloqueado o que te haya bloqueado. Una búsqueda muestra como máximo 60 personas, así que si no ves a quien buscas, escribe más de su nombre. Este cuadro solo busca nombres y nombres de usuario (la página de búsqueda de la barra superior también busca en las biografías y los intereses, y tiene filtro por país); los correos electrónicos, los números de teléfono y las fechas de cumpleaños nunca se buscan ni se muestran.",
   },
   "new-member-alerts": {
     q: "¿Por qué recibí una notificación de que alguien acaba de unirse a YuKon3t?",

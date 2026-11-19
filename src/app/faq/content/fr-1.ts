@@ -22,7 +22,7 @@ export const fr1 = {
   },
   "difference-between-home-discover-connections": {
     q: "Quelle est la différence entre Accueil, Découvrir et Relations ?",
-    a: "**Accueil** est votre fil : les publications de vos relations et de toutes les personnes qui publient en public, y compris les publications des Circles publics. Les publications d'un Circle privé restent dans ce Circle et n'apparaissent jamais ici. **Découvrir** sert à trouver de nouvelles personnes par pays, par langue ou par centre d'intérêt. **Relations** est la liste de vos relations acceptées, ainsi que des demandes en attente que vous avez envoyées ou reçues.",
+    a: "**Accueil** est votre fil : les publications de vos relations et de toutes les personnes qui publient en public, y compris les publications des Circles publics. Les publications d'un Circle privé restent dans ce Circle et n'apparaissent jamais ici. **Découvrir** sert à trouver de nouvelles personnes par pays ou par centre d'intérêt. **Relations** est la liste de vos relations acceptées, ainsi que des demandes en attente que vous avez envoyées ou reçues.",
   },
   "switch-between-light-dark-mode": {
     q: "Comment passer du mode clair au mode sombre ?",
@@ -50,7 +50,7 @@ export const fr1 = {
   },
   "search-people-discover": {
     q: "Comment trouver une personne précise dans Découvrir et entrer en relation avec elle ?",
-    a: "Touchez l'icône de loupe en haut de Découvrir et tapez au moins deux lettres de son nom ou de son @nom d'utilisateur. Les résultats s'affichent pendant la saisie, chacun avec un bouton qui indique où vous en êtes : « Entrer en relation », « Demande envoyée », « Accepter » (la personne vous a déjà fait une demande) ou « En relation », ainsi que « Message ». Seules les personnes visibles dans Découvrir peuvent être trouvées ici : des comptes vérifiés qui n'ont pas désactivé « Afficher mon profil dans Découvrir », et jamais une personne que vous avez bloquée ou qui vous a bloqué. Une recherche affiche au plus 60 personnes : si la personne voulue n'y est pas, tapez davantage de son nom. Seuls les noms et noms d'utilisateur sont recherchés ; les adresses e-mail, numéros de téléphone et dates d'anniversaire ne sont jamais recherchés ni affichés.",
+    a: "Touchez l'icône de loupe en haut de Découvrir et tapez au moins deux lettres de son nom ou de son @nom d'utilisateur. Les résultats s'affichent pendant la saisie, chacun avec un bouton qui indique où vous en êtes : « Entrer en relation », « Demande envoyée », « Accepter » (la personne vous a déjà fait une demande) ou « En relation », ainsi que « Message ». Seules les personnes visibles dans Découvrir peuvent être trouvées ici : des comptes vérifiés qui n'ont pas désactivé « Afficher mon profil dans Découvrir », et jamais une personne que vous avez bloquée ou qui vous a bloqué. Une recherche affiche au plus 60 personnes : si la personne voulue n'y est pas, tapez davantage de son nom. Cette zone ne recherche que les noms et noms d'utilisateur (la page de recherche de la barre du haut explore aussi les bios et les centres d'intérêt, et propose un filtre par pays) ; les adresses e-mail, numéros de téléphone et dates d'anniversaire ne sont jamais recherchés ni affichés.",
   },
   "new-member-alerts": {
     q: "Pourquoi ai-je reçu une notification indiquant que quelqu'un vient de rejoindre YuKon3t ?",

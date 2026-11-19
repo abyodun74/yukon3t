@@ -61,7 +61,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 YuKon3t helps you stay close to friends and family across borders, and meet people who share your interests, your language or your culture.
 
 FRIENDS ACROSS CULTURES AND THE DIASPORA
-Find people by country, language or interest, and say what you're here for: friendship, cultural exchange, community, professional ties or travel tips.
+Find people by country or interest, and say what you're here for: friendship, cultural exchange, community, professional ties or travel tips.
 
 STORIES WITH HEARTS
 Share photos and videos that disappear after 24 hours. Friends can reply or tap the heart, and only you see who liked your Story.
@@ -132,7 +132,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 YuKon3t te ayuda a mantenerte cerca de amigos y familia al otro lado de la frontera, y a conocer a personas que comparten tus intereses, tu idioma o tu cultura.
 
 AMIGOS DE OTRAS CULTURAS Y DE LA DIÁSPORA
-Encuentra personas por país, idioma o interés, y di qué buscas: amistad, intercambio cultural, comunidad, contactos profesionales o consejos de viaje.
+Encuentra personas por país o interés, y di qué buscas: amistad, intercambio cultural, comunidad, contactos profesionales o consejos de viaje.
 
 HISTORIAS CON CORAZONES
 Comparte fotos y vídeos que desaparecen a las 24 horas. Tus amigos pueden responder o tocar el corazón, y solo tú ves a quién le ha gustado tu historia.
@@ -200,7 +200,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 YuKon3t vous aide à rester proche de vos amis et de votre famille par-delà les frontières, et à rencontrer des personnes qui partagent vos centres d'intérêt, votre langue ou votre culture.
 
 DES AMIS DE TOUTES CULTURES ET DE LA DIASPORA
-Trouvez des personnes par pays, langue ou centre d'intérêt, et dites ce que vous cherchez : amitié, échange culturel, communauté, contacts professionnels ou conseils de voyage.
+Trouvez des personnes par pays ou centre d'intérêt, et dites ce que vous cherchez : amitié, échange culturel, communauté, contacts professionnels ou conseils de voyage.
 
 DES STORIES AVEC DES CŒURS
 Partagez des photos et des vidéos qui disparaissent après 24 heures. Vos amis peuvent répondre ou toucher le cœur, et vous seul voyez qui a aimé votre story.
@@ -268,7 +268,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 O YuKon3t ajuda você a ficar perto de amigos e família do outro lado da fronteira e a conhecer pessoas que compartilham seus interesses, seu idioma ou sua cultura.
 
 AMIGOS DE OUTRAS CULTURAS E DA DIÁSPORA
-Encontre pessoas por país, idioma ou interesse e diga o que você procura: amizade, intercâmbio cultural, comunidade, contatos profissionais ou dicas de viagem.
+Encontre pessoas por país ou interesse e diga o que você procura: amizade, intercâmbio cultural, comunidade, contatos profissionais ou dicas de viagem.
 
 STORIES COM CORAÇÕES
 Compartilhe fotos e vídeos que somem depois de 24 horas. Seus amigos podem responder ou tocar no coração, e só você vê quem curtiu seu story.
@@ -336,7 +336,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 يساعدك YuKon3t على البقاء قريبًا من أصدقائك وعائلتك عبر الحدود، والتعرّف إلى أشخاص يشاركونك اهتماماتك أو لغتك أو ثقافتك.
 
 أصدقاء من ثقافات مختلفة ومن المغتربين
-ابحث عن أشخاص حسب البلد أو اللغة أو الاهتمام، وقل ما الذي جئت من أجله: صداقة أو تبادل ثقافي أو مجتمع أو علاقات مهنية أو نصائح سفر.
+ابحث عن أشخاص حسب البلد أو الاهتمام، وقل ما الذي جئت من أجله: صداقة أو تبادل ثقافي أو مجتمع أو علاقات مهنية أو نصائح سفر.
 
 قصص مع قلوب
 شارك صورًا وفيديوهات تختفي بعد 24 ساعة. يمكن لأصدقائك الرد أو الضغط على القلب، وأنت وحدك ترى من أعجبته قصتك.
@@ -404,7 +404,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 Mit YuKon3t bleibst du Freunden und Familie über Grenzen hinweg nah und lernst Menschen kennen, die deine Interessen, deine Sprache oder deine Kultur teilen.
 
 FREUNDE AUS ANDEREN KULTUREN UND DER DIASPORA
-Finde Menschen nach Land, Sprache oder Interesse und sag, wofür du hier bist: Freundschaft, kultureller Austausch, Community, berufliche Kontakte oder Reisetipps.
+Finde Menschen nach Land oder Interesse und sag, wofür du hier bist: Freundschaft, kultureller Austausch, Community, berufliche Kontakte oder Reisetipps.
 
 STORYS MIT HERZEN
 Teile Fotos und Videos, die nach 24 Stunden verschwinden. Freunde können antworten oder auf das Herz tippen, und nur du siehst, wem deine Story gefällt.
@@ -472,7 +472,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 YuKon3t ti aiuta a restare vicino ad amici e familiari oltre i confini e a conoscere persone che condividono i tuoi interessi, la tua lingua o la tua cultura.
 
 AMICI DI ALTRE CULTURE E DELLA DIASPORA
-Trova persone per paese, lingua o interesse e di' cosa cerchi: amicizia, scambio culturale, comunità, contatti professionali o consigli di viaggio.
+Trova persone per paese o interesse e di' cosa cerchi: amicizia, scambio culturale, comunità, contatti professionali o consigli di viaggio.
 
 STORIE CON I CUORI
 Condividi foto e video che spariscono dopo 24 ore. Gli amici possono rispondere o toccare il cuore, e solo tu vedi a chi è piaciuta la tua storia.
@@ -540,7 +540,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 YuKon3t आपको सरहदों के पार दोस्तों और परिवार से जुड़े रहने में मदद करता है, और ऐसे लोगों से मिलवाता है जो आपकी रुचियाँ, आपकी भाषा या आपकी संस्कृति साझा करते हैं।
 
 दूसरी संस्कृतियों और प्रवासी समुदाय के दोस्त
-देश, भाषा या रुचि के आधार पर लोगों को खोजें, और बताएँ कि आप यहाँ किसलिए हैं: दोस्ती, सांस्कृतिक आदान-प्रदान, समुदाय, पेशेवर संपर्क या यात्रा के सुझाव।
+देश या रुचि के आधार पर लोगों को खोजें, और बताएँ कि आप यहाँ किसलिए हैं: दोस्ती, सांस्कृतिक आदान-प्रदान, समुदाय, पेशेवर संपर्क या यात्रा के सुझाव।
 
 दिल वाली स्टोरी
 ऐसी फ़ोटो और वीडियो शेयर करें जो 24 घंटे बाद गायब हो जाती हैं। दोस्त जवाब दे सकते हैं या दिल पर टैप कर सकते हैं, और सिर्फ़ आप देखते हैं कि आपकी स्टोरी किसे पसंद आई।
@@ -588,7 +588,7 @@ Description (App Store) / full description (Google Play) (max 4000):
 YuKon3t inakusaidia kukaa karibu na marafiki na familia walio ng'ambo ya mipaka, na kukutana na watu wanaoshiriki mapendeleo yako, lugha yako au utamaduni wako.
 
 MARAFIKI WA TAMADUNI NYINGINE NA WA DIASPORA
-Tafuta watu kwa nchi, lugha au mapendeleo, na useme uko hapa kwa ajili ya nini: urafiki, kubadilishana tamaduni, jumuiya, mawasiliano ya kikazi au vidokezo vya safari.
+Tafuta watu kwa nchi au mapendeleo, na useme uko hapa kwa ajili ya nini: urafiki, kubadilishana tamaduni, jumuiya, mawasiliano ya kikazi au vidokezo vya safari.
 
 STORY ZENYE MIOYO
 Shiriki picha na video zinazopotea baada ya saa 24. Marafiki wanaweza kujibu au kugusa moyo, na ni wewe tu unayeona waliopenda Story yako.

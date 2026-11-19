@@ -22,7 +22,7 @@ export const pt1 = {
   },
   "difference-between-home-discover-connections": {
     q: "Qual é a diferença entre Início, Descobrir e Conexões?",
-    a: "**Início** é o seu feed: publicações das suas conexões e de todas as pessoas que publicam em modo público, incluindo publicações de Circles públicos. As publicações de um Circle privado ficam naquele Circle e nunca aparecem aqui. **Descobrir** serve para encontrar pessoas novas por país, idioma ou interesse. **Conexões** é a lista das suas conexões aceitas, além dos pedidos pendentes que você enviou ou recebeu.",
+    a: "**Início** é o seu feed: publicações das suas conexões e de todas as pessoas que publicam em modo público, incluindo publicações de Circles públicos. As publicações de um Circle privado ficam naquele Circle e nunca aparecem aqui. **Descobrir** serve para encontrar pessoas novas por país ou interesse. **Conexões** é a lista das suas conexões aceitas, além dos pedidos pendentes que você enviou ou recebeu.",
   },
   "switch-between-light-dark-mode": {
     q: "Como alterno entre o modo claro e o escuro?",
@@ -50,7 +50,7 @@ export const pt1 = {
   },
   "search-people-discover": {
     q: "Como encontro uma pessoa específica no Descobrir e me conecto com ela?",
-    a: "Toque no ícone de lupa no topo do Descobrir e digite pelo menos duas letras do nome ou do @usuário da pessoa. Os resultados aparecem enquanto você digita, cada um com um botão que mostra em que pé vocês estão: «Conectar», «Solicitação enviada», «Aceitar» (a pessoa já pediu para se conectar com você) ou «Conectados», além de «Mensagem». Aqui só dá para encontrar quem aparece no Descobrir: contas verificadas que não desativaram “Mostrar meu perfil em Descobrir”, e nunca alguém que você bloqueou ou que bloqueou você. Uma busca mostra no máximo 60 pessoas; se quem você procura não aparecer, digite mais do nome. Só nomes e nomes de usuário são buscados; e-mails, números de telefone e datas de aniversário nunca são buscados nem exibidos.",
+    a: "Toque no ícone de lupa no topo do Descobrir e digite pelo menos duas letras do nome ou do @usuário da pessoa. Os resultados aparecem enquanto você digita, cada um com um botão que mostra em que pé vocês estão: «Conectar», «Solicitação enviada», «Aceitar» (a pessoa já pediu para se conectar com você) ou «Conectados», além de «Mensagem». Aqui só dá para encontrar quem aparece no Descobrir: contas verificadas que não desativaram “Mostrar meu perfil em Descobrir”, e nunca alguém que você bloqueou ou que bloqueou você. Uma busca mostra no máximo 60 pessoas; se quem você procura não aparecer, digite mais do nome. Esta caixa busca só nomes e nomes de usuário (a página de busca da barra superior também busca em biografias e interesses, e tem filtro por país); e-mails, números de telefone e datas de aniversário nunca são buscados nem exibidos.",
   },
   "new-member-alerts": {
     q: "Por que recebi uma notificação de que alguém acabou de entrar no YuKon3t?",

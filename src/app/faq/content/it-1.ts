@@ -22,7 +22,7 @@ export const it1 = {
   },
   "difference-between-home-discover-connections": {
     q: "Che differenza c'è tra Home, Scopri e Contatti?",
-    a: "**Home** è il tuo feed: i post dei tuoi contatti e di tutte le persone che pubblicano in modo pubblico, compresi i post dei Circle pubblici. I post di un Circle privato restano in quel Circle e non compaiono mai qui. **Scopri** serve a trovare persone nuove per paese, lingua o interesse. **Contatti** è l'elenco dei tuoi contatti accettati, più le richieste in sospeso che hai inviato o ricevuto.",
+    a: "**Home** è il tuo feed: i post dei tuoi contatti e di tutte le persone che pubblicano in modo pubblico, compresi i post dei Circle pubblici. I post di un Circle privato restano in quel Circle e non compaiono mai qui. **Scopri** serve a trovare persone nuove per paese o interesse. **Contatti** è l'elenco dei tuoi contatti accettati, più le richieste in sospeso che hai inviato o ricevuto.",
   },
   "switch-between-light-dark-mode": {
     q: "Come passo dalla modalità chiara a quella scura?",
@@ -50,7 +50,7 @@ export const it1 = {
   },
   "search-people-discover": {
     q: "Come trovo una persona specifica in Scopri e mi collego con lei?",
-    a: "Tocca l'icona della lente in cima a Scopri e scrivi almeno due lettere del suo nome o del suo @utente. I risultati compaiono mentre scrivi, ognuno con un pulsante che mostra a che punto siete: «Collegati», «Richiesta inviata», «Accetta» (ti ha già chiesto di collegarvi) o «Contatti», oltre a «Messaggio». Qui si possono trovare solo le persone che compaiono in Scopri: account verificati che non hanno disattivato «Mostra il mio profilo in Scopri», e mai chi hai bloccato o chi ti ha bloccato. Una ricerca mostra al massimo 60 persone, quindi se non vedi chi cerchi, scrivi più parti del suo nome. Si cercano solo nomi e nomi utente; e-mail, numeri di telefono e date di compleanno non vengono mai cercati né mostrati.",
+    a: "Tocca l'icona della lente in cima a Scopri e scrivi almeno due lettere del suo nome o del suo @utente. I risultati compaiono mentre scrivi, ognuno con un pulsante che mostra a che punto siete: «Collegati», «Richiesta inviata», «Accetta» (ti ha già chiesto di collegarvi) o «Contatti», oltre a «Messaggio». Qui si possono trovare solo le persone che compaiono in Scopri: account verificati che non hanno disattivato «Mostra il mio profilo in Scopri», e mai chi hai bloccato o chi ti ha bloccato. Una ricerca mostra al massimo 60 persone, quindi se non vedi chi cerchi, scrivi più parti del suo nome. Questa casella cerca solo nomi e nomi utente (la pagina di ricerca nella barra in alto cerca anche in bio e interessi e ha un filtro per paese); e-mail, numeri di telefono e date di compleanno non vengono mai cercati né mostrati.",
   },
   "new-member-alerts": {
     q: "Perché ho ricevuto una notifica che dice che qualcuno si è appena unito a YuKon3t?",

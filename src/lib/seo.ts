@@ -198,7 +198,7 @@ export type FaqJsonLdEntry = { question: string; answer: string };
  * over 170 long answers; marking up every one would add a few hundred KB to each FAQ load for no extra benefit. The
  * entries are whole (never a cut-off answer), in page order, and only ones the page shows.
  */
-export const FAQ_JSON_LD_MAX_ENTRIES = 40;
+export const FAQ_JSON_LD_MAX_ENTRIES = 47;
 export const FAQ_JSON_LD_MAX_CHARS = 40_000;
 
 export function faqPageJsonLd({

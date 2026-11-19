@@ -46,7 +46,7 @@ export const account: typeof accountEn = {
       items: [
         {
           title: "Freunde aus anderen Kulturen und der Diaspora",
-          body: "Finde Menschen nach Land, Sprache oder Interesse und sag, wofür du hier bist: Freundschaft, kultureller Austausch, Community, berufliche Kontakte oder Reisetipps.",
+          body: "Finde Menschen nach Land oder Interesse und sag, wofür du hier bist: Freundschaft, kultureller Austausch, Community, berufliche Kontakte oder Reisetipps.",
         },
         {
           title: "Storys, die Freunde mit einem Herz liken",
