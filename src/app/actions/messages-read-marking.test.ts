@@ -3,7 +3,10 @@ import { Prisma } from "@/generated/prisma/client";
 
 // getConversationMessages' read marking: the two receipts updates only look at messages from shortly before the
 // caller's own lastReadAt onwards, run in one transaction with the lastReadAt write, and that write only happens when
-// someone else's message is newer than it.
+// someone else's message is newer than it. The same transaction marks the caller's MESSAGE bell rows for this chat
+// (and only this chat) read, and the caller's own badges are signalled whenever lastReadAt moved or a row cleared.
+// Regression (2026-11): neither happened, so the Messages tab badge stayed lit until a focus resync, and a message
+// that arrived while the thread was open (or any message in a Collab chat, opened on /collab/<id>) kept its bell row.
 
 const ME = "cme00000000001";
 const CONV = "cconv000000001";
@@ -15,6 +18,8 @@ const updateMany = vi.fn();
 const executeRaw = vi.fn();
 const transaction = vi.fn();
 const publishEvent = vi.fn();
+const notifyBadgeChange = vi.fn();
+const notificationUpdateMany = vi.fn();
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
@@ -31,7 +36,11 @@ vi.mock("@/lib/media-cleanup", () => ({ deleteMediaIfUnreferenced: vi.fn() }));
 vi.mock("@/lib/embeddings", () => ({ updateConversationEmbedding: vi.fn() }));
 vi.mock("@/lib/translation-server", () => ({ deleteTranslationsOf: vi.fn() }));
 vi.mock("@/lib/view-once-media", () => ({ destroyViewOnceMedia: vi.fn() }));
-vi.mock("@/lib/realtime-server", () => ({ publishEvent: (...a: unknown[]) => publishEvent(...a), publishEvents: vi.fn() }));
+vi.mock("@/lib/realtime-server", () => ({
+  publishEvent: (...a: unknown[]) => publishEvent(...a),
+  publishEvents: vi.fn(),
+  notifyBadgeChange: (id: string) => notifyBadgeChange(id),
+}));
 vi.mock("@/lib/after-message-sent", () => ({ afterMessageSent: vi.fn() }));
 vi.mock("@/lib/blocks", () => ({ isBlockedEitherWay: vi.fn(), getBlockedEitherWayIds: vi.fn() }));
 vi.mock("@/lib/hidden-chats", () => ({
@@ -54,6 +63,12 @@ vi.mock("@/lib/prisma", () => ({
       },
       findMany: async () => [{ id: "m2" }, { id: "m1" }],
     },
+    notification: {
+      updateMany: (args: unknown) => {
+        notificationUpdateMany(args);
+        return { kind: "notificationUpdateMany", args };
+      },
+    },
     conversation: { findUnique: async () => ({ isGroup: false, name: null, members: [] }) },
     $executeRaw: (...call: unknown[]) => {
       executeRaw(...call);
@@ -75,7 +90,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   locked = false;
   membership = { hiddenAt: null, lastReadAt: new Date("2026-10-01T12:00:00Z") };
-  transaction.mockResolvedValue([{ count: 0 }, { count: 0 }, 0]);
+  transaction.mockResolvedValue([{ count: 0 }, { count: 0 }, 0, { count: 0 }]);
 });
 
 describe("getConversationMessages read marking", () => {
@@ -86,7 +101,7 @@ describe("getConversationMessages read marking", () => {
 
     expect(transaction).toHaveBeenCalledTimes(1);
     const ops = transaction.mock.calls[0][0] as { kind: string }[];
-    expect(ops.map((o) => o.kind)).toEqual(["updateMany", "updateMany", "executeRaw"]);
+    expect(ops.map((o) => o.kind)).toEqual(["updateMany", "updateMany", "executeRaw", "notificationUpdateMany"]);
 
     const markFrom = new Date("2026-10-01T11:50:00Z");
     const scope = { conversationId: CONV, senderId: { not: ME }, createdAt: { gte: markFrom } };
@@ -114,7 +129,7 @@ describe("getConversationMessages read marking", () => {
     await getConversationMessages(CONV);
     expect(publishEvent).not.toHaveBeenCalled();
 
-    transaction.mockResolvedValueOnce([{ count: 0 }, { count: 2 }, 1]);
+    transaction.mockResolvedValueOnce([{ count: 0 }, { count: 2 }, 1, { count: 0 }]);
     await getConversationMessages(CONV);
     expect(publishEvent).toHaveBeenCalledTimes(1);
   });
@@ -127,5 +142,31 @@ describe("getConversationMessages read marking", () => {
     expect((await getConversationMessages(CONV)).error).toBe("not_a_member");
     expect(transaction).not.toHaveBeenCalled();
     expect(updateMany).not.toHaveBeenCalled();
+    expect(notificationUpdateMany).not.toHaveBeenCalled();
+    expect(notifyBadgeChange).not.toHaveBeenCalled();
+  });
+
+  it("marks read only the caller's MESSAGE rows of this conversation", async () => {
+    await getConversationMessages(CONV);
+    expect(notificationUpdateMany).toHaveBeenCalledTimes(1);
+    const args = notificationUpdateMany.mock.calls[0][0] as { where: Record<string, unknown>; data: { readAt: Date } };
+    expect(args.where).toEqual({ recipientId: ME, conversationId: CONV, type: "MESSAGE", readAt: null });
+    expect(args.data.readAt).toBeInstanceOf(Date);
+  });
+
+  it("signals the caller's badges when lastReadAt moved or a bell row cleared, and only then", async () => {
+    await getConversationMessages(CONV);
+    expect(notifyBadgeChange).not.toHaveBeenCalled();
+
+    // Opened with a new message in it: lastReadAt moves (the Messages tab count drops).
+    transaction.mockResolvedValueOnce([{ count: 1 }, { count: 1 }, 1, { count: 0 }]);
+    await getConversationMessages(CONV);
+    expect(notifyBadgeChange).toHaveBeenCalledTimes(1);
+    expect(notifyBadgeChange).toHaveBeenLastCalledWith(ME);
+
+    // Already read up to date but its bell rows were still unread (the bell count drops).
+    transaction.mockResolvedValueOnce([{ count: 0 }, { count: 0 }, 0, { count: 3 }]);
+    await getConversationMessages(CONV);
+    expect(notifyBadgeChange).toHaveBeenCalledTimes(2);
   });
 });

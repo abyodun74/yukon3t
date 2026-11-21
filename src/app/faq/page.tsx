@@ -548,15 +548,22 @@ const sections: Section[] = [
             caller&apos;s profile), even when the app was in the background
             or reloads onto a newer version as it opens. If that thing has
             since been deleted, or is in a private Circle you&apos;re no
-            longer in, you get a not-found page instead. Opening the app (from a notification, the
-            launcher icon, or switching back from another app) automatically
-            clears every notification of this kind from your notification
-            shade — a ringing or missed call is the one exception, since
-            those stay until you actually deal with the call. The in-app
-            notification list works differently: a notification there is
-            marked as read when you open it from the list, tap its push
-            notification, or open the thing it&apos;s about (the
-            conversation, post, Muse, Circle, and so on). The rest stay
+            longer in, you get a not-found page instead. On Android, opening the app (from a
+            notification, the launcher icon, or switching back from another
+            app) automatically clears this app&apos;s notifications from your
+            notification shade — a ringing or missed call is the one
+            exception, since those stay until you actually deal with the
+            call. On iPhone, and for notifications in a web browser, opening
+            a chat or a story removes the notifications about that chat or
+            story. The in-app notification list works differently: a
+            notification there is marked as read when you open it from the
+            list, tap its push notification, or open the thing it&apos;s
+            about (the conversation, post, Muse, Circle, and so on). That
+            includes reading a chat (its message notifications clear, and it
+            stops counting on the Messages badge), watching a story (its
+            &ldquo;new story&rdquo; notification clears wherever you watched
+            it, the stories row on Home included), and opening your own story
+            (the likes, comments and screenshot notices on it clear). The rest stay
             unread, and the red badge on the bell keeps counting them, until
             then or until you tap &ldquo;Mark all as read&rdquo;.
           </>

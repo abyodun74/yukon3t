@@ -44,8 +44,9 @@ export default async function NotificationsPage() {
 
   // Opening this page does NOT mark anything read. A notification clears
   // only when it's actually opened — tapping its row (NotificationRow /
-  // GroupedNotificationRow), tapping its push notification, or visiting
-  // the page it leads to (markReadByTarget) — so the bell badge keeps
+  // GroupedNotificationRow), tapping its push notification, visiting
+  // the page it leads to (markReadByTarget), or, for a chat's messages and a
+  // story, seeing them (getConversationMessages, viewStory) — so the bell badge keeps
   // counting the ones the reader hasn't looked at yet. "Mark all as read"
   // below is the one deliberate way to clear the rest in a single tap.
   // MISSED_CALL and MESSAGE collapse into one tally row per (type, actor,

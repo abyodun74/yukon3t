@@ -22,6 +22,8 @@ import { sendPushToUser } from "@/lib/push";
 import { sendFcmActivityToUser } from "@/lib/fcm";
 import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { notifyBadgeChange } from "@/lib/realtime-server";
+import type { NotificationType } from "@/generated/prisma/client";
 import { parseVideoEmbedUrl, type EmbedProvider } from "@/lib/video-embed";
 import { captureError } from "@/lib/error-tracking";
 import { sendToEachChat } from "@/lib/share-to-chats-server";
@@ -285,6 +287,9 @@ export async function deleteStory(id: string) {
   return { error: null };
 }
 
+/** Bell rows a story's author gets about it (story-likes-server.ts, createStoryComment, actions/screenshot.ts). */
+const AUTHOR_STORY_NOTIFICATION_TYPES = ["STORY_LIKE", "STORY_COMMENT", "SCREENSHOT_TAKEN"] satisfies NotificationType[];
+
 /**
  * Records that the caller watched a story — a no-op (not an error) for the
  * author's own story, same reasoning a like/RSVP wouldn't count from its
@@ -300,6 +305,13 @@ export async function viewStory(storyId: string) {
     return { error: "not_found" as const };
   }
   if (story.authorId === user.id) {
+    // No view row for the author, but opening the story is what its author-facing rows are about: the likes,
+    // comments and screenshot notices on THIS story (AUTHOR_STORY_NOTIFICATION_TYPES) clear, the author's only.
+    const read = await prisma.notification.updateMany({
+      where: { recipientId: user.id, storyId: story.id, type: { in: AUTHOR_STORY_NOTIFICATION_TYPES }, readAt: null },
+      data: { readAt: new Date() },
+    });
+    if (read.count > 0) await notifyBadgeChange(user.id);
     return { error: null };
   }
 
@@ -308,6 +320,17 @@ export async function viewStory(storyId: string) {
     create: { storyId: story.id, viewerId: user.id },
     update: {},
   });
+
+  // Viewed is read: the caller's "<name> added a new story" bell row(s) for THIS story (SUBSCRIPTION_STORY, one per
+  // story, notifySubscribers) clear here, however the story was reached (the Home tray, the profile ring, swiping on
+  // from another person's stories, the row itself). An author's other stories keep their own rows until each of them is
+  // viewed too, so several stories posted at once stop counting only once the last of them has been seen. The bell
+  // badge refetches in every open tab/app of the caller's.
+  const read = await prisma.notification.updateMany({
+    where: { recipientId: user.id, storyId: story.id, type: "SUBSCRIPTION_STORY", readAt: null },
+    data: { readAt: new Date() },
+  });
+  if (read.count > 0) await notifyBadgeChange(user.id);
 
   return { error: null };
 }

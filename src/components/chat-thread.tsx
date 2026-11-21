@@ -66,6 +66,7 @@ import {
 import { canOfferForward } from "@/lib/message-forward";
 import type { messagesEn } from "@/lib/i18n/en/messages";
 import { format, type Locale } from "@/lib/i18n/locales";
+import { clearDeliveredPushesFor } from "@/lib/delivered-push-clear";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
@@ -1332,6 +1333,8 @@ export function ChatThread({
     // This (hidden) chat's PIN unlock has run out: back to the PIN prompt, which returns here.
     if (result.error === "hidden_locked") return router.replace(hiddenUnlockPath(forId));
     if (result.error !== null) return;
+    // The chat is on screen and was just marked read: its pushes still in the drawer / notification list go too.
+    if (document.visibilityState === "visible") void clearDeliveredPushesFor(`/messages/${forId}`);
 
     const signature = JSON.stringify(result);
     if (signature === lastSignatureRef.current) return;

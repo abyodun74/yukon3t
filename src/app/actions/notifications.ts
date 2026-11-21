@@ -74,10 +74,50 @@ export async function markReadByTarget(url: string) {
   if (!parsed.success) return { error: "invalid" };
   const target = parsed.data.split("#")[0];
 
-  const unread = await prisma.notification.findMany({
-    where: { recipientId: user.id, readAt: null },
-    orderBy: { createdAt: "desc" },
-    take: 200,
+  // The link is worked out from several columns and joined rows (notificationHref), so it can't be a WHERE clause:
+  // the caller's unread rows are read newest first, one page at a time (keyset on createdAt + id, so marking a page
+  // read doesn't shift the next one), up to MARK_BY_TARGET_MAX_PAGES pages. It used to read only the 200 newest, so
+  // with a bigger backlog an older row for this very target never cleared.
+  let after: { createdAt: Date; id: string } | null = null;
+  let marked = 0;
+  for (let page = 0; page < MARK_BY_TARGET_MAX_PAGES; page++) {
+    const unread = await unreadPage(user.id, after);
+    // Compared without the #fragment on both sides: a href may point into the page (e.g. polls' "#polls").
+    const ids = unread.filter((n) => notificationHref(n).split("#")[0] === target).map((n) => n.id);
+    if (ids.length > 0) {
+      const result = await prisma.notification.updateMany({
+        where: { id: { in: ids }, recipientId: user.id },
+        data: { readAt: new Date() },
+      });
+      marked += result.count;
+    }
+    if (unread.length < MARK_BY_TARGET_PAGE_SIZE) break;
+    const last = unread[unread.length - 1];
+    after = { createdAt: last.createdAt, id: last.id };
+  }
+  if (marked === 0) return { error: null };
+
+  await notifyBadgeChange(user.id);
+
+  revalidatePath("/notifications");
+  return { error: null };
+}
+
+/** markReadByTarget's page of unread rows, and how many it reads at most (20 x 500 = 10,000 unread rows). */
+const MARK_BY_TARGET_PAGE_SIZE = 500;
+const MARK_BY_TARGET_MAX_PAGES = 20;
+
+function unreadPage(recipientId: string, after: { createdAt: Date; id: string } | null) {
+  return prisma.notification.findMany({
+    where: {
+      recipientId,
+      readAt: null,
+      ...(after
+        ? { OR: [{ createdAt: { lt: after.createdAt } }, { createdAt: after.createdAt, id: { lt: after.id } }] }
+        : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: MARK_BY_TARGET_PAGE_SIZE,
     include: {
       actor: { select: { id: true, name: true } },
       circle: { select: { slug: true, visibility: true } },
@@ -85,16 +125,4 @@ export async function markReadByTarget(url: string) {
       channel: { select: { slug: true } },
     },
   });
-  // Compared without the #fragment on both sides: a href may point into the page (e.g. polls' "#polls").
-  const ids = unread.filter((n) => notificationHref(n).split("#")[0] === target).map((n) => n.id);
-  if (ids.length === 0) return { error: null };
-
-  await prisma.notification.updateMany({
-    where: { id: { in: ids }, recipientId: user.id },
-    data: { readAt: new Date() },
-  });
-  await notifyBadgeChange(user.id);
-
-  revalidatePath("/notifications");
-  return { error: null };
 }

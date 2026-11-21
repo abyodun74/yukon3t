@@ -34,7 +34,7 @@ import { isEncryptedContent } from "@/lib/e2ee/constants";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
 import { isGiphyUrl } from "@/lib/giphy";
-import { publishEvent } from "@/lib/realtime-server";
+import { notifyBadgeChange, publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { afterMessageSent } from "@/lib/after-message-sent";
 import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
@@ -774,7 +774,7 @@ export async function getConversationMessages(conversationId: string) {
   // (conversationId, createdAt) index instead of reading every message of the chat on each refetch.
   const markFrom = new Date((membership.lastReadAt?.getTime() ?? 0) - READ_MARK_MARGIN_MS);
   const unmarkedScope = { conversationId, senderId: { not: user.id }, createdAt: { gte: markFrom } };
-  const [deliveredResult, readResult] = await prisma.$transaction([
+  const [deliveredResult, readResult, lastReadMoved, notificationsRead] = await prisma.$transaction([
     prisma.message.updateMany({
       where: { ...unmarkedScope, deliveredAt: null },
       data: { deliveredAt: now },
@@ -803,7 +803,20 @@ export async function getConversationMessages(conversationId: string) {
             AND m."senderId" <> cm."userId"
             AND (cm."lastReadAt" IS NULL OR m."createdAt" > cm."lastReadAt")
         )`,
+    // The bell's MESSAGE rows for this chat (one per message, afterMessageSent): read now that the chat is on screen.
+    // Here rather than by matching the page URL (markReadByTarget): this also runs for a message that lands while the
+    // thread is already open, and for a Collab chat, whose thread lives on /collab/<id>, not the rows' /messages/<id>.
+    // Only this conversation's rows, only the caller's.
+    prisma.notification.updateMany({
+      where: { recipientId: user.id, conversationId, type: "MESSAGE", readAt: null },
+      data: { readAt: now },
+    }),
   ]);
+  // The caller's own badges (the Messages tab counts chats with a message newer than lastReadAt, the bell counts
+  // unread rows): refetched in every open tab/app of theirs as soon as either changed, not on the next focus resync.
+  if (lastReadMoved > 0 || notificationsRead.count > 0) {
+    await notifyBadgeChange(user.id);
+  }
   // Tells the other member(s)' already-open thread to refetch so their
   // checkmarks update live — gated on something actually changing so
   // viewing a conversation with nothing new to mark doesn't publish at all

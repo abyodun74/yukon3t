@@ -11,6 +11,11 @@ import { markReadByTarget } from "@/app/actions/notifications";
  * this the bell badge kept counting a message whose conversation had already
  * been read, or a like on a post already opened.
  *
+ * A URL only says where the reader landed, not what they then saw, so two kinds are cleared on the server at the
+ * moment they are actually seen instead: a chat's MESSAGE rows by getConversationMessages (also a message arriving
+ * while the thread is open, and Collab chats, whose thread is on /collab/<id>), and a story's SUBSCRIPTION_STORY row
+ * by viewStory (also stories reached from the Home tray or swiped on to in the viewer, which never change the URL).
+ *
  * Asks only while something is unread, and once per URL. `unreadCount` is a
  * dependency so that a page reached before the badge count has loaded (a
  * cold start from a push tap) is still covered when the count arrives.

@@ -100,7 +100,11 @@ vi.mock("@/lib/media-cleanup", () => ({ deleteMediaIfUnreferenced: vi.fn() }));
 vi.mock("@/lib/embeddings", () => ({ updateConversationEmbedding: vi.fn() }));
 vi.mock("@/lib/translation-server", () => ({ deleteTranslationsOf: vi.fn() }));
 vi.mock("@/lib/view-once-media", () => ({ destroyViewOnceMedia: vi.fn() }));
-vi.mock("@/lib/realtime-server", () => ({ publishEvent: (...a: unknown[]) => publishEvent(...a), publishEvents: vi.fn() }));
+vi.mock("@/lib/realtime-server", () => ({
+  publishEvent: (...a: unknown[]) => publishEvent(...a),
+  publishEvents: vi.fn(),
+  notifyBadgeChange: vi.fn(),
+}));
 vi.mock("@/lib/after-message-sent", () => ({ afterMessageSent: (a: unknown) => afterMessageSent(a) }));
 vi.mock("@/lib/hidden-chats", () => ({
   isMembershipLocked: async (m: { hiddenAt: Date | null }) => m.hiddenAt !== null,
@@ -221,7 +225,9 @@ vi.mock("@/lib/prisma", () => {
     connection: { count: async ({ where }: { where: { OR: unknown[] } }) => where.OR.length },
     user: { count: async ({ where }: { where: { id: { in: string[] } } }) => where.id.in.length },
     block: { findFirst: async () => null },
-    notification: { createMany: record("notification.createMany") },
+    // updateMany: getConversationMessages marks the reader's MESSAGE rows of the chat read (recorded, so a hidden
+    // collab chat's "write nothing" checks cover it too).
+    notification: { createMany: record("notification.createMany"), updateMany: record("notification.updateMany") },
     auditLog: { create: record("auditLog.create") },
     $executeRaw: record("$executeRaw"),
     // createNonE2eeMessage's locked re-read of the destination's members.

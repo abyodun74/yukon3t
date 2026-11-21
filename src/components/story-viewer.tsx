@@ -51,6 +51,8 @@ import { useFeedText } from "@/components/feed-text";
 import { useGuestPreview } from "@/components/guest-preview";
 import { useShellText } from "@/components/ui-text";
 import { format, plural, byCode } from "@/lib/i18n/locales";
+import { clearDeliveredPushesFor } from "@/lib/delivered-push-clear";
+import { storyHref } from "@/lib/notification-href";
 
 type StoryComment = {
   id: string;
@@ -394,8 +396,10 @@ export function StoryViewer({
     if (!isGuest && !seenRef.current.has(story.id)) {
       seenRef.current.add(story.id);
       viewStory(story.id);
+      // Its pushes (a like / screenshot notice to the author) still in the drawer go too; matched to this story only.
+      void clearDeliveredPushesFor(storyHref(authorId, story.id));
     }
-  }, [story, isGuest]);
+  }, [story, isGuest, authorId]);
 
   // Loads this story's reaction counts fresh each time it becomes current —
   // an async fetch resolved in a .then(), not a synchronous reset, so it
