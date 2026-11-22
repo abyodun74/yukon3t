@@ -164,6 +164,16 @@ describe.each(SUPPORTED_LOCALES)("%s", (locale) => {
     }
   });
 
+  it("a story reply says so, quoting the reply under the sender's name, like the old bespoke push", () => {
+    const base = { senderName: "Ana", secret: false, mediaType: "NONE" as const, url: "/messages/c1", storyReply: true };
+    const named = messagePush({ ...base, content: "love it" })(locale);
+    expect(named).toEqual({ title: "Ana", body: t.storyReply.body.replace("{text}", "love it"), url: "/messages/c1" });
+    expect(messagePush({ ...base, senderName: null, content: "love it" })(locale).title).toBe(t.storyReply.title);
+    const long = messagePush({ ...base, content: "x".repeat(300) })(locale).body;
+    expect(long).toBe(t.storyReply.body.replace("{text}", "x".repeat(120)));
+    expect(messagePush({ ...base, content: "e2ee:v1:abc" })(locale).body).not.toContain("e2ee");
+  });
+
   it("a system notice names every category it was given", () => {
     const line = noticeLine({ kind: "video_flagged", categories: ["violence", "profanity"] }, locale);
     const categories = DICTIONARIES[locale].pages.notifications.notices.categories;

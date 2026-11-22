@@ -129,3 +129,44 @@ describe("afterMessageSent in an ordinary chat", () => {
     expect(rowRecipients()).toEqual([AUTHOR, PA, PC]);
   });
 });
+
+describe("afterMessageSent for a story reply (replyToStory)", () => {
+  const reply = () =>
+    afterMessageSent({
+      user: { id: PB, name: "Bo" },
+      conversationId: PLAIN,
+      memberIds: [PB, AUTHOR],
+      secret: false,
+      content: "love it",
+      mediaType: "NONE",
+      storyReply: true,
+    });
+
+  it("gives the author one push and one FCM worded as a story reply, one bell row and the live signals", async () => {
+    await reply();
+    expect(firstIds(webPush)).toEqual([AUTHOR]);
+    expect((webPush.mock.calls[0][1] as (l: string) => unknown)("en")).toEqual({
+      title: "Bo",
+      body: "Replied to your story: love it",
+      url: `/messages/${PLAIN}`,
+    });
+    expect(webPush.mock.calls[1][0]).toEqual([]);
+    expect(firstIds(fcm)).toEqual([AUTHOR]);
+    expect((fcm.mock.calls[0][1] as (l: string) => { type: string; body: string })("es")).toMatchObject({
+      type: "MESSAGE",
+      body: "Respondió a tu historia: love it",
+    });
+    expect(rowRecipients()).toEqual([AUTHOR]);
+    const channels = (publishEvents.mock.calls[0][0] as { channel: string }[]).map((e) => e.channel);
+    expect(channels.some((c) => c.includes(AUTHOR))).toBe(true);
+    expect(channels.some((c) => c.includes(PLAIN))).toBe(true);
+  });
+
+  it("an author hiding the DM gets only the generic push and no bell row", async () => {
+    hiding = [AUTHOR];
+    await reply();
+    expect(firstIds(webPush)).toEqual([]);
+    expect(webPush.mock.calls[1][0]).toEqual([AUTHOR]);
+    expect(notificationCreateMany).not.toHaveBeenCalled();
+  });
+});

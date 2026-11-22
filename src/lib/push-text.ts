@@ -87,22 +87,28 @@ export function incomingCallPush(type: "AUDIO" | "VIDEO", maskedName: string | n
 
 type PushPayload = { title: string; body: string; url?: string };
 
-/** A new message's push, for a recipient who doesn't hide the chat. Never the text of a secret chat (pushPreview). */
+/**
+ * A new message's push, for a recipient who doesn't hide the chat. Never the text of a secret chat (pushPreview). A
+ * reply to the recipient's story (`storyReply`) says so: "Replied to your story: {text}" under the sender's name.
+ */
 export function messagePush(params: {
   senderName: string | null;
   secret: boolean;
   content: string;
   mediaType: MediaType;
   url: string;
+  storyReply?: boolean;
 }): (locale: Locale) => PushPayload {
   return (locale) => {
-    const t = pushText(locale).message;
+    const all = pushText(locale);
+    const t = all.message;
+    const preview = pushPreview(
+      { secret: params.secret, content: params.content, mediaType: params.mediaType },
+      { photo: t.photo, video: t.video, gif: t.gif, voice: t.voice, unreadable: t.unreadable },
+    ).slice(0, 120);
     return {
-      title: params.senderName ?? t.title,
-      body: pushPreview(
-        { secret: params.secret, content: params.content, mediaType: params.mediaType },
-        { photo: t.photo, video: t.video, gif: t.gif, voice: t.voice, unreadable: t.unreadable },
-      ).slice(0, 120),
+      title: params.senderName ?? (params.storyReply ? all.storyReply.title : t.title),
+      body: params.storyReply ? format(all.storyReply.body, { text: preview }) : preview,
       url: params.url,
     };
   };

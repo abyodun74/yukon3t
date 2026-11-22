@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// sendToConversations / shareMuseToConversations (actions/share-to-chats.ts) and shareStoryToConversations
-// (actions/stories.ts) against a mocked database: every destination is checked on its own, results are counts only.
+// sendToConversations / shareMuseToConversations (actions/share-to-chats.ts), shareStoryToConversations and
+// replyToStory (actions/stories.ts) against a mocked database: every destination is checked on its own, results are counts only.
 
 const ME = "cme00000000001";
 const CY = "ccy00000000001";
@@ -19,6 +19,7 @@ const HIDDEN = "chid0000000001";
 const OTHERS = "coth0000000001"; // a chat the caller isn't in
 const MUSE = "cmus0000000001";
 const STORY = "csto0000000001";
+const AUTHOR_DM = "cdma0000000001"; // the caller's 1:1 with the story's author
 
 const user = { id: ME, name: "Me", isAdmin: false };
 const limits: Record<string, boolean | boolean[]> = {};
@@ -85,6 +86,13 @@ vi.mock("@/lib/push", () => ({ sendPushToUser: vi.fn(), sendPushToUsers: vi.fn()
 vi.mock("@/lib/fcm", () => ({ sendFcmActivityToUser: vi.fn(), sendFcmActivityToUsers: vi.fn() }));
 vi.mock("@/lib/notify-subscribers", () => ({ notifySubscribers: vi.fn() }));
 vi.mock("@/lib/after-message-sent", () => ({ afterMessageSent: (a: unknown) => afterMessageSent(a) }));
+// replyToStory's lookup of the genuine 1:1 with the author.
+vi.mock("@/lib/direct-conversation", () => ({
+  findDirectConversationId: async (a: string, b: string) =>
+    conversations.find(
+      (c) => !c.isGroup && c.members.length === 2 && [a, b].every((id) => c.members.some((m) => m.userId === id)),
+    )?.id ?? null,
+}));
 vi.mock("@/lib/blocks", () => ({
   isBlockedEitherWay: async (a: string, b: string) => blocked.has(a === ME ? b : a),
   getBlockedEitherWayIds: async () => new Set(blocked),
@@ -96,6 +104,7 @@ vi.mock("@/lib/hidden-chats", () => ({
 vi.mock("@/lib/prisma", () => {
   const prisma = {
     conversation: {
+      findUnique: async ({ where }: { where: { id: string } }) => conversations.find((c) => c.id === where.id) ?? null,
       findMany: async ({ where }: { where: { id?: { in: string[] } } }) =>
         where.id
           ? conversations.filter((c) => where.id!.in.includes(c.id))
@@ -139,7 +148,9 @@ vi.mock("@/lib/prisma", () => {
 });
 
 import { sendToConversations, shareMuseToConversations } from "@/app/actions/share-to-chats";
-import { getShareableConversations, shareStoryToConversations } from "@/app/actions/stories";
+import { getShareableConversations, replyToStory, shareStoryToConversations } from "@/app/actions/stories";
+import { sendPushToUser, sendPushToUsers } from "@/lib/push";
+import { sendFcmActivityToUser, sendFcmActivityToUsers } from "@/lib/fcm";
 
 function form(ids: string[], fields: Record<string, string> = {}) {
   const fd = new FormData();
@@ -173,6 +184,7 @@ beforeEach(() => {
     },
     { id: HIDDEN, isGroup: false, members: [member(ME, { hiddenAt: new Date() }), member("chp00000000001")] },
     { id: OTHERS, isGroup: false, members: [member(CY), member(DD)] },
+    { id: AUTHOR_DM, isGroup: false, members: [member(ME), member(AUTHOR)] },
   ];
   muse = {
     authorId: AUTHOR,
@@ -435,5 +447,62 @@ describe("getShareableConversations (the Story share picker)", () => {
   it("answers an empty list when the only chats are secret (the picker's 'no chats' state)", async () => {
     conversations = conversations.filter((c) => c.id === SECRET);
     expect(await getShareableConversations()).toEqual({ conversations: [] });
+  });
+});
+
+describe("replyToStory", () => {
+  const reply = (content = "love this") => {
+    const fd = new FormData();
+    fd.set("content", content);
+    return replyToStory(STORY, fd);
+  };
+
+  it("lands in the 1:1 with the author as the story's reply and notifies like any other message", async () => {
+    // Before, it sent only its own push: no bell row, no badge signal and no realtime nudge, so the reply never
+    // appeared live in the author's open chat.
+    expect(await reply()).toEqual({ error: null, conversationId: AUTHOR_DM });
+    expect(messageCreate.mock.calls[0][0]).toMatchObject({
+      data: { conversationId: AUTHOR_DM, senderId: ME, content: "love this", storyId: STORY, moderationStatus: "PUBLISHED" },
+    });
+    expect(afterMessageSent).toHaveBeenCalledTimes(1);
+    expect(afterMessageSent).toHaveBeenCalledWith({
+      user,
+      conversationId: AUTHOR_DM,
+      memberIds: [ME, AUTHOR],
+      secret: false,
+      content: "love this",
+      mediaType: "NONE",
+      storyReply: true,
+    });
+  });
+
+  it("sends no push of its own (afterMessageSent's is the only one)", async () => {
+    await reply();
+    expect(sendPushToUser).not.toHaveBeenCalled();
+    expect(sendPushToUsers).not.toHaveBeenCalled();
+    expect(sendFcmActivityToUser).not.toHaveBeenCalled();
+    expect(sendFcmActivityToUsers).not.toHaveBeenCalled();
+  });
+
+  it("still notifies for a reply held as FLAGGED, like sendMessage", async () => {
+    moderateText.mockResolvedValue({ allowed: false });
+    await reply();
+    expect(messageCreate.mock.calls[0][0]).toMatchObject({ data: { moderationStatus: "FLAGGED" } });
+    expect(afterMessageSent).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies nobody when the reply is refused or never stored", async () => {
+    blocked = new Set([AUTHOR]);
+    expect(await reply()).toEqual({ error: "blocked" });
+    blocked = new Set();
+    expect(await reply("   ")).toEqual({ error: "invalid" });
+    limits.messageSend = false;
+    expect(await reply()).toEqual({ error: "rate_limited" });
+    delete limits.messageSend;
+    secretAtInsert = new Set([AUTHOR_DM]);
+    expect(await reply()).toEqual({ error: "secret_chat" });
+    conversations = conversations.filter((c) => c.id !== AUTHOR_DM);
+    expect(await reply()).toEqual({ error: "not_connected" });
+    expect(afterMessageSent).not.toHaveBeenCalled();
   });
 });

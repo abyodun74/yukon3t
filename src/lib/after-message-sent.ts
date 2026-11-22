@@ -14,7 +14,7 @@ import { hiddenPush, messagePush } from "@/lib/push-text";
 
 /**
  * Everything that follows a message being stored: activity/analytics, push (web + native), the in-app notification
- * rows, badge counts and the realtime nudge. Shared by sendMessage, sendToConversations, shareMuseToConversations, shareStoryToConversations, forwardMessage and sendViewOnceMessage so a
+ * rows, badge counts and the realtime nudge. Shared by sendMessage, sendToConversations, shareMuseToConversations, shareStoryToConversations, replyToStory, forwardMessage and sendViewOnceMessage so a
  * message sent any of those ways reaches the recipient identically. Members a collab's group chat is hidden from (a
  * block with the collab's author, collabChatRecipientsOnly) are not recipients at all. In a lib file, not actions/messages.ts: every export
  * of a "use server" file is callable from the browser, and this trusts its `user` argument.
@@ -27,6 +27,7 @@ export async function afterMessageSent({
   content,
   mediaType,
   quiet = false,
+  storyReply = false,
 }: {
   user: { id: string; name: string | null };
   conversationId: string;
@@ -39,6 +40,8 @@ export async function afterMessageSent({
    * (src/lib/birthday-wish-server.ts), whose celebrant gets one combined notification instead of one per wish.
    */
   quiet?: boolean;
+  /** A reply to the recipient's story (replyToStory): the push reads "Replied to your story: ..." (messagePush). */
+  storyReply?: boolean;
 }) {
   // The message row is already committed by the time this runs, so nothing
   // below may throw out of the action — the sender would see an error and
@@ -85,6 +88,7 @@ export async function afterMessageSent({
     content,
     mediaType,
     url: `/messages/${conversationId}`,
+    storyReply,
   });
   // One query + bounded sends for every recipient together (not a query and
   // an unbounded Promise.all per recipient) — a group has no member cap, and

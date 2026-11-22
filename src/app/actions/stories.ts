@@ -4,9 +4,6 @@ import { revalidatePath } from "next/cache";
 import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { findDirectConversationId } from "@/lib/direct-conversation";
-import { getMembersHidingConversation } from "@/lib/hidden-chats";
-import { hiddenPush, pushText } from "@/lib/push-text";
-import { format, type Locale } from "@/lib/i18n/locales";
 import { storySchema, messageSchema, shareToChatsSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
@@ -19,9 +16,6 @@ import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat, withoutSecretChats } from "@/lib/e2ee/secret-chat";
 import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { afterMessageSent } from "@/lib/after-message-sent";
-import { sendPushToUser } from "@/lib/push";
-import { sendFcmActivityToUser } from "@/lib/fcm";
-import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
 import { notifySubscribers } from "@/lib/notify-subscribers";
 import { notifyBadgeChange } from "@/lib/realtime-server";
 import type { NotificationType } from "@/generated/prisma/client";
@@ -490,7 +484,7 @@ export async function replyToStory(storyId: string, formData: FormData) {
   const conversation = directId
     ? await prisma.conversation.findUnique({
         where: { id: directId },
-        select: { id: true, isGroup: true, members: { select: { e2eeEnabledAt: true } } },
+        select: { id: true, isGroup: true, members: { select: { userId: true, e2eeEnabledAt: true } } },
       })
     : null;
   if (!conversation) {
@@ -532,24 +526,19 @@ export async function replyToStory(storyId: string, formData: FormData) {
     return { error: "secret_chat" as const };
   }
 
-  // The author may have this DM hidden: then the push names nobody and quotes nothing.
-  const authorHidesChat = (await getMembersHidingConversation(conversation.id, [story.authorId])).length > 0;
-  const replyText = parsed.data.content.slice(0, 120);
-  const replyPush = (locale: Locale) => {
-    const t = pushText(locale).storyReply;
-    return {
-      title: user.name ?? t.title,
-      body: format(t.body, { text: replyText }),
-      url: `/messages/${conversation.id}`,
-    };
-  };
-  await sendPushToUser(story.authorId, authorHidesChat ? hiddenPush : replyPush);
-  // The phone apps too (web push never reaches them), opening the chat the reply landed in.
-  await sendFcmActivityToUser(story.authorId, (locale) =>
-    authorHidesChat ? { ...hiddenPush(locale), type: HIDDEN_PUSH_TYPE } : { ...replyPush(locale), type: "MESSAGE" },
-  ).catch(() => {});
-
-  revalidatePath(`/messages/${conversation.id}`);
+  // The reply is a normal message of the caller's: the same notifications as sendMessage (afterMessageSent: push and
+  // FCM worded "Replied to your story: ..." in the author's language, the MESSAGE bell row that opening the chat
+  // clears, badges and the thread's realtime signal, a generic push if the author hides this DM). It used to send only
+  // its own push, so the author's open chat, inbox and badges never learned the reply had arrived.
+  await afterMessageSent({
+    user,
+    conversationId: conversation.id,
+    memberIds: conversation.members.map((m) => m.userId),
+    secret: false,
+    content: parsed.data.content,
+    mediaType: "NONE",
+    storyReply: true,
+  });
   return { error: null, conversationId: conversation.id };
 }
 
