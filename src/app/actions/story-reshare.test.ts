@@ -21,11 +21,15 @@ type StoryRow = {
   embedId: string | null;
   caption: string | null;
   sharedPostId?: string | null;
+  sharedMuseId?: string | null;
+  isReshare?: boolean;
   author: { name: string | null; username: string | null; postsVisibility: string; allowStoryReposts: boolean };
 };
 let story: StoryRow | null;
 let viewable: boolean;
 let blocked: boolean;
+// Users blocked either way with the caller beyond the Story's author (e.g. the author of the Muse a Story came from).
+let blockedWith: Set<string>;
 
 const postCreate = vi.fn();
 const postFindUnique = vi.fn();
@@ -52,11 +56,16 @@ let sharedPost: {
   circleId: string | null;
   channelId: string | null;
 } | null;
+// The Muse a shareMuseToStory Story was made from (Story.sharedMuseId), looked up by id.
+let sharedMuse: { id: string; authorId: string; moderationStatus: string } | null;
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth-guards", () => ({ requireVerifiedUser: async () => user }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: (...a: unknown[]) => checkRateLimit(...a) }));
-vi.mock("@/lib/blocks", () => ({ isBlockedEitherWay: async () => blocked }));
+vi.mock("@/lib/blocks", () => ({
+  isBlockedEitherWay: async (_a: string, b: string) => blocked || blockedWith.has(b),
+  getBlockedEitherWayIds: async () => [],
+}));
 vi.mock("@/lib/profile-access-server", () => ({
   loadViewableStory: async (_viewer: string, id: string) =>
     viewable && story && id === story.id ? { id: story.id, authorId: story.authorId, expiresAt: new Date() } : null,
@@ -94,7 +103,11 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: (a: { where: { id?: string } }) =>
         a.where.id !== undefined ? (sharedPost && a.where.id === sharedPost.id ? sharedPost : null) : postFindUnique(a),
     },
-    muse: { create: (a: unknown) => museCreate(a), findUnique: (a: unknown) => museFindUnique(a) },
+    muse: {
+      create: (a: unknown) => museCreate(a),
+      findUnique: (a: { where: { id?: string } }) =>
+        a.where.id !== undefined ? (sharedMuse && a.where.id === sharedMuse.id ? sharedMuse : null) : museFindUnique(a),
+    },
     notification: { create: (a: unknown) => notificationCreate(a) },
     circle: { findUnique: (a: unknown) => circleFindUnique(a) },
     circleMembership: { findUnique: (a: unknown) => membershipFindUnique(a) },
@@ -156,6 +169,8 @@ beforeEach(() => {
   createStreamCopy.mockResolvedValue("stream-uid-1");
   isMembersOnlyPost.mockResolvedValue(false);
   sharedPost = null;
+  sharedMuse = null;
+  blockedWith = new Set();
 });
 
 describe("who may repost", () => {
@@ -258,9 +273,72 @@ describe("a Story made from someone's post (shareToStory)", () => {
   });
 
   it("always lets the reposter copy a Story made from their own post", async () => {
-    story = makeStory({ sharedPostId: POST });
+    story = makeStory({ sharedPostId: POST, isReshare: true });
     sharedPost = original({ authorId: ME, visibility: "CONNECTIONS_ONLY" });
     expect((await shareStoryToFeed(STORY)).error).toBeNull();
+  });
+});
+
+describe("a Story whose source was deleted (Story.isReshare, sharedPostId / sharedMuseId cleared by SetNull)", () => {
+  it("refuses it everywhere instead of treating it as an original upload", async () => {
+    story = { ...video(20), isReshare: true, sharedPostId: null, sharedMuseId: null };
+    expect(await shareStoryToFeed(STORY)).toEqual({ error: "not_shareable" });
+    expect(await shareStoryToMuse(STORY)).toEqual({ error: "not_shareable" });
+    expect(await shareStoryToCircle(STORY, CIRCLE)).toEqual({ error: "not_shareable" });
+    expect((await getStoryReshareOptions(STORY)).error).toBe("not_shareable");
+    expect(postCreate).not.toHaveBeenCalled();
+    expect(museCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses it for the Story's own author too (the source they reshared is gone)", async () => {
+    story = makeStory({ authorId: ME, isReshare: true });
+    expect(await shareStoryToFeed(STORY)).toEqual({ error: "not_shareable" });
+  });
+
+  it("still lets an original upload (isReshare false) be reposted", async () => {
+    story = makeStory({ isReshare: false, sharedPostId: null, sharedMuseId: null });
+    expect((await shareStoryToFeed(STORY)).error).toBeNull();
+  });
+});
+
+describe("a Story made from a Muse (shareMuseToStory)", () => {
+  const MUSE = "csharedmuse001";
+  const MUSE_AUTHOR = "cmuseauthor001";
+  const fromMuse = () => ({ ...video(20), isReshare: true, sharedMuseId: MUSE });
+
+  it("reposts it while the Muse is live and its author isn't blocked with the reposter", async () => {
+    story = fromMuse();
+    sharedMuse = { id: MUSE, authorId: MUSE_AUTHOR, moderationStatus: "PUBLISHED" };
+    expect((await shareStoryToFeed(STORY)).error).toBeNull();
+    expect((await shareStoryToMuse(STORY)).error).toBeNull();
+  });
+
+  it.each([
+    ["deleted", null],
+    ["held for review (FLAGGED)", { id: MUSE, authorId: MUSE_AUTHOR, moderationStatus: "FLAGGED" }],
+    ["removed by moderation", { id: MUSE, authorId: MUSE_AUTHOR, moderationStatus: "REMOVED" }],
+  ])("refuses it when the Muse is %s", async (_label, row) => {
+    story = fromMuse();
+    sharedMuse = row;
+    expect(await shareStoryToFeed(STORY)).toEqual({ error: "not_shareable" });
+    expect(await shareStoryToMuse(STORY)).toEqual({ error: "not_shareable" });
+    expect(await shareStoryToCircle(STORY, CIRCLE)).toEqual({ error: "not_shareable" });
+    expect(postCreate).not.toHaveBeenCalled();
+    expect(museCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses it when the Muse's author and the reposter are blocked either way", async () => {
+    story = fromMuse();
+    sharedMuse = { id: MUSE, authorId: MUSE_AUTHOR, moderationStatus: "PUBLISHED" };
+    blockedWith.add(MUSE_AUTHOR);
+    expect(await shareStoryToFeed(STORY)).toEqual({ error: "not_shareable" });
+    expect((await getStoryReshareOptions(STORY)).feed).toBe(false);
+    expect(postCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses it when the Muse was deleted (sharedMuseId cleared, isReshare kept)", async () => {
+    story = { ...fromMuse(), sharedMuseId: null };
+    expect(await shareStoryToFeed(STORY)).toEqual({ error: "not_shareable" });
   });
 });
 

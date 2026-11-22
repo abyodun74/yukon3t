@@ -9,6 +9,7 @@ import { isBlockedEitherWay } from "@/lib/blocks";
 import { loadViewableStory } from "@/lib/profile-access-server";
 import { canAccessChannel } from "@/lib/channel-permissions";
 import { canViewPost, isMembersOnlyPost } from "@/lib/post-visibility";
+import { museForComments } from "@/lib/muse-comments-data";
 import { afterPostCreated } from "@/lib/post-created";
 import { classifyPostCategory } from "@/lib/feed-category";
 import { notifySubscribers } from "@/lib/notify-subscribers";
@@ -54,6 +55,8 @@ const STORY_SOURCE_SELECT = {
   embedId: true,
   caption: true,
   sharedPostId: true,
+  sharedMuseId: true,
+  isReshare: true,
   author: { select: { name: true, username: true, postsVisibility: true, allowStoryReposts: true } },
 } as const;
 
@@ -76,13 +79,39 @@ async function sharedPostAllowsRepost(userId: string, sharedPostId: string) {
   return canViewPost(sharedPostId, userId);
 }
 
+/**
+ * A Story made by shareMuseToStory carries a Muse's media (Story.sharedMuseId, used only for this check). The Muse must
+ * still be one the reposter could see on Muse: it exists, is PUBLISHED (not FLAGGED / held for review, even for its own
+ * author: a held Muse isn't public yet) and its author isn't blocked either way with the reposter. That is
+ * museForComments, the same gate every Muse read uses (published + isBlockedEitherWay).
+ */
+async function sharedMuseAllowsRepost(userId: string, sharedMuseId: string) {
+  return (await museForComments(sharedMuseId, userId)) !== null;
+}
+
+/**
+ * Whether a Story built from someone's content (shareToStory / shareMuseToStory) may be copied by this reposter. A
+ * Story that isn't a reshare passes. One that is must still point at a source that allows it; sharedPostId and
+ * sharedMuseId are SetNull, so a deleted source leaves a Story with isReshare true and neither id: refused, never
+ * treated as an original upload. Stories created before isReshare existed read false (transitional, at most 24h).
+ */
+async function reshareSourceAllowsRepost(
+  userId: string,
+  story: { isReshare: boolean; sharedPostId: string | null; sharedMuseId: string | null },
+) {
+  if (story.sharedPostId && !(await sharedPostAllowsRepost(userId, story.sharedPostId))) return false;
+  if (story.sharedMuseId && !(await sharedMuseAllowsRepost(userId, story.sharedMuseId))) return false;
+  if (story.isReshare && !story.sharedPostId && !story.sharedMuseId) return false;
+  return true;
+}
+
 type ReshareUser = Awaited<ReturnType<typeof requireVerifiedUser>>;
 
 /**
  * The Story to copy, or the refusal: `blocked` (a block either way with its author, its own answer like replyToStory's),
  * `not_found` (missing, expired, or the author's Stories aren't visible to the caller), `opted_out` (someone else's
- * Story whose author turned reposting off), `not_shareable` (a Story made from a post the caller couldn't reshare
- * themselves: sharedPostAllowsRepost).
+ * Story whose author turned reposting off), `not_shareable` (a Story made from a post or Muse the caller couldn't
+ * reshare themselves, or whose source was deleted: reshareSourceAllowsRepost).
  */
 async function loadRepostSource(userId: string, storyId: unknown) {
   if (typeof storyId !== "string" || !storyId) return { error: "not_found" as const };
@@ -94,7 +123,7 @@ async function loadRepostSource(userId: string, storyId: unknown) {
   if (!viewable || !raw) return { error: "not_found" as const };
   const own = raw.authorId === userId;
   if (!own && !raw.author.allowStoryReposts) return { error: "opted_out" as const };
-  if (raw.sharedPostId && !(await sharedPostAllowsRepost(userId, raw.sharedPostId))) {
+  if (!(await reshareSourceAllowsRepost(userId, raw))) {
     return { error: "not_shareable" as const };
   }
   return { error: null, story: raw, own };

@@ -2303,9 +2303,21 @@ model Story {
   // so it renders fine either way — this only affects the "View post"
   // attribution link).
   sharedPostId String?
+  // Set when this story is a "share to your story" of a Muse (actions/muse.ts's shareMuseToStory). Used ONLY for
+  // access checks when the Story is reposted (actions/story-reshare.ts: the Muse must still exist, be PUBLISHED and its
+  // author not blocked either way with the reposter); the viewer renders no link from it (owner decision). SetNull like
+  // sharedPostId: deleting the Muse doesn't take the Story down.
+  sharedMuseId String?
+  // Durable "this Story carries content from a post or Muse" marker, set by shareToStory and shareMuseToStory at
+  // creation and never cleared. sharedPostId / sharedMuseId are SetNull, so once the source is deleted they read null
+  // and the Story would look like an original upload; with isReshare true and both null, a repost is refused
+  // (`not_shareable`). Stories created before this column existed default to false (a transitional gap of at most 24h,
+  // their lifetime).
+  isReshare    Boolean @default(false)
 
   author     User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   sharedPost Post?           @relation(fields: [sharedPostId], references: [id], onDelete: SetNull)
+  sharedMuse Muse?           @relation(fields: [sharedMuseId], references: [id], onDelete: SetNull)
   views      StoryView[]
   reactions  StoryReaction[]
   likes      StoryLike[]
@@ -2318,6 +2330,7 @@ model Story {
   @@index([authorId, expiresAt])
   @@index([expiresAt])
   @@index([sharedPostId])
+  @@index([sharedMuseId])
   @@index([mediaUrl])
   @@index([mediaThumbnailUrl])
 }
@@ -2519,6 +2532,8 @@ model Muse {
   shares        MuseShare[]
   reposts       MuseRepost[]
   notifications Notification[]
+  // Back-relation for Story.sharedMuse (shareMuseToStory), access checks only: see that field's own comment.
+  storyShares   Story[]
 
   @@index([authorId])
   // Backs /muse's public feed cursor query: PUBLISHED only, newest first.

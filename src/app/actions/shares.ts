@@ -233,6 +233,9 @@ export async function shareToStory(postId: string) {
         // since mediaUrl here is a known-good copy, not raw user input.
         caption: root.content ? root.content.trim().slice(0, 200) : undefined,
         sharedPostId: rootId,
+        // Durable marker (Story.isReshare): sharedPostId is cleared if the post is deleted, this never is, so the
+        // Story can't be reposted as if it were an original (actions/story-reshare.ts loadRepostSource).
+        isReshare: true,
         expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
       },
     });

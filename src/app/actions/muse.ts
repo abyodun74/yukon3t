@@ -716,7 +716,8 @@ function reshareText(author: { name: string | null; username: string | null }, c
  *
  * A Muse with its own added sound track (Muse.audioUrl) still goes to the Story, with the video's original sound: a
  * Story has no separate audio track (owner decision 2026-11-22). The answer's `soundTrackLeftOut` says so, and the share
- * sheet shows that note before and after; the Story carries no link back to the Muse.
+ * sheet shows that note before and after; the Story shows no link back to the Muse (Story.sharedMuseId is kept for
+ * repost access checks only).
  */
 export async function shareMuseToStory(museId: string) {
   const user = await requireVerifiedUser();
@@ -740,6 +741,10 @@ export async function shareMuseToStory(museId: string) {
     return { error: "too_long" as const };
   }
 
+  // For a later repost of this Story (actions/story-reshare.ts): the Muse it came from, read only to check that the Muse
+  // is still live and its author not blocked with the reposter (no link is rendered from it), and the durable
+  // Story.isReshare marker, which outlives sharedMuseId being cleared when the Muse is deleted.
+  const museSource = { sharedMuseId: muse.id, isReshare: true };
   const { storyId, shareCount } = await prisma.$transaction(async (tx) => {
     const story =
       muse.mediaType === "EMBED"
@@ -750,6 +755,7 @@ export async function shareMuseToStory(museId: string) {
               embedProvider: muse.embedProvider,
               embedId: muse.embedId,
               caption: muse.caption ? muse.caption.trim().slice(0, 200) : undefined,
+              ...museSource,
               expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
             },
           })
@@ -762,6 +768,7 @@ export async function shareMuseToStory(museId: string) {
               // A repost of this Story to Feed or Muse routes its video check on the length.
               videoDurationSeconds: muse.videoDurationSeconds,
               caption: muse.caption ? muse.caption.trim().slice(0, 200) : undefined,
+              ...museSource,
               expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
             },
           });

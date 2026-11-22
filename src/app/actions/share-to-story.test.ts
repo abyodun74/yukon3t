@@ -68,6 +68,9 @@ describe("shareToStory visibility", () => {
     postFindUnique.mockResolvedValue(post("PUBLIC"));
     expect((await shareToStory("cpost000000001")).error).toBeNull();
     expect(storyCreate).toHaveBeenCalled();
+    // The durable reshare marker (Story.isReshare) goes with the post link, so the Story can't pass for an original
+    // upload once the post is deleted and sharedPostId is cleared (actions/story-reshare.ts).
+    expect(storyCreate.mock.calls[0][0].data).toMatchObject({ sharedPostId: "cpost000000001", isReshare: true });
   });
 
   it("lets the author share their own Friends-only post", async () => {
