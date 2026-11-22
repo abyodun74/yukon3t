@@ -72,6 +72,7 @@ export const pages: typeof pagesEn = {
       MUSE_SHARE: "{name} ameshiriki Muse yako",
       STORY_COMMENT: "{name} ametoa maoni kwenye Story yako",
       STORY_LIKE: "{name} amependa Story yako",
+      STORY_REPOST: "{name} amechapisha upya Story yako",
       COMMENT_REPLY: "{name} amejibu maoni yako",
       POST_REPOST: "{name} amechapisha tena chapisho lako",
       POST_SHARE: "{name} ameshiriki chapisho lako",

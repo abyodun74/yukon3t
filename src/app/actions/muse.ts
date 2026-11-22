@@ -713,6 +713,10 @@ function reshareText(author: { name: string | null; username: string | null }, c
  * Shares a Muse to the caller's Story as the actual video (a Story is a 24-hour photo/video) — the same file plays,
  * not a link. A Muse can run up to 5 minutes and a Story only takes MAX_STORY_VIDEO_SECONDS, so a longer one is
  * refused ("too_long"). Counts as a share.
+ *
+ * A Muse with its own added sound track (Muse.audioUrl) still goes to the Story, with the video's original sound: a
+ * Story has no separate audio track (owner decision 2026-11-22). The answer's `soundTrackLeftOut` says so, and the share
+ * sheet shows that note before and after; the Story carries no link back to the Muse.
  */
 export async function shareMuseToStory(museId: string) {
   const user = await requireVerifiedUser();
@@ -755,6 +759,8 @@ export async function shareMuseToStory(museId: string) {
               mediaType: "VIDEO",
               mediaUrl: muse.videoUrl,
               mediaThumbnailUrl: muse.videoThumbnailUrl,
+              // A repost of this Story to Feed or Muse routes its video check on the length.
+              videoDurationSeconds: muse.videoDurationSeconds,
               caption: muse.caption ? muse.caption.trim().slice(0, 200) : undefined,
               expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
             },
@@ -775,7 +781,7 @@ export async function shareMuseToStory(museId: string) {
   revalidatePath("/muse");
   revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);
-  return { error: null, shareCount };
+  return { error: null, shareCount, soundTrackLeftOut: muse.mediaType === "VIDEO" && Boolean(muse.audioUrl) };
 }
 
 /**

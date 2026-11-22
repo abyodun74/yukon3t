@@ -33,6 +33,8 @@ export const settings: typeof settingsEn = {
     public: "Yeyote aliyeingia kwenye akaunti",
     connectionsOnly: "Wasiliani wangu tu",
     discoverable: "Onyesha wasifu wangu kwenye Gundua",
+    allowStoryReposts: "Ruhusu wengine wachapishe upya Story zangu",
+    allowStoryRepostsHint: "Watu wanaoweza kuona Story yako wanaweza kuchapisha nakala yake kwenye mlisho wao, Muse au Circle, wakikutaja. Nakala hubaki hata Story yako ikitoweka. Unaweza kuchapisha upya Story zako mwenyewe wakati wowote.",
     save: "Hifadhi mipangilio ya faragha",
     hiddenChats: "Mazungumzo yaliyofichwa",
   },

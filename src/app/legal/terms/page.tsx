@@ -31,7 +31,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Terms of Service</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 13, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 22, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company
@@ -86,11 +86,16 @@ export default function TermsPage() {
         store, reproduce, and display that content solely for the purpose of
         operating and providing the service to you and other users — for
         example, showing your posts to Circle members or your Story to your
-        connections. This license ends when you delete the content or your
+        connections. Unless you turn off &ldquo;Allow others to repost my
+        Stories&rdquo; in Settings, it also covers letting people who can see
+        your Story post a copy of it, credited to you, to their own feed, to
+        Muse or to a Circle; that copy is their post and stays after your
+        Story expires. This license ends when you delete the content or your
         account, except for content already shared with others in ways it
         can&apos;t practically be recalled (e.g., a message already read by
-        its recipient), and except where retention is required for
-        moderation records as described in our Privacy Policy.
+        its recipient, or a copy of your Story someone reposted before you
+        deleted it or turned reposting off), and except where retention is
+        required for moderation records as described in our Privacy Policy.
       </p>
       <p className="mt-2 text-foreground-soft">
         You are solely responsible for your User Content and confirm you

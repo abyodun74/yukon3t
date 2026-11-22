@@ -558,6 +558,10 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       if (uploaded.media.mediaType === "VIDEO" && uploaded.media.videoThumbnailUrl) {
         fd.set("mediaThumbnailUrl", uploaded.media.videoThumbnailUrl);
       }
+      // The video's length, when known: a later repost of this Story to Feed or Muse routes its video check on it.
+      if (uploaded.media.mediaType === "VIDEO" && uploaded.media.videoDurationSeconds) {
+        fd.set("videoDurationSeconds", String(uploaded.media.videoDurationSeconds));
+      }
     }
     // storySchema caps captions at 200 chars: cut rather than fail the whole story with a generic "invalid".
     if (postCaption) fd.set("caption", postCaption.slice(0, STORY_CAPTION_MAX_CHARS));

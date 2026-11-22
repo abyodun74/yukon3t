@@ -43,6 +43,7 @@ export function MuseShareModal({
   caption,
   videoUrl,
   videoDurationSeconds,
+  hasSoundTrack = false,
   reshared,
   onToggleReshare,
   onShareCountChange,
@@ -53,6 +54,11 @@ export function MuseShareModal({
   caption: string | null;
   videoUrl: string;
   videoDurationSeconds: number;
+  /**
+   * The Muse has its own added sound track (Muse.audioUrl): a Story has no separate audio, so "Add to your story" uses
+   * the video's original sound, and the sheet says so (shareMuseToStory, owner decision 2026-11-22).
+   */
+  hasSoundTrack?: boolean;
   /** Whether the viewer has already put this Muse on their Home. */
   reshared: boolean;
   onToggleReshare: () => Promise<void> | void;
@@ -214,6 +220,9 @@ export function MuseShareModal({
                 <CirclePlus size={16} />
                 {sharedToStory ? feed.share.addedToStory : sharingToStory ? feed.share.addingToStory : feed.share.toStory}
               </button>
+            )}
+            {canShareToStory && hasSoundTrack && (
+              <p className="px-2 pb-1 text-xs text-foreground-soft">{t.storySoundNote}</p>
             )}
             <button
               type="button"

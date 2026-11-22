@@ -74,6 +74,7 @@ export const pages: typeof pagesEn = {
       MUSE_SHARE: "{name} a partagé votre Muse",
       STORY_COMMENT: "{name} a commenté votre story",
       STORY_LIKE: "{name} a aimé votre story",
+      STORY_REPOST: "{name} a republié votre story",
       COMMENT_REPLY: "{name} a répondu à votre commentaire",
       POST_REPOST: "{name} a republié votre publication",
       POST_SHARE: "{name} a partagé votre publication",

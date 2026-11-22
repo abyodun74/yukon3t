@@ -74,6 +74,7 @@ export const pages: typeof pagesEn = {
       MUSE_SHARE: "مشاركة من {name} لمقطع Muse الخاص بك",
       STORY_COMMENT: "تعليق من {name} على قصتك",
       STORY_LIKE: "إعجاب من {name} بقصتك",
+      STORY_REPOST: "أعاد {name} نشر قصتك",
       COMMENT_REPLY: "رد من {name} على تعليقك",
       POST_REPOST: "إعادة نشر من {name} لمنشورك",
       POST_SHARE: "مشاركة من {name} لمنشورك",

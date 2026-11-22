@@ -183,6 +183,8 @@ export async function updatePrivacy(formData: FormData) {
   const parsed = privacySchema.safeParse({
     postsVisibility: formData.get("postsVisibility"),
     discoverable: formData.get("discoverable") === "on",
+    // On by default (User.allowStoryReposts); unticking it refuses every repost of this person's Stories by anyone else.
+    allowStoryReposts: formData.get("allowStoryReposts") === "on",
   });
 
   if (!parsed.success) {

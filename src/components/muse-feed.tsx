@@ -577,6 +577,7 @@ export function MuseFeed({
             caption={displayedShareMuse.caption}
             videoUrl={displayedShareMuse.videoUrl}
             videoDurationSeconds={displayedShareMuse.videoDurationSeconds}
+            hasSoundTrack={Boolean(displayedShareMuse.audioUrl)}
             reshared={displayedShareMuse.isReposted}
             onToggleReshare={() => toggleRepost(displayedShareMuse.id)}
             onShareCountChange={(count) =>

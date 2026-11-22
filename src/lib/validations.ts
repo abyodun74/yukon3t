@@ -204,6 +204,8 @@ const postsVisibilityValues = ["PUBLIC", "CONNECTIONS_ONLY", "HIDDEN"] as const;
 export const privacySchema = z.object({
   postsVisibility: z.enum(postsVisibilityValues),
   discoverable: z.boolean(),
+  // "Allow others to repost my Stories" (actions/story-reshare.ts); an unticked box is the opt-out.
+  allowStoryReposts: z.boolean(),
 });
 
 const ringtoneValues = ["CLASSIC", "CHIME", "DIGITAL", "MARIMBA", "PULSE"] as const;
@@ -681,6 +683,10 @@ export const storySchema = z.object({
   // 2000 so a long text story's full text can ride along as its caption (see src/lib/story-text.ts); the media
   // composer's own caption input still caps at 200 client-side.
   caption: z.string().trim().max(2000).optional().default(""),
+  // VIDEO only: the composer's probed length, rounded like postSchema's (a native picker can send a fraction). A
+  // routing hint for a later repost to Feed/Muse (actions/story-reshare.ts), not a security boundary; absent when the
+  // device couldn't read it.
+  videoDurationSeconds: z.coerce.number().positive().max(86_400).transform(Math.round).optional(),
 });
 
 export const museSchema = z.object({

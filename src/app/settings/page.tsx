@@ -151,6 +151,22 @@ export default async function SettingsPage({
               />
               {t.privacy.discoverable}
             </label>
+            {/* On by default; unticked refuses every repost of this person's Stories by anyone else
+                (actions/story-reshare.ts). Their own reposts are never affected. */}
+            <div>
+              <label className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="allowStoryReposts"
+                  defaultChecked={user.allowStoryReposts}
+                  aria-describedby="settings-story-reposts-hint"
+                />
+                {t.privacy.allowStoryReposts}
+              </label>
+              <p id="settings-story-reposts-hint" className="mt-1 text-xs text-foreground-soft">
+                {t.privacy.allowStoryRepostsHint}
+              </p>
+            </div>
             <SubmitButton
               label={t.privacy.save}
               pendingLabel={t.saving}

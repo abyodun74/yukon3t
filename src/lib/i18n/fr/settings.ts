@@ -33,6 +33,8 @@ export const settings: typeof settingsEn = {
     public: "Toute personne connectée",
     connectionsOnly: "Mes relations uniquement",
     discoverable: "Afficher mon profil dans Découvrir",
+    allowStoryReposts: "Autoriser les autres à republier mes stories",
+    allowStoryRepostsHint: "Les personnes qui peuvent voir votre story peuvent en publier une copie dans leur fil, sur Muse ou dans un Circle, en vous citant. La copie reste après la disparition de votre story. Vous pouvez toujours republier les vôtres.",
     save: "Enregistrer les paramètres de confidentialité",
     hiddenChats: "Discussions masquées",
   },

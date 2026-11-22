@@ -31,7 +31,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 18, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 22, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -186,6 +186,17 @@ export default function PrivacyPage() {
         A guest preview session (see Section 1) lasts at most 2 hours; the
         record that a guest visit started (with its link tag, without an IP
         address) is kept with our other usage counts.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        A Story is deleted 24 hours after you post it. While it is up, anyone
+        who can see it may post a copy of it (its photo or video and caption,
+        credited to you) to their own feed, to Muse or to a Circle, unless you
+        turn off &ldquo;Allow others to repost my Stories&rdquo; in Settings
+        (it is on by default); you are notified of a copy you are able to see. That copy is
+        their post or Muse: it is kept like any other post until they delete
+        it or their account, and it is not deleted when your Story expires,
+        when you delete your Story or your account, or when you turn reposting
+        off. The same applies to a copy you post of your own Story.
       </p>
       <p className="mt-2 text-foreground-soft">
         We retain your account and content data for as long as your account

@@ -21,6 +21,7 @@ export type NotificationData = {
     | "POST_COMMENT"
     | "STORY_COMMENT"
     | "STORY_LIKE"
+    | "STORY_REPOST"
     | "MUSE_LIKE"
     | "MUSE_COMMENT"
     | "COMMENT_REPLY"
@@ -181,6 +182,9 @@ export function notificationHref(notification: NotificationData) {
     return museCommentHref(notification.museId, notification.museCommentId);
   }
   if (notification.type === "COMMENT_REPLY" && notification.museId) return `/muse/${notification.museId}`;
+  // Someone reposted the reader's Story: the copy it became (a Feed / Circle copy carries a postId and was handled
+  // above; a Muse copy opens that Muse). Never the Story itself, which has expired by the time many are read.
+  if (notification.type === "STORY_REPOST") return notification.museId ? `/muse/${notification.museId}` : "/home";
   if (notification.type === "MUSE_LIKE" || notification.type === "MUSE_COMMENT" ||
       notification.type === "MUSE_REPOST" || notification.type === "MUSE_SHARE" ||
       notification.type === "SUBSCRIPTION_MUSE" || notification.type === "VIDEO_FLAGGED_FOR_REVIEW") {

@@ -1301,7 +1301,9 @@ const sections: Section[] = [
             the person who posted it. The recipient sees the actual Story in
             chat and can tap it to open it full-screen, the same view as the
             Story tray, rather than just a text message about it. People you
-            share a Story with are notified, like for a normal message.
+            share a Story with are notified, like for a normal message. The
+            same Share sheet can also post a copy of the Story to your feed,
+            to Muse or to one of your Circles (see the next questions).
           </>
         ),
       },
@@ -1322,6 +1324,63 @@ const sections: Section[] = [
             another). You can only like a Story you&apos;re able to see, and
             likes disappear with the Story after 24 hours. Liking is separate
             from reacting with an emoji.
+          </>
+        ),
+      },
+      {
+        id: "post-story-feed-muse-circle",
+        q: "Can I post a Story to my feed, Muse or a Circle?",
+        a: (
+          <>
+            Yes. Tap the Share icon on a Story you can see and choose{" "}
+            <strong>Post to my feed</strong>, <strong>Post to Muse</strong>{" "}
+            or <strong>Post to a Circle</strong> (then pick one of your
+            Circles). It works for your own Stories and for other
+            people&apos;s, unless the person who posted the Story has turned
+            reposting off. It posts a copy of the Story&apos;s photo, video or
+            embedded video with its caption. A copy of someone else&apos;s
+            Story starts with a &ldquo;Story by&rdquo; credit naming them, and
+            they get a notification that you reposted it. Muse only takes
+            videos and embedded videos, not photos. On your feed, the copy
+            gets the narrower of your profile&apos;s audience and the original
+            poster&apos;s: if either of you shows posts to connections only,
+            so does the copy. Someone else&apos;s Story can go to Muse or a
+            Circle only if their profile is public. A video copy goes through
+            the same automatic video check as any new video; on Muse, a video
+            longer than about a minute appears once that check is done.
+            Posting the same Story to the same place again doesn&apos;t make a
+            second copy. A video Story whose length the app couldn&apos;t
+            record (including video Stories posted before this option
+            existed) can only be sent to chats.
+          </>
+        ),
+      },
+      {
+        id: "reposted-story-disappear",
+        q: "Does a reposted Story disappear after 24 hours?",
+        a: (
+          <>
+            No. The Story itself still disappears after 24 hours, but a copy
+            posted to a feed, Muse or a Circle is an ordinary post or Muse and
+            stays until the person who posted the copy deletes it. If it was
+            your Story, you can&apos;t delete someone else&apos;s copy, but you
+            can report it like any post or Muse. Turning reposting off stops
+            new copies; it doesn&apos;t remove copies already made.
+          </>
+        ),
+      },
+      {
+        id: "stop-people-reposting-stories",
+        q: "How do I stop people from reposting my Stories?",
+        a: (
+          <>
+            Go to Settings, open Privacy, untick &ldquo;Allow others to repost
+            my Stories&rdquo; and tap &ldquo;Save privacy settings&rdquo;. It&apos;s
+            on by default. While
+            it&apos;s off, nobody else can post your Stories to their feed,
+            Muse or a Circle; you still can, and people who can see your
+            Story can still send it to their chats. It doesn&apos;t remove
+            copies made before you turned it off.
           </>
         ),
       },
@@ -1395,7 +1454,9 @@ const sections: Section[] = [
             &ldquo;Subscribe&rdquo; next to the creator&apos;s name follows
             them so you hear about their future posts. None of these require
             being connected to the creator first, same as liking or
-            commenting.
+            commenting. If a Muse uses an added sound track, a Story made
+            from it plays the video&apos;s original sound instead (a Story
+            has no separate sound track), and the share sheet tells you so.
           </>
         ),
       },

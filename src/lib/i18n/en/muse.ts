@@ -52,6 +52,8 @@ export const museEn = {
     toHome: "Share to your Home",
     copyFailed: "Couldn't copy the link.",
     linkOnly: "Couldn't attach the video here, so only the link was shared.",
+    // Shown by "Add to your story" for a Muse with its own added sound track (shareMuseToStory).
+    storySoundNote: "Your story gets the video's original sound. The added sound track isn't included.",
     storyErrors: {
       too_long: "This Muse is too long for a Story.",
       rate_limited: "Slow down a little and try again.",

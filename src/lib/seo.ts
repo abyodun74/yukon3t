@@ -65,9 +65,9 @@ export function languageAlternates(path: LocalizedSeoPath, base = siteUrl()): Re
  * without this). Other pages have no reliable date, so they carry none rather than a made-up "now".
  */
 export const LEGAL_LAST_UPDATED: Record<string, string> = {
-  "/legal/guidelines": "2026-11-13",
-  "/legal/privacy": "2026-11-18",
-  "/legal/terms": "2026-11-13",
+  "/legal/guidelines": "2026-11-22",
+  "/legal/privacy": "2026-11-22",
+  "/legal/terms": "2026-11-22",
   "/legal/disclaimer": "2026-08-08",
   "/legal/delete-account": "2026-08-08",
 };

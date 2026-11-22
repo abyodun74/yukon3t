@@ -191,6 +191,21 @@ describe("every Story action that takes a story id goes through loadViewableStor
     }
   });
 
+  it("and so does every repost action (actions/story-reshare.ts), through loadRepostSource", () => {
+    const source = readFileSync("src/app/actions/story-reshare.ts", "utf8");
+    const helperStart = source.indexOf("async function loadRepostSource(");
+    expect(helperStart).toBeGreaterThan(-1);
+    const helper = source.slice(helperStart, source.indexOf("\n}\n", helperStart));
+    expect(helper).toContain("loadViewableStory(userId, storyId)");
+    for (const name of ["getStoryReshareOptions", "shareStoryToFeed", "shareStoryToCircle", "shareStoryToMuse"]) {
+      const start = source.indexOf(`export async function ${name}(`);
+      expect(start, name).toBeGreaterThan(-1);
+      const next = source.indexOf("export async function", start + 10);
+      const body = source.slice(start, next === -1 ? undefined : next);
+      expect(body, name).toContain("loadRepostSource(user.id, storyId)");
+    }
+  });
+
   it("and the subscriber lists, profile-post paging and the collab session list check the page's rule", () => {
     const subs = readFileSync("src/app/actions/subscriptions.ts", "utf8");
     expect(subs.match(/canPageSubscriptions\(viewer\.id/g)).toHaveLength(2);

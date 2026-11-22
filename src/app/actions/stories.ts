@@ -146,11 +146,12 @@ export async function createStory(formData: FormData) {
     mediaThumbnailUrl: formData.get("mediaThumbnailUrl") || undefined,
     embedUrl: formData.get("embedUrl") || undefined,
     caption: formData.get("caption") || undefined,
+    videoDurationSeconds: formData.get("videoDurationSeconds") || undefined,
   });
   if (!parsed.success) {
     return { error: "invalid" as const };
   }
-  const { mediaType, mediaUrl, mediaThumbnailUrl, embedUrl, caption } = parsed.data;
+  const { mediaType, mediaUrl, mediaThumbnailUrl, embedUrl, caption, videoDurationSeconds } = parsed.data;
 
   // EMBED carries no upload of ours at all — a link another app shared
   // (Instagram/TikTok/etc. only handing over a link, no real file; see
@@ -225,6 +226,8 @@ export async function createStory(formData: FormData) {
         mediaType,
         mediaUrl,
         mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
+        // Kept for a later repost to Feed/Muse (actions/story-reshare.ts), which routes the video scan on it.
+        videoDurationSeconds: mediaType === "VIDEO" ? videoDurationSeconds : undefined,
         caption: caption || undefined,
         expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
       },

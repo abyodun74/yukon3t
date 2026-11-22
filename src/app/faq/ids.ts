@@ -96,6 +96,9 @@ export const FAQ_IDS = [
   "close-story",
   "people-react-reply-comment-story",
   "like-story",
+  "post-story-feed-muse-circle",
+  "reposted-story-disappear",
+  "stop-people-reposting-stories",
   // Muse
   "muse-2",
   "post-muse",

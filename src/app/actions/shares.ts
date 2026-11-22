@@ -195,11 +195,24 @@ export async function shareToStory(postId: string) {
     return { error: "not_shareable" as const };
   }
 
-  let storyData: { mediaType: "IMAGE" | "VIDEO" | "EMBED"; mediaUrl?: string; mediaThumbnailUrl?: string; embedProvider?: EmbedProvider; embedId?: string };
+  let storyData: {
+    mediaType: "IMAGE" | "VIDEO" | "EMBED";
+    mediaUrl?: string;
+    mediaThumbnailUrl?: string;
+    videoDurationSeconds?: number;
+    embedProvider?: EmbedProvider;
+    embedId?: string;
+  };
   if (root.mediaType === "IMAGE" && root.mediaUrls[0]) {
     storyData = { mediaType: "IMAGE", mediaUrl: root.mediaUrls[0] };
   } else if (root.mediaType === "VIDEO" && root.videoUrl) {
-    storyData = { mediaType: "VIDEO", mediaUrl: root.videoUrl, mediaThumbnailUrl: root.videoThumbnailUrl ?? undefined };
+    storyData = {
+      mediaType: "VIDEO",
+      mediaUrl: root.videoUrl,
+      mediaThumbnailUrl: root.videoThumbnailUrl ?? undefined,
+      // The post's length goes with it: a repost of this Story to Feed or Muse routes its video check on it.
+      videoDurationSeconds: root.videoDurationSeconds ?? undefined,
+    };
   } else if (root.mediaType === "EMBED" && root.embedProvider && root.embedId) {
     // Same "moderated by the source, not us" trust boundary the post's own
     // EMBED already carries — just copying the provider+id across, same as

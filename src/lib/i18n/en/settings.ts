@@ -39,6 +39,8 @@ export const settingsEn = {
     public: "Anyone signed in",
     connectionsOnly: "Only my connections",
     discoverable: "Show my profile in Discover",
+    allowStoryReposts: "Allow others to repost my Stories",
+    allowStoryRepostsHint: "People who can see your Story can post a copy to their feed, Muse or a Circle, credited to you. The copy stays after your Story disappears. You can always repost your own.",
     save: "Save privacy settings",
     // Always shown, and worded the same, whether or not the account has a PIN or a hidden chat.
     hiddenChats: "Hidden chats",

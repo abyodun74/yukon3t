@@ -35,6 +35,7 @@ export const pushEn = {
     COMMENT_REPLY: "replied to your comment",
     MUSE_LIKE: "liked your Muse",
     STORY_LIKE: "liked your story",
+    STORY_REPOST: "reposted your story",
     MUSE_COMMENT: "commented on your Muse",
     MUSE_REPOST: "reshared your Muse",
     MUSE_SHARE: "shared your Muse",

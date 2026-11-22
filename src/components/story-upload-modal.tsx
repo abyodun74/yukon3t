@@ -540,6 +540,11 @@ export function StoryUploadModal({ open, onClose }: { open: boolean; onClose: ()
     fd.set("mediaType", item.mediaType);
     fd.set("mediaUrl", item.upload.mediaUrl);
     if (item.upload.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", item.upload.mediaThumbnailUrl);
+    // The video's length when this device could read it: what a later repost of the Story to Feed or Muse routes its
+    // video check on (a video Story without it can't be reposted there).
+    if (item.mediaType === "VIDEO" && item.durationSeconds && Number.isFinite(item.durationSeconds) && item.durationSeconds > 0) {
+      fd.set("videoDurationSeconds", String(Math.max(1, Math.round(item.durationSeconds))));
+    }
     if (caption.trim()) fd.set("caption", caption.trim());
 
     try {

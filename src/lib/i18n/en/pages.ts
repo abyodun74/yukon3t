@@ -76,6 +76,7 @@ export const pagesEn = {
       MUSE_SHARE: "{name} shared your Muse",
       STORY_COMMENT: "{name} commented on your story",
       STORY_LIKE: "{name} liked your story",
+      STORY_REPOST: "{name} reposted your story",
       COMMENT_REPLY: "{name} replied to your comment",
       POST_REPOST: "{name} reposted your post",
       POST_SHARE: "{name} shared your post",

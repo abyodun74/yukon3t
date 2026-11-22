@@ -33,6 +33,8 @@ export const settings: typeof settingsEn = {
     public: "Chiunque abbia effettuato l'accesso",
     connectionsOnly: "Solo i miei contatti",
     discoverable: "Mostra il mio profilo in Scopri",
+    allowStoryReposts: "Consenti ad altri di ripubblicare le mie storie",
+    allowStoryRepostsHint: "Chi può vedere la tua storia può pubblicarne una copia nel proprio feed, su Muse o in un Circle, citandoti. La copia resta anche dopo che la tua storia scompare. Puoi sempre ripubblicare le tue.",
     save: "Salva le impostazioni di privacy",
     hiddenChats: "Chat nascoste",
   },

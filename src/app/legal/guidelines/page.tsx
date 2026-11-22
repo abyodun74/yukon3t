@@ -30,7 +30,7 @@ export default function GuidelinesPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Community Guidelines</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 13, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 22, 2026</p>
       <p className="mt-4 text-foreground-soft">
         YuKon3t exists to connect people honestly across borders, cultures,
         and interests. These rules are enforced consistently, and every
@@ -89,6 +89,15 @@ export default function GuidelinesPage() {
         permission. See our{" "}
         <a href="/legal/terms" className="text-accent">Terms of Service</a>{" "}
         for how to file or respond to a copyright claim.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        Reposting someone else&apos;s Story to your feed, Muse or a Circle is
+        allowed when they leave &ldquo;Allow others to repost my Stories&rdquo;
+        on, and the copy always credits them. Don&apos;t remove or misstate
+        that credit, don&apos;t present their Story as your own, and don&apos;t
+        repost a Story to mock, harass or expose the person who posted it. A
+        repost is your post: these Guidelines apply to it as if you had
+        uploaded it yourself.
       </p>
 
       <h2 className="mt-8 font-semibold">6. Meeting in person and travel safety</h2>

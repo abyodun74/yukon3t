@@ -110,10 +110,10 @@ export function ShareModal({
   const [shareWarning, setShareWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Stories only ever hold a photo or video (StoryMediaType has no NONE/
-  // LINK/EMBED/GIF) — a text-only, link, embedded-video, or GIF post has
-  // nothing that fits it, same gate shareToStory itself enforces server-side.
-  const canShareToStory = mediaType === "IMAGE" || mediaType === "VIDEO";
+  // A Story holds a photo, a video or an embedded video (StoryMediaType IMAGE/VIDEO/EMBED; shareToStory copies an
+  // embed's provider + id) — a text-only, link or GIF post has nothing that fits it, same gate shareToStory itself
+  // enforces server-side.
+  const canShareToStory = mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "EMBED";
   // Muse is video-only (unlike Story, no image/text variant at all) and
   // caps at MAX_MUSE_VIDEO_DURATION_SECONDS — a Post video can run up to an
   // hour, far past what a Muse allows. Same gate shareToMuse itself

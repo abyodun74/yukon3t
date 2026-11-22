@@ -48,6 +48,8 @@ export const muse: typeof museEn = {
     toHome: "Compartir en tu Inicio",
     copyFailed: "No se pudo copiar el enlace.",
     linkOnly: "No se pudo adjuntar el video aquí, así que solo se compartió el enlace.",
+    // Shown by "Add to your story" for a Muse with its own added sound track (shareMuseToStory).
+    storySoundNote: "Tu historia tendrá el sonido original del video. La pista de sonido añadida no se incluye.",
     storyErrors: {
       too_long: "Este Muse es demasiado largo para una historia.",
       rate_limited: "Ve un poco más despacio e inténtalo de nuevo.",

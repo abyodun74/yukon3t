@@ -29,6 +29,7 @@ export const push: typeof pushEn = {
     COMMENT_REPLY: "ने आपके कमेंट का जवाब दिया",
     MUSE_LIKE: "ने आपके Muse को लाइक किया",
     STORY_LIKE: "ने आपकी स्टोरी को लाइक किया",
+    STORY_REPOST: "ने आपकी स्टोरी को दोबारा पोस्ट किया",
     MUSE_COMMENT: "ने आपके Muse पर कमेंट किया",
     MUSE_REPOST: "ने आपका Muse दोबारा शेयर किया",
     MUSE_SHARE: "ने आपका Muse शेयर किया",

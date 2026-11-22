@@ -114,6 +114,12 @@ const EVERY_TYPE: Record<NotificationData["type"], Case[]> = {
   POST_SHARE: [{ data: post, href: "/post/p1" }],
   MUSE_REPOST: [{ data: muse, href: "/muse/m1" }],
   MUSE_SHARE: [{ data: muse, href: "/muse/m1" }],
+  // Someone reposted the reader's Story: the copy (a Feed / Circle post, or a Muse), never the expiring Story.
+  STORY_REPOST: [
+    { data: post, href: "/post/p1" },
+    { data: muse, href: "/muse/m1" },
+    { data: {}, href: "/home" },
+  ],
   EVENT_RSVP: [{ data: post, href: "/post/p1" }],
   CIRCLE_JOINED: [{ data: circle, href: "/circles/runners" }],
   CIRCLE_CREATED: [

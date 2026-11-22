@@ -319,6 +319,12 @@ model User {
   postsVisibility PostsVisibility @default(PUBLIC)
   discoverable    Boolean         @default(true)
 
+  // Settings -> Privacy "Allow others to repost my Stories" (src/app/actions/story-reshare.ts): whether someone who can
+  // see this person's Story may post a copy of it to their own Feed, Muse or a Circle. On by default (owner decision:
+  // anyone who can see a Story may repost it); off refuses every repost by anyone else, server-side. The author can
+  // always repost their own Story.
+  allowStoryReposts Boolean @default(true)
+
   // "New on YuKon3t" alerts (src/lib/new-member-alerts.ts, the announce-new-members cron). onboardedAt is when
   // completeOnboarding first finished the profile (backfilled to createdAt for profiles complete before it existed).
   // newMemberAnnouncedAt is the cron's once-only claim on announcing this account (backfilled for every account that
@@ -1614,6 +1620,11 @@ enum NotificationType {
   // storyId set). At most one row per liker per story (coalesced under an advisory lock), never for a self-like or
   // across a block; bell + push in the author's language. Deleted with the story (cascade), so it lives 24h at most.
   STORY_LIKE
+  // "<name> reposted your story": someone else posted a copy of the reader's Story to their Feed, Muse or a Circle
+  // (actions/story-reshare.ts). actorId = the reposter; postId (Feed / Circle copy) or museId (Muse copy) is the link,
+  // never storyId, so the row outlives the 24h Story. Never for the author's own repost or across a block; one row per
+  // copy (a retried repost resolves to the same copy and writes none). Bell + push in the author's language.
+  STORY_REPOST
 }
 
 model Notification {
@@ -2275,6 +2286,11 @@ model Story {
   embedProvider     EmbedProvider?
   embedId           String?
   caption           String?        @db.Text
+  // VIDEO only: the client-probed length in whole seconds (createStory from the composer; shareToStory and
+  // shareMuseToStory copy the source's). A routing hint, like Post.videoDurationSeconds: reposting the Story to Feed or
+  // Muse (actions/story-reshare.ts) uses it to pick the video-scan path. Null for photos, embeds and Stories posted
+  // before it existed; a video Story without it can't be reposted to Feed, Muse or a Circle.
+  videoDurationSeconds Int?
   createdAt         DateTime       @default(now())
   expiresAt         DateTime
 
@@ -2491,6 +2507,11 @@ model Muse {
   // Muse.likeCount is then the group's distinct-liker count (a reaction of any emoji counts as a like).
   likeGroupId String?
 
+  // Idempotency key for a server-built Muse (shareStoryToMuse in actions/story-reshare.ts: "story:<storyId>:muse"), so
+  // a retried or doubled repost resolves to the Muse already made instead of a second one. Unique per author, like
+  // Post.clientRequestId. Null for every other Muse.
+  clientRequestId String?
+
   author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   sharedPost    Post?           @relation(fields: [sharedPostId], references: [id], onDelete: SetNull)
   reactions     MuseReaction[]
@@ -2516,6 +2537,7 @@ model Muse {
   @@index([videoThumbnailUrl])
   @@index([audioUrl])
   @@index([likeGroupId])
+  @@unique([authorId, clientRequestId])
 }
 
 // Logs one "share" event (native share sheet, share-to-story, etc.) —

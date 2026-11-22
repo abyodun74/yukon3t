@@ -34,6 +34,8 @@ export const settings: typeof settingsEn = {
     public: "كل من سجّل الدخول",
     connectionsOnly: "جهات اتصالي فقط",
     discoverable: "إظهار ملفي الشخصي في «استكشاف»",
+    allowStoryReposts: "السماح للآخرين بإعادة نشر قصصي",
+    allowStoryRepostsHint: "يمكن لمن يستطيع رؤية قصتك نشر نسخة منها في موجزه أو في Muse أو في Circle مع ذكر اسمك. تبقى النسخة بعد اختفاء قصتك. يمكنك دائمًا إعادة نشر قصصك.",
     save: "حفظ إعدادات الخصوصية",
     hiddenChats: "المحادثات المخفية",
   },
