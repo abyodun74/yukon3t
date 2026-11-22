@@ -9,6 +9,7 @@ import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { useFeedText } from "@/components/feed-text";
 import { useShellText } from "@/components/ui-text";
 import { SendToChatsPicker } from "@/components/send-to-chats-picker";
+import { useGuestPreview } from "@/components/guest-preview";
 
 /**
  * "Share" for a story: sends it into up to SHARE_MAX_RECIPIENTS of the caller's own conversations (DMs or groups) at
@@ -26,7 +27,9 @@ export function StoryShareButton({
   const { t } = useFeedText();
   const { t: shell } = useShellText();
   const [open, setOpen] = useState(false);
+  const { isGuest, promptSignUp } = useGuestPreview();
   const [conversations, setConversations] = useState<{ value: string; label: string; username: string | null }[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const titleId = useId();
   // Unmounting with the sheet open (the viewer swapping panels or closing)
   // skips close(), which would leave the viewer paused — report it here,
@@ -50,11 +53,22 @@ export function StoryShareButton({
   }
 
   async function openSheet() {
+    // A guest preview can look, not share (getShareableConversations refuses it): the sign-up prompt, like a reaction.
+    if (isGuest) {
+      promptSignUp();
+      return;
+    }
     setOpen(true);
     onOpenChange?.(true);
     if (conversations === null) {
-      const result = await getShareableConversations();
-      setConversations(result.conversations);
+      setLoadFailed(false);
+      try {
+        const result = await getShareableConversations();
+        setConversations(result.conversations);
+      } catch {
+        // A refused or lost load left the sheet on "Loading…" forever; say so instead, and try again on the next open.
+        setLoadFailed(true);
+      }
     }
   }
 
@@ -112,24 +126,30 @@ export function StoryShareButton({
                 <X size={16} />
               </button>
             </div>
-            <SendToChatsPicker
-              items={conversations}
-              getKey={(c) => c.value}
-              getName={(c) => c.label}
-              getUsername={(c) => c.username}
-              listClassName="max-h-[45dvh]"
-              loading={<li className="text-sm text-foreground-soft">{shell.common.loading}</li>}
-              texts={{
-                search: t.stories.shareSheet.searchFriends,
-                clear: t.stories.shareSheet.clearSearch,
-                noMatch: t.stories.shareSheet.noFriendMatch,
-                empty: t.stories.shareSheet.empty,
-              }}
-              onSend={send}
-              onSent={({ failed }) => {
-                if (failed === 0) setTimeout(close, 1200);
-              }}
-            />
+            {loadFailed ? (
+              <p role="alert" className="mt-3 text-sm text-danger">
+                {t.stories.shareSheet.failed}
+              </p>
+            ) : (
+              <SendToChatsPicker
+                items={conversations}
+                getKey={(c) => c.value}
+                getName={(c) => c.label}
+                getUsername={(c) => c.username}
+                listClassName="max-h-[45dvh]"
+                loading={<li className="text-sm text-foreground-soft">{shell.common.loading}</li>}
+                texts={{
+                  search: t.stories.shareSheet.searchFriends,
+                  clear: t.stories.shareSheet.clearSearch,
+                  noMatch: t.stories.shareSheet.noFriendMatch,
+                  empty: t.stories.shareSheet.empty,
+                }}
+                onSend={send}
+                onSent={({ failed }) => {
+                  if (failed === 0) setTimeout(close, 1200);
+                }}
+              />
+            )}
           </div>
         </div>
         </OverlayPortal>

@@ -43,10 +43,25 @@ let story: Record<string, unknown> | null = null;
 // Chats that turned secret after the action read them: only the insert's own re-read (createNonE2eeMessage) sees it.
 let secretAtInsert = new Set<string>();
 
-type Member = { userId: string; e2eeEnabledAt: Date | null; hiddenAt: Date | null; user: { status: string } };
+type Member = {
+  userId: string;
+  e2eeEnabledAt: Date | null;
+  hiddenAt: Date | null;
+  user: { id: string; name: string; username: string | null; status: string };
+};
 type Conv = { id: string; isGroup: boolean; members: Member[] };
-function member(userId: string, over: Partial<Member> = {}): Member {
-  return { userId, e2eeEnabledAt: null, hiddenAt: null, user: { status: "ACTIVE" }, ...over };
+function member(
+  userId: string,
+  over: Partial<Omit<Member, "user">> & { user?: Partial<Member["user"]> } = {},
+): Member {
+  const { user: userOver, ...rest } = over;
+  return {
+    userId,
+    e2eeEnabledAt: null,
+    hiddenAt: null,
+    ...rest,
+    user: { id: userId, name: `Name ${userId}`, username: null, status: "ACTIVE", ...userOver },
+  };
 }
 let conversations: Conv[] = [];
 
@@ -340,7 +355,7 @@ describe("shareMuseToConversations", () => {
 });
 
 describe("shareStoryToConversations", () => {
-  it("shares to every allowed chat, de-duplicated, with no push (as before)", async () => {
+  it("shares to every allowed chat, de-duplicated", async () => {
     blocked = new Set([DD]);
     const result = await shareStoryToConversations(STORY, [D1, D1, D2, HIDDEN, GROUP]);
     expect(result).toEqual({ error: null, sent: 2, failed: 2 });
@@ -348,6 +363,28 @@ describe("shareStoryToConversations", () => {
     expect(messageCreate.mock.calls[0][0]).toMatchObject({
       data: { content: "Shared a story", storyId: STORY, isForwardedStory: true, senderId: ME },
     });
+  });
+
+  it("notifies each chat it reached like any other message (push, bell, badges, the thread's live signal)", async () => {
+    // Before, the copy was written with no afterMessageSent at all: the recipient's open thread, inbox and badges
+    // never heard about it, so a share that said "Sent" looked like it never arrived.
+    blocked = new Set([DD]);
+    await shareStoryToConversations(STORY, [D1, D2, GROUP]);
+    expect(afterMessageSent).toHaveBeenCalledTimes(2);
+    expect(afterMessageSent).toHaveBeenNthCalledWith(1, {
+      user,
+      conversationId: D1,
+      memberIds: [ME, CY],
+      secret: false,
+      content: "Shared a story",
+      mediaType: "NONE",
+    });
+    expect(afterMessageSent).toHaveBeenNthCalledWith(2, expect.objectContaining({ conversationId: GROUP, memberIds: [ME, CY, DD] }));
+  });
+
+  it("sends no notification for a chat the copy never reached", async () => {
+    secretAtInsert = new Set([D1]);
+    expect(await shareStoryToConversations(STORY, [D1, SECRET])).toEqual({ error: "unavailable" });
     expect(afterMessageSent).not.toHaveBeenCalled();
   });
 
@@ -382,6 +419,17 @@ describe("getShareableConversations (the Story share picker)", () => {
     expect(ids).not.toContain(HIDDEN);
     expect(ids).not.toContain(OTHERS);
     expect(ids).toEqual(expect.arrayContaining([D1, D2, GROUP]));
+  });
+
+  it("never offers a DM the send would refuse: a peer blocked either way or no longer active", async () => {
+    blocked = new Set([DD]);
+    conversations.push({ id: "cina0000000001", isGroup: false, members: [member(ME), member("cin00000000001", { user: { status: "SUSPENDED" } })] });
+    const targets = (await getShareableConversations()).conversations;
+    const ids = targets.map((c) => c.value);
+    expect(ids).not.toContain(D2);
+    expect(ids).not.toContain("cina0000000001");
+    expect(ids).toEqual(expect.arrayContaining([D1, GROUP]));
+    expect(targets.find((c) => c.value === D1)).toEqual({ value: D1, label: `Name ${CY}`, username: null });
   });
 
   it("answers an empty list when the only chats are secret (the picker's 'no chats' state)", async () => {

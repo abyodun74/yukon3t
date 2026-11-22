@@ -18,6 +18,7 @@ import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat, withoutSecretChats } from "@/lib/e2ee/secret-chat";
 import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
+import { afterMessageSent } from "@/lib/after-message-sent";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmActivityToUser } from "@/lib/fcm";
 import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
@@ -556,8 +557,8 @@ export async function replyToStory(storyId: string, formData: FormData) {
  * Every conversation (DM or group) the caller belongs to, as share targets
  * for shareStoryToConversations below — same shape MultiSelect's options
  * expect. A DM's label is the other member's name; a group's is its name.
- * Excludes a DM with someone now blocked either way, same trust boundary
- * replyToStory enforces for its own single fixed recipient, and, like every
+ * Excludes a DM with someone now blocked either way or whose account isn't
+ * active (shareTargetRefusal would refuse the send), and, like every
  * share picker, hidden chats and secret chats (a share never goes into one).
  */
 export async function getShareableConversations() {
@@ -572,11 +573,17 @@ export async function getShareableConversations() {
       isGroup: true,
       name: true,
       members: {
-        select: { userId: true, e2eeEnabledAt: true, user: { select: { id: true, name: true, username: true } } },
+        select: {
+          userId: true,
+          e2eeEnabledAt: true,
+          user: { select: { id: true, name: true, username: true, status: true } },
+        },
       },
     },
   });
   const conversations = withoutSecretChats(rows);
+  // One query for every DM, not one per DM (a member with many chats waited on each before the sheet showed anything).
+  const blockedIds = await getBlockedEitherWayIds(user.id);
 
   const targets: { value: string; label: string; username: string | null }[] = [];
   for (const conv of conversations) {
@@ -586,7 +593,8 @@ export async function getShareableConversations() {
     }
     const other = conv.members.find((m) => m.userId !== user.id)?.user;
     if (!other) continue;
-    if (await isBlockedEitherWay(user.id, other.id)) continue;
+    // The same peers the send refuses (shareTargetRefusal): never offered, so a pick can't always fail.
+    if (blockedIds.has(other.id) || other.status !== "ACTIVE") continue;
     targets.push({ value: conv.id, label: other.name ?? "Unknown", username: other.username ?? null });
   }
   return { conversations: targets };
@@ -647,9 +655,14 @@ export async function getStory(storyId: string) {
  * always targets a DM with the story's author): the story-viewer's own "Share" action. Reuses Message.storyId, the
  * exact same field replyToStory sets, so each recipient sees the same inline story preview in chat-thread.tsx. The
  * story is checked once (unexpired, author not blocked either way); every destination on its own (sendToEachChat:
- * member, hidden-chat lock, blocks either way, active peer, `messageSend` per copy; never a secret chat). Like before,
- * the copy carries no text of the sharer's and sends no push. Answers counts only.
+ * member, hidden-chat lock, blocks either way, active peer, `messageSend` per copy; never a secret chat). The copy
+ * carries no text of the sharer's. Each copy is a normal message of the caller and gets the usual notifications
+ * (afterMessageSent: push, bell row, badges and the thread's realtime signal), the same as a shared post or Muse;
+ * without them the recipient's open chat, inbox and badges never learned the story had arrived. Answers counts only.
  */
+/** A shared story's message text: the inbox preview and the push body (the bubble shows its own story chip). */
+const STORY_SHARE_CONTENT = "Shared a story";
+
 export async function shareStoryToConversations(storyId: string, conversationIds: string[]) {
   const user = await requireVerifiedUser();
 
@@ -675,12 +688,19 @@ export async function shareStoryToConversations(storyId: string, conversationIds
       const created = await createNonE2eeMessage({
         conversationId: target.id,
         senderId: user.id,
-        content: "Shared a story",
+        content: STORY_SHARE_CONTENT,
         storyId: story.id,
         isForwardedStory: true,
       });
       if (created.error) return created.error;
-      revalidatePath(`/messages/${target.id}`);
+      await afterMessageSent({
+        user,
+        conversationId: target.id,
+        memberIds: target.members.map((m) => m.userId),
+        secret: false,
+        content: STORY_SHARE_CONTENT,
+        mediaType: "NONE",
+      });
       return null;
     },
   });

@@ -1300,7 +1300,8 @@ const sections: Section[] = [
             to forward it into one of their own DMs or group chats, not just
             the person who posted it. The recipient sees the actual Story in
             chat and can tap it to open it full-screen, the same view as the
-            Story tray, rather than just a text message about it.
+            Story tray, rather than just a text message about it. People you
+            share a Story with are notified, like for a normal message.
           </>
         ),
       },
