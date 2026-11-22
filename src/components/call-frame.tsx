@@ -12,6 +12,7 @@ import type {
 import { Capacitor } from "@capacitor/core";
 import { useCallsText } from "@/components/calls-text";
 import { trackDailyDestroy } from "@/lib/call-prewarm";
+import { canShareScreen } from "@/lib/screen-share-support";
 import { callsEn } from "@/lib/i18n/en/calls";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -122,13 +123,28 @@ export function CallFrame({
       // updateCustomTrayButtons — Daily removes any button whose key is
       // missing from a given update call, so the screen-share and audio
       // -output buttons must always be sent together or one wipes the other.
-      const trayButtons: DailyCustomTrayButtons = {
-        [SCREEN_SHARE_BUTTON_ID]: {
-          iconPath: SCREEN_SHARE_ICON,
-          label: textRef.current.calls.tray.shareScreen,
-          tooltip: textRef.current.calls.tray.shareScreenTip,
-        },
-      };
+      // Screen share only where it can work: never the native app's WebView or a mobile browser, which have no
+      // getDisplayMedia(), so the button used to be a dead click there (see screen-share-support.ts).
+      let dailySupportsScreenShare: boolean | null = null;
+      try {
+        dailySupportsScreenShare = DailyIframe.supportedBrowser().supportsScreenShare;
+      } catch {
+        dailySupportsScreenShare = null;
+      }
+      const screenShareSupported = canShareScreen({
+        isNativeApp: Capacitor.isNativePlatform(),
+        hasGetDisplayMedia: typeof navigator.mediaDevices?.getDisplayMedia === "function",
+        dailySupportsScreenShare,
+      });
+      const trayButtons: DailyCustomTrayButtons = screenShareSupported
+        ? {
+            [SCREEN_SHARE_BUTTON_ID]: {
+              iconPath: SCREEN_SHARE_ICON,
+              label: textRef.current.calls.tray.shareScreen,
+              tooltip: textRef.current.calls.tray.shareScreenTip,
+            },
+          }
+        : {};
 
       const call = DailyIframe.createFrame(containerRef.current, {
         showLeaveButton: true,
@@ -161,6 +177,12 @@ export function CallFrame({
       // customTrayButtons has no built-in toggle/pressed concept.
       syncScreenShareButton = () => {
         const sharing = Boolean(call.participants().local?.screen);
+        if (!screenShareSupported && !sharing) {
+          if (!(SCREEN_SHARE_BUTTON_ID in trayButtons)) return;
+          delete trayButtons[SCREEN_SHARE_BUTTON_ID];
+          call.updateCustomTrayButtons({ ...trayButtons });
+          return;
+        }
         const tray = textRef.current.calls.tray;
         trayButtons[SCREEN_SHARE_BUTTON_ID] = {
           iconPath: SCREEN_SHARE_ICON,
@@ -284,7 +306,7 @@ export function CallFrame({
         if (ev.button_id === SCREEN_SHARE_BUTTON_ID) {
           if (call.participants().local?.screen) {
             call.stopScreenShare();
-          } else {
+          } else if (screenShareSupported) {
             call.startScreenShare();
           }
           return;

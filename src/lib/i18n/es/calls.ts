@@ -151,6 +151,11 @@ export const calls: typeof callsEn = {
     switchCameraHint: "Cambiar entre la cámara frontal y la trasera",
     switchOutput: "Cambiar salida de audio",
     switchOutputHint: "Cambiar salida de audio (altavoz, auricular, audífonos...)",
+    screenShareErrors: {
+      failed: "No se pudo empezar a compartir la pantalla. Inténtalo de nuevo.",
+      system_denied: "Tu dispositivo bloqueó la pantalla compartida. Permite que tu navegador grabe la pantalla en la configuración del sistema y vuelve a intentarlo.",
+      unsupported: "Compartir pantalla no está disponible en este dispositivo.",
+    },
   },
   tray: {
     shareScreen: "Compartir pantalla",

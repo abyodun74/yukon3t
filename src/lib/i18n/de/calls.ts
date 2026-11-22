@@ -151,6 +151,11 @@ export const calls: typeof callsEn = {
     switchCameraHint: "Zwischen Frontkamera und Rückkamera wechseln",
     switchOutput: "Audioausgabe wechseln",
     switchOutputHint: "Audioausgabe wechseln (Lautsprecher, Hörmuschel, Kopfhörer...)",
+    screenShareErrors: {
+      failed: "Bildschirmfreigabe konnte nicht gestartet werden. Versuch es noch einmal.",
+      system_denied: "Dein Gerät hat die Bildschirmfreigabe blockiert. Erlaube deinem Browser in den Systemeinstellungen die Bildschirmaufnahme und versuch es dann noch einmal.",
+      unsupported: "Bildschirmfreigabe ist auf diesem Gerät nicht verfügbar.",
+    },
   },
   tray: {
     shareScreen: "Bildschirm teilen",

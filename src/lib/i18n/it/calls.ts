@@ -151,6 +151,11 @@ export const calls: typeof callsEn = {
     switchCameraHint: "Passa dalla fotocamera anteriore a quella posteriore",
     switchOutput: "Cambia uscita audio",
     switchOutputHint: "Cambia uscita audio (altoparlante, auricolare, cuffie...)",
+    screenShareErrors: {
+      failed: "Impossibile avviare la condivisione dello schermo. Riprova.",
+      system_denied: "Il tuo dispositivo ha bloccato la condivisione dello schermo. Consenti al browser di registrare lo schermo nelle impostazioni di sistema, poi riprova.",
+      unsupported: "La condivisione dello schermo non è disponibile su questo dispositivo.",
+    },
   },
   tray: {
     shareScreen: "Condividi schermo",

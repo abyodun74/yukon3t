@@ -61,7 +61,7 @@ export const sw4 = {
   },
   "share-screen-upload-material-during": {
     q: "Naweza kushiriki skrini yangu au kupakia nyenzo wakati wa kipindi cha Collab?",
-    a: "Gusa ikoni ya skrini kwenye vidhibiti vya simu (au menyu ya «…» ya chaguo zaidi za simu, ikiwa upau ni mwembamba mno kuonyesha ikoni zote) ili kushiriki skrini yako na kila mtu kwenye kipindi. Hufanya kazi tu kutoka kwenye kivinjari cha kompyuta: vivinjari vya simu na programu ya Android iliyosakinishwa haviwezi kuupa ukurasa ruhusa ya kunasa skrini; ni kikwazo cha jumla cha vivinjari vya simu, si cha YuKon3t pekee. Kwa nyaraka au picha, gusa badala yake ikoni ya kupakia iliyo karibu na vitufe vya kutoka na kupunguza: faili hufunguka mara moja kama paneli ya pamoja kwa kila mtu aliye kwenye simu wakati huo, na baadaye huchapishwa kwenye gumzo la ushirikiano kwa atakayejiunga baadaye.",
+    a: "Gusa ikoni ya skrini kwenye vidhibiti vya simu (au menyu ya «…» ya chaguo zaidi za simu, ikiwa upau ni mwembamba mno kuonyesha ikoni zote) ili kushiriki skrini yako na kila mtu kwenye kipindi. Hufanya kazi tu kutoka kwenye kivinjari cha kompyuta: vivinjari vya simu na programu ya YuKon3t ya Android na iPhone haviwezi kunasa skrini kwa ajili ya simu, kwa hiyo ikoni haionekani humo; ni kikwazo cha jumla cha simu, si cha YuKon3t pekee. Kwa nyaraka au picha, gusa badala yake ikoni ya kupakia iliyo karibu na vitufe vya kutoka na kupunguza: faili hufunguka mara moja kama paneli ya pamoja kwa kila mtu aliye kwenye simu wakati huo, na baadaye huchapishwa kwenye gumzo la ushirikiano kwa atakayejiunga baadaye.",
   },
   "leave-collab-session": {
     q: "Ninatokaje kwenye kipindi cha Collab?",

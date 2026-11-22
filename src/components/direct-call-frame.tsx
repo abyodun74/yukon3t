@@ -35,6 +35,7 @@ import { useCallSession } from "@/lib/call-session";
 import { useCallCaptions } from "@/lib/use-call-captions";
 import { CallCaptionsButton, CallCaptionsLayer } from "@/components/call-captions";
 import { trackIsOn } from "@/lib/daily-tracks";
+import { useScreenShareFailure, useScreenShareSupport } from "@/lib/use-screen-share-support";
 
 /** Same heuristic as call-frame.tsx's audio-output switcher — deviceId/ordering aren't reliable, the label is. */
 function isSpeakerDevice(device: MediaDeviceInfo) {
@@ -803,6 +804,11 @@ export function DirectCallFrame({
   const localAudioOn = Boolean(local && trackIsOn(local.tracks.audio.state));
   const localVideoOn = Boolean(local && trackIsOn(local.tracks.video.state));
   const localScreenSharing = Boolean(local && trackIsOn(local.tracks.screenVideo.state));
+  // Offered only where getDisplayMedia() exists (desktop browsers): never in the native app's WebView or a mobile
+  // browser, where Daily's startScreenShare() can only fail (see screen-share-support.ts). A share already running
+  // always keeps its Stop button.
+  const screenShareSupported = useScreenShareSupport();
+  const screenShareFailure = useScreenShareFailure(callObject);
 
   // Live translated captions: 1:1 only (never once people were added), and only this side's own mic, and only while
   // it is on and the call isn't on hold.
@@ -1077,7 +1083,16 @@ export function DirectCallFrame({
         className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center pb-[calc(4.25rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] sm:pb-[calc(0.75rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]"
       >
         {/* chrome-scale: an icon-only row that can't wrap — see globals.css. */}
-        <div className="hig-material-dark chrome-scale pointer-events-auto flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-md px-3 py-2">
+        <div className="hig-material-dark chrome-scale pointer-events-auto relative flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-md px-3 py-2">
+          {/* A share that couldn't start (Daily only says so through "nonfatal-error"; see useScreenShareFailure). */}
+          {screenShareFailure && !minimized && (
+            <span
+              role="alert"
+              className="pointer-events-none absolute bottom-full left-1/2 mb-2 w-max max-w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl bg-black/80 px-3 py-1.5 text-center text-xs text-white"
+            >
+              {controls.screenShareErrors[screenShareFailure]}
+            </span>
+          )}
           <button
             type="button"
             onClick={toggleAudio}
@@ -1127,16 +1142,18 @@ export function DirectCallFrame({
             disabled={reconnecting}
             onRequestOn={() => setConfirmingCaptions(true)}
           />
-          <button
-            type="button"
-            onClick={toggleScreenShare}
-            disabled={isOnHold || reconnecting}
-            title={localScreenSharing ? controls.stopSharing : controls.shareScreen}
-            aria-label={localScreenSharing ? controls.stopSharingScreen : controls.shareScreen}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"}`}
-          >
-            {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
-          </button>
+          {(screenShareSupported || localScreenSharing) && (
+            <button
+              type="button"
+              onClick={toggleScreenShare}
+              disabled={isOnHold || reconnecting}
+              title={localScreenSharing ? controls.stopSharing : controls.shareScreen}
+              aria-label={localScreenSharing ? controls.stopSharingScreen : controls.shareScreen}
+              className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform active:scale-90 disabled:opacity-50 ${localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"}`}
+            >
+              {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
+            </button>
+          )}
           {/* isNativeApp is the primary signal (see above) — always shown
               in the actual mobile app. cameraCount/canFlipFacingMode are
               the fallback for a browser tab, where hardware isn't a given.

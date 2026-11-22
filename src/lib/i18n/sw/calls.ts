@@ -151,6 +151,11 @@ export const calls: typeof callsEn = {
     switchCameraHint: "Badilisha kati ya kamera ya mbele na ya nyuma",
     switchOutput: "Badilisha pato la sauti",
     switchOutputHint: "Badilisha pato la sauti (spika, kipokea sauti, vipokea sauti vya masikioni...)",
+    screenShareErrors: {
+      failed: "Imeshindikana kuanza kushiriki skrini. Jaribu tena.",
+      system_denied: "Kifaa chako kimezuia kushiriki skrini. Ruhusu kivinjari chako kurekodi skrini kwenye mipangilio ya mfumo, kisha ujaribu tena.",
+      unsupported: "Kushiriki skrini hakupatikani kwenye kifaa hiki.",
+    },
   },
   tray: {
     shareScreen: "Shiriki skrini",

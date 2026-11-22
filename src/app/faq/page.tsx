@@ -1854,6 +1854,24 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "share-screen-during-call",
+        q: "Can I share my screen during a call?",
+        a: (
+          <>
+            Yes, from a computer&apos;s web browser: tap the screen icon in
+            the call controls and choose what to share. The other person
+            sees your screen instead of your camera until you tap it again
+            to stop sharing. Putting the call on hold also stops sharing. In
+            phone browsers and in the YuKon3t app for Android and iPhone the
+            icon doesn&apos;t appear, because phones don&apos;t let a call
+            capture the screen this way. You still see a screen someone else
+            shares there. If your computer blocks the capture (for example on
+            a Mac where your browser doesn&apos;t have the Screen Recording
+            permission), a message tells you how to allow it.
+          </>
+        ),
+      },
+      {
         id: "live-translated-captions-call",
         q: "Can I get live translated captions during a call?",
         a: (
@@ -2543,9 +2561,10 @@ const sections: Section[] = [
             &ldquo;…&rdquo; More menu, if the tray is too narrow to show every
             icon) to share your screen with everyone in the session. This
             only works from a desktop browser — phone browsers and the
-            installed Android app can&apos;t grant screen-capture permission
-            to a page at all, a limitation of mobile browsers generally, not
-            something specific to YuKon3t. For documents or images, tap the
+            YuKon3t app for Android and iPhone can&apos;t capture the screen
+            for a call, so the icon doesn&apos;t appear there, a limitation of
+            phones generally, not something specific to YuKon3t. For
+            documents or images, tap the
             upload icon next to Leave/Minimize instead — the file opens
             immediately as a shared panel for everyone currently in the call,
             and stays posted in the collaboration&apos;s chat afterward for

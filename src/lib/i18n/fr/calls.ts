@@ -151,6 +151,11 @@ export const calls: typeof callsEn = {
     switchCameraHint: "Basculer entre la caméra avant et la caméra arrière",
     switchOutput: "Changer de sortie audio",
     switchOutputHint: "Changer de sortie audio (haut-parleur, écouteur, casque...)",
+    screenShareErrors: {
+      failed: "Impossible de lancer le partage d'écran. Réessayez.",
+      system_denied: "Votre appareil a bloqué le partage d'écran. Autorisez votre navigateur à enregistrer l'écran dans les réglages du système, puis réessayez.",
+      unsupported: "Le partage d'écran n'est pas disponible sur cet appareil.",
+    },
   },
   tray: {
     shareScreen: "Partager l'écran",

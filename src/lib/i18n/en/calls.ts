@@ -159,6 +159,12 @@ export const callsEn = {
     switchCameraHint: "Switch between front and back camera",
     switchOutput: "Switch audio output",
     switchOutputHint: "Switch audio output (speaker, earpiece, headset...)",
+    // A screen share that couldn't start (src/lib/screen-share-support.ts screenShareFailure).
+    screenShareErrors: {
+      failed: "Couldn't start screen sharing. Try again.",
+      system_denied: "Your device blocked screen sharing. Allow your browser to record the screen in your system settings, then try again.",
+      unsupported: "Screen sharing isn't available on this device.",
+    },
   },
   // The buttons this app adds to the call provider's own tray (Circle voice rooms, Collab sessions). That tray has
   // no Arabic, Hindi or Swahili, so in those these are shown in English with the rest of it (see call-frame.tsx).

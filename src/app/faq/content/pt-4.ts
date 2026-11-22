@@ -61,7 +61,7 @@ export const pt4 = {
   },
   "share-screen-upload-material-during": {
     q: "Posso compartilhar minha tela ou enviar material durante uma sessão do Collab?",
-    a: "Toque no ícone de tela nos controles da chamada (ou no menu «…» de mais opções da chamada, se a barra for estreita demais para mostrar todos os ícones) para compartilhar sua tela com todos na sessão. Isso só funciona em um navegador de computador: os navegadores de celular e o aplicativo instalado para Android não conseguem conceder a uma página a permissão de captura de tela; é uma limitação dos navegadores de celular em geral, não algo específico do YuKon3t. Para documentos ou imagens, toque no ícone de envio ao lado dos botões de sair e minimizar: o arquivo abre imediatamente como um painel compartilhado para todos que estão na chamada naquele momento, e depois fica publicado na conversa da colaboração para quem entrar mais tarde.",
+    a: "Toque no ícone de tela nos controles da chamada (ou no menu «…» de mais opções da chamada, se a barra for estreita demais para mostrar todos os ícones) para compartilhar sua tela com todos na sessão. Isso só funciona em um navegador de computador: os navegadores de celular e o aplicativo do YuKon3t para Android e iPhone não conseguem capturar a tela para uma chamada, então o ícone não aparece neles; é uma limitação dos celulares em geral, não algo específico do YuKon3t. Para documentos ou imagens, toque no ícone de envio ao lado dos botões de sair e minimizar: o arquivo abre imediatamente como um painel compartilhado para todos que estão na chamada naquele momento, e depois fica publicado na conversa da colaboração para quem entrar mais tarde.",
   },
   "leave-collab-session": {
     q: "Como saio de uma sessão do Collab?",

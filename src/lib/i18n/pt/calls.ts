@@ -151,6 +151,11 @@ export const calls: typeof callsEn = {
     switchCameraHint: "Alternar entre a câmera frontal e a traseira",
     switchOutput: "Trocar saída de áudio",
     switchOutputHint: "Trocar saída de áudio (alto-falante, auricular, fone de ouvido...)",
+    screenShareErrors: {
+      failed: "Não foi possível começar a compartilhar a tela. Tente de novo.",
+      system_denied: "Seu dispositivo bloqueou o compartilhamento de tela. Permita que o navegador grave a tela nas configurações do sistema e tente de novo.",
+      unsupported: "O compartilhamento de tela não está disponível neste dispositivo.",
+    },
   },
   tray: {
     shareScreen: "Compartilhar tela",

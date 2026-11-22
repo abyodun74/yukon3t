@@ -8,6 +8,7 @@ import { format } from "@/lib/i18n/locales";
 import { createCallObjectWhenReady, trackDailyDestroy } from "@/lib/call-prewarm";
 import { trackIsOn } from "@/lib/daily-tracks";
 import { stageGrid, stageQuality } from "@/lib/live-stage";
+import { useScreenShareFailure, useScreenShareSupport } from "@/lib/use-screen-share-support";
 
 const LANDSCAPE_QUERY = "(orientation: landscape)";
 function subscribeOrientation(onChange: () => void) {
@@ -65,6 +66,8 @@ export function LiveVideoFrame({
   const { t: calls } = useCallsText();
   const controls = calls.controls;
   const callRef = useRef<DailyCall | null>(null);
+  // The same call object as callRef, as state, for useScreenShareFailure's event subscription.
+  const [callObject, setCallObject] = useState<DailyCall | null>(null);
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
   // join() rejecting (bad token, expired room, network drop) previously had
   // nowhere to go — CallFrame's own join() call has the same gap, but
@@ -116,6 +119,7 @@ export function LiveVideoFrame({
       }
       call = created;
       callRef.current = call;
+      setCallObject(call);
 
       call.on("participant-joined", refreshParticipants);
       call.on("participant-updated", refreshParticipants);
@@ -157,6 +161,7 @@ export function LiveVideoFrame({
         onCallObject?.(null);
         void trackDailyDestroy(c.destroy());
         callRef.current = null;
+        setCallObject(null);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,6 +177,9 @@ export function LiveVideoFrame({
   const localAudioOn = Boolean(local && trackIsOn(local.tracks.audio.state));
   const localVideoOn = Boolean(local && trackIsOn(local.tracks.video.state));
   const localScreenSharing = Boolean(local && trackIsOn(local.tracks.screenVideo.state));
+  // Desktop browsers only, as in direct-call-frame.tsx: never the native app or a mobile browser (screen-share-support.ts).
+  const screenShareSupported = useScreenShareSupport();
+  const screenShareFailure = useScreenShareFailure(callObject);
 
   const toggleAudio = useCallback(() => {
     callRef.current?.setLocalAudio(!localAudioOn);
@@ -275,7 +283,15 @@ export function LiveVideoFrame({
           style={{ paddingBottom: "calc(0.75rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
         >
           {/* chrome-scale: an icon-only row that can't wrap — see globals.css. */}
-          <div className="chrome-scale pointer-events-auto flex items-center gap-2 rounded-full hig-material-dark bg-black/60 backdrop-blur-md px-3 py-2">
+          <div className="chrome-scale pointer-events-auto relative flex items-center gap-2 rounded-full hig-material-dark bg-black/60 backdrop-blur-md px-3 py-2">
+            {screenShareFailure && (
+              <span
+                role="alert"
+                className="pointer-events-none absolute bottom-full left-1/2 mb-2 w-max max-w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl bg-black/80 px-3 py-1.5 text-center text-xs text-white"
+              >
+                {controls.screenShareErrors[screenShareFailure]}
+              </span>
+            )}
             <button
               type="button"
               onClick={toggleAudio}
@@ -298,17 +314,19 @@ export function LiveVideoFrame({
             >
               {localVideoOn ? <Video size={16} /> : <VideoOff size={16} />}
             </button>
-            <button
-              type="button"
-              onClick={toggleScreenShare}
-              title={localScreenSharing ? controls.stopSharing : controls.shareScreen}
-              aria-label={localScreenSharing ? controls.stopSharingScreen : controls.shareScreen}
-              className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${
-                localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"
-              }`}
-            >
-              {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
-            </button>
+            {(screenShareSupported || localScreenSharing) && (
+              <button
+                type="button"
+                onClick={toggleScreenShare}
+                title={localScreenSharing ? controls.stopSharing : controls.shareScreen}
+                aria-label={localScreenSharing ? controls.stopSharingScreen : controls.shareScreen}
+                className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${
+                  localScreenSharing ? "bg-accent text-accent-ink" : "bg-white/20"
+                }`}
+              >
+                {localScreenSharing ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
+              </button>
+            )}
           </div>
         </div>
       )}
