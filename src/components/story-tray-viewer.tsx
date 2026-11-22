@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
+import { PageMediaHold } from "@/components/page-media-hold";
 import { useViewerHistory } from "@/lib/viewer-history";
 
 export type StoryTrayAuthorGroup = {
@@ -78,20 +79,24 @@ export function StoryTrayViewer({
   }
 
   return (
-    <StoryViewer
-      key={group.authorId}
-      stories={group.stories}
-      startIndex={authorIndex === startAuthorIndex ? startStoryIndex : 0}
-      authorId={group.authorId}
-      authorName={group.authorName}
-      authorAvatarUrl={group.authorAvatarUrl}
-      isOwner={group.isMe}
-      currentUserId={currentUserId}
-      direction={direction}
-      onNextAuthor={goToNextAuthor}
-      onPrevAuthor={goToPrevAuthor}
-      onClose={close}
-      onNavigate={navigate}
-    />
+    <>
+      {/* Outside the per-person key: one hold for the viewer's whole life (see PageMediaHold). */}
+      <PageMediaHold />
+      <StoryViewer
+        key={group.authorId}
+        stories={group.stories}
+        startIndex={authorIndex === startAuthorIndex ? startStoryIndex : 0}
+        authorId={group.authorId}
+        authorName={group.authorName}
+        authorAvatarUrl={group.authorAvatarUrl}
+        isOwner={group.isMe}
+        currentUserId={currentUserId}
+        direction={direction}
+        onNextAuthor={goToNextAuthor}
+        onPrevAuthor={goToPrevAuthor}
+        onClose={close}
+        onNavigate={navigate}
+      />
+    </>
   );
 }

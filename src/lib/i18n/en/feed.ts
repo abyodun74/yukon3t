@@ -284,6 +284,9 @@ export const feedEn = {
       previous: "Previous story",
       next: "Next story",
       play: "Play story",
+      tapToPlay: "Tap to play",
+      tapForSound: "Tap for sound",
+      videoCantPlay: "This video can't be played on this device.",
       pause: "Pause story",
       delete: "Delete story",
       deleteConfirm: "Delete this story?",
@@ -338,6 +341,10 @@ export const feedEn = {
       alreadyPosted: "Already posted",
       museHeld: "Posted. It shows on Muse once our video check is done.",
       repostOff: "Reposting is turned off for this Story.",
+      museLengthUnknown: "This video's length couldn't be read, so it can't go to Muse. Feed and Circles still work.",
+      museTooLong: "This video is longer than Muse allows (5 minutes), so it can't go to Muse.",
+      // A Story with a Muse's sound track (Story.audioUrl): what a Feed / Circle / Muse copy gets.
+      soundTrackPostNote: "This Story has an added sound track. A copy on your feed or in a Circle plays the video's original sound instead (posts have no separate sound track); a copy on Muse keeps it.",
       chooseCircle: "Choose a Circle",
       repostErrors: {
         invalid: "Couldn't post that — try again.",

@@ -64,8 +64,8 @@ export async function findReferencedUrls(urls: string[]): Promise<Set<string>> {
       select: { mediaUrl: true, mediaThumbnailUrl: true },
     }),
     prisma.story.findMany({
-      where: { OR: [{ mediaUrl: inList }, { mediaThumbnailUrl: inList }] },
-      select: { mediaUrl: true, mediaThumbnailUrl: true },
+      where: { OR: [{ mediaUrl: inList }, { mediaThumbnailUrl: inList }, { audioUrl: inList }] },
+      select: { mediaUrl: true, mediaThumbnailUrl: true, audioUrl: true },
     }),
     prisma.muse.findMany({
       where: { OR: [{ videoUrl: inList }, { videoThumbnailUrl: inList }, { audioUrl: inList }] },
@@ -87,7 +87,7 @@ export async function findReferencedUrls(urls: string[]): Promise<Set<string>> {
   }
   for (const r of comments) [r.videoUrl, r.videoThumbnailUrl, r.audioUrl].forEach(note);
   for (const r of messages) [r.mediaUrl, r.mediaThumbnailUrl].forEach(note);
-  for (const r of stories) [r.mediaUrl, r.mediaThumbnailUrl].forEach(note);
+  for (const r of stories) [r.mediaUrl, r.mediaThumbnailUrl, r.audioUrl].forEach(note);
   for (const r of muses) [r.videoUrl, r.videoThumbnailUrl, r.audioUrl].forEach(note);
   for (const r of ads) note(r.mediaUrl);
   for (const r of conversions) note(r.sourceUrl);

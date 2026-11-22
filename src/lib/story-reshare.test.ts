@@ -6,9 +6,14 @@ import {
   storyRepostFeedAudience,
   storyRepostRequestId,
   storyRepostText,
+  storyMuseBlock,
+  storyHasSoundTrack,
   storyReshareOptions,
+  storyVideoSeconds,
   STORY_RESHARE_ERRORS,
+  STORY_TO_MUSE_MAX_SECONDS,
 } from "@/lib/story-reshare";
+import { MAX_MUSE_VIDEO_DURATION_SECONDS, MAX_STORY_VIDEO_SECONDS, storyVideoOverCap } from "@/lib/storage";
 import { DICTIONARIES } from "@/lib/i18n/dictionaries";
 
 const photo = { mediaType: "IMAGE" as const, mediaUrl: "https://m/x.jpg", videoDurationSeconds: null, embedProvider: null, embedId: null };
@@ -54,29 +59,60 @@ describe("storyRepostText", () => {
 });
 
 describe("storyMediaCopyable / storyReshareOptions", () => {
-  it("needs a video's length, an embed's provider + id, a photo's URL", () => {
+  it("needs a photo's or video's file (any length, known or not) and an embed's provider + id", () => {
     expect(storyMediaCopyable(photo)).toBe(true);
     expect(storyMediaCopyable(clip(30))).toBe(true);
-    expect(storyMediaCopyable(clip(null))).toBe(false);
-    expect(storyMediaCopyable(clip(0))).toBe(false);
+    expect(storyMediaCopyable(clip(120))).toBe(true);
+    expect(storyMediaCopyable(clip(null))).toBe(true);
+    expect(storyMediaCopyable({ ...clip(30), mediaUrl: null })).toBe(false);
     expect(storyMediaCopyable(embed)).toBe(true);
     expect(storyMediaCopyable({ ...embed, embedId: null })).toBe(false);
   });
 
-  const base = { own: false, authorAllowsReposts: true, authorPostsVisibility: "PUBLIC" };
-  it("offers Muse only for a video or an embed", () => {
-    expect(storyReshareOptions({ ...base, media: photo })).toEqual({ feed: true, muse: false, circle: true, reason: null });
-    expect(storyReshareOptions({ ...base, media: clip(30) })).toEqual({ feed: true, muse: true, circle: true, reason: null });
-    expect(storyReshareOptions({ ...base, media: embed })).toEqual({ feed: true, muse: true, circle: true, reason: null });
+  it("reads a usable length only (null, 0, negative and NaN are unknown)", () => {
+    expect(storyVideoSeconds(clip(42))).toBe(42);
+    for (const bad of [null, 0, -3, Number.NaN]) expect(storyVideoSeconds(clip(bad))).toBeNull();
   });
-  it("offers nothing for an opted-out author (except to the author) or an uncopyable video", () => {
+
+  it("says why a Story can't become a Muse", () => {
+    expect(storyMuseBlock(photo)).toBe("photo");
+    expect(storyMuseBlock(embed)).toBeNull();
+    expect(storyMuseBlock(clip(120))).toBeNull();
+    expect(storyMuseBlock(clip(null))).toBe("length_unknown");
+    expect(storyMuseBlock(clip(STORY_TO_MUSE_MAX_SECONDS))).toBeNull();
+    expect(storyMuseBlock(clip(STORY_TO_MUSE_MAX_SECONDS + 1))).toBe("too_long");
+    expect(STORY_TO_MUSE_MAX_SECONDS).toBe(MAX_MUSE_VIDEO_DURATION_SECONDS);
+  });
+
+  const base = { own: false, authorAllowsReposts: true, authorPostsVisibility: "PUBLIC" };
+  const offered = (muse: boolean, museBlocked: "length_unknown" | "too_long" | null = null) => ({
+    feed: true,
+    muse,
+    circle: true,
+    reason: null,
+    museBlocked,
+    soundTrackNote: false,
+  });
+  it("offers Muse only for a video of known length or an embed", () => {
+    expect(storyReshareOptions({ ...base, media: photo })).toEqual(offered(false));
+    expect(storyReshareOptions({ ...base, media: clip(30) })).toEqual(offered(true));
+    expect(storyReshareOptions({ ...base, media: clip(120) })).toEqual(offered(true));
+    expect(storyReshareOptions({ ...base, media: embed })).toEqual(offered(true));
+  });
+  it("still offers Feed and Circles for a video whose length is unknown, and says why Muse isn't there", () => {
+    expect(storyReshareOptions({ ...base, media: clip(null) })).toEqual(offered(false, "length_unknown"));
+    expect(storyReshareOptions({ ...base, media: clip(400) })).toEqual(offered(false, "too_long"));
+  });
+  it("offers nothing for an opted-out author (except to the author) or media with no file", () => {
     expect(storyReshareOptions({ ...base, authorAllowsReposts: false, media: photo }).reason).toBe("opted_out");
     expect(storyReshareOptions({ ...base, own: true, authorAllowsReposts: false, media: photo }).feed).toBe(true);
-    expect(storyReshareOptions({ ...base, media: clip(null) })).toEqual({
+    expect(storyReshareOptions({ ...base, media: { ...clip(30), mediaUrl: null } })).toEqual({
       feed: false,
       muse: false,
       circle: false,
       reason: "unsupported_media",
+      museBlocked: null,
+      soundTrackNote: false,
     });
   });
   it("keeps someone else's Friends-only Story to the Feed (Muse and Circles would widen its audience)", () => {
@@ -85,10 +121,41 @@ describe("storyMediaCopyable / storyReshareOptions", () => {
       muse: false,
       circle: false,
       reason: null,
+      museBlocked: null,
+      soundTrackNote: false,
     });
+    // No Muse note either: Muse is off for the audience, not the video.
+    expect(storyReshareOptions({ ...base, authorPostsVisibility: "CONNECTIONS_ONLY", media: clip(null) }).museBlocked).toBeNull();
     expect(storyReshareOptions({ ...base, own: true, authorPostsVisibility: "CONNECTIONS_ONLY", media: clip(30) }).muse).toBe(
       true,
     );
+  });
+});
+
+describe("a Muse's sound track on a Story (Story.audioUrl)", () => {
+  const base = { own: false, authorAllowsReposts: true, authorPostsVisibility: "PUBLIC" };
+  const withTrack = { ...clip(30), audioUrl: "https://m/track.mp3" };
+  it("is a video Story's only", () => {
+    expect(storyHasSoundTrack(withTrack)).toBe(true);
+    expect(storyHasSoundTrack(clip(30))).toBe(false);
+    expect(storyHasSoundTrack({ ...withTrack, audioUrl: null })).toBe(false);
+    expect(storyHasSoundTrack({ ...photo, audioUrl: "https://m/track.mp3" })).toBe(false);
+  });
+  it("makes the sheet say a Feed / Circle copy plays the video's own sound, and never when nothing is offered", () => {
+    expect(storyReshareOptions({ ...base, media: withTrack })).toMatchObject({ feed: true, muse: true, soundTrackNote: true });
+    expect(storyReshareOptions({ ...base, media: clip(30) }).soundTrackNote).toBe(false);
+    expect(storyReshareOptions({ ...base, authorAllowsReposts: false, media: withTrack }).soundTrackNote).toBe(false);
+  });
+});
+
+describe("storyVideoOverCap (createStory's server-side cap)", () => {
+  it("refuses only a known length past the cap plus one second of rounding grace", () => {
+    expect(MAX_STORY_VIDEO_SECONDS).toBe(120);
+    expect(storyVideoOverCap(120)).toBe(false);
+    expect(storyVideoOverCap(121)).toBe(false);
+    expect(storyVideoOverCap(122)).toBe(true);
+    expect(storyVideoOverCap(600)).toBe(true);
+    for (const unknown of [null, undefined, Number.NaN]) expect(storyVideoOverCap(unknown)).toBe(false);
   });
 });
 
@@ -96,13 +163,28 @@ describe("wording in every language", () => {
   it("has a sheet row, the 'copy stays' line and a sentence for every refusal", () => {
     for (const [locale, dictionary] of Object.entries(DICTIONARIES)) {
       const sheet = dictionary.feed.stories.shareSheet;
-      for (const key of ["sendToChats", "toFeed", "toMuse", "toCircle", "copyStays", "posted", "alreadyPosted", "repostOff"] as const) {
+      for (const key of [
+        "sendToChats",
+        "toFeed",
+        "toMuse",
+        "toCircle",
+        "copyStays",
+        "posted",
+        "alreadyPosted",
+        "repostOff",
+        "museLengthUnknown",
+        "museTooLong",
+        "soundTrackPostNote",
+      ] as const) {
         expect(sheet[key].trim(), `${locale} ${key}`).not.toBe("");
       }
       for (const code of [...STORY_RESHARE_ERRORS, "other"] as const) {
         expect(sheet.repostErrors[code].trim(), `${locale} ${code}`).not.toBe("");
       }
-      expect(dictionary.muse.share.storySoundNote.trim(), locale).not.toBe("");
+      // A Story keeps a Muse's sound track now: the old "the added sound track isn't included" note is gone.
+      expect("storySoundNote" in dictionary.muse.share, locale).toBe(false);
+      // The share-target's wording for a video createStory measured over the cap.
+      expect(dictionary.shell.shareTarget.postErrors.videoTooLong.trim(), locale).not.toBe("");
       expect(dictionary.settings.privacy.allowStoryReposts.trim(), locale).not.toBe("");
       expect(dictionary.settings.privacy.allowStoryRepostsHint.trim(), locale).not.toBe("");
     }
@@ -121,14 +203,40 @@ describe("the sheets", () => {
     expect(sheet).toContain("useBackDismiss(open, close)");
     expect(sheet).toContain("useDialogFocus<HTMLDivElement>(open, close)");
     expect(sheet).toContain("onOpenChange?.(true)");
+    // A video without a Muse row says why.
+    expect(sheet).toContain("text.museLengthUnknown");
+    expect(sheet).toContain("text.museTooLong");
   });
 
-  it("lets an embedded-video post go to a Story, and notes a Muse's sound track when it goes to one", () => {
+  it("marks a video or embed Story in a chat with a play sign", () => {
+    const thread = readFileSync("src/components/chat-thread.tsx", "utf8");
+    expect(thread).toContain('message.story.mediaType !== "IMAGE" && (');
+  });
+
+  it("lets an embedded-video post go to a Story, and keeps a Muse's sound track on one (no 'left out' note)", () => {
     expect(readFileSync("src/components/share-modal.tsx", "utf8")).toContain(
       'mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "EMBED"',
     );
-    expect(readFileSync("src/components/muse-share-modal.tsx", "utf8")).toContain("t.storySoundNote");
-    expect(readFileSync("src/components/muse-feed.tsx", "utf8")).toContain("hasSoundTrack={Boolean(displayedShareMuse.audioUrl)}");
+    expect(readFileSync("src/components/muse-share-modal.tsx", "utf8")).not.toMatch(/storySoundNote|hasSoundTrack/);
+    expect(readFileSync("src/components/muse-feed.tsx", "utf8")).not.toContain("hasSoundTrack");
+    const muse = readFileSync("src/app/actions/muse.ts", "utf8");
+    expect(muse).toContain("audioUrl: muse.audioUrl,");
+    expect(muse).not.toContain("soundTrackLeftOut");
+    // The Story sheet says what a Feed / Circle copy of such a Story gets.
+    expect(sheet).toContain("text.soundTrackPostNote");
+  });
+
+  it("covers a Story's sound track in every media reference and cleanup path", () => {
+    expect(readFileSync("src/lib/upload-records.ts", "utf8")).toContain(
+      "for (const r of stories) [r.mediaUrl, r.mediaThumbnailUrl, r.audioUrl].forEach(note);",
+    );
+    expect(readFileSync("src/app/api/cron/expire-stories/route.ts", "utf8")).toContain(
+      "[s.mediaUrl, s.mediaThumbnailUrl, s.audioUrl]",
+    );
+    expect(readFileSync("src/app/actions/stories.ts", "utf8")).toContain(
+      "deleteMediaIfUnreferenced([story.mediaUrl, story.mediaThumbnailUrl, story.audioUrl])",
+    );
+    expect(readFileSync("src/lib/account-media.ts", "utf8")).toContain("[s.mediaUrl, s.mediaThumbnailUrl, s.audioUrl]");
   });
 
   it("keeps a public Circle post's Share sheet reachable (only members-only posts hide it)", () => {
@@ -141,9 +249,12 @@ describe("the sheets", () => {
   it("records a video Story's length everywhere a Story is made", () => {
     expect(readFileSync("src/components/story-upload-modal.tsx", "utf8")).toContain('fd.set("videoDurationSeconds"');
     expect(readFileSync("src/components/share-target-gate.tsx", "utf8")).toContain('fd.set("videoDurationSeconds"');
-    expect(readFileSync("src/app/actions/stories.ts", "utf8")).toContain(
-      'videoDurationSeconds: mediaType === "VIDEO" ? videoDurationSeconds : undefined',
-    );
+    const stories = readFileSync("src/app/actions/stories.ts", "utf8");
+    expect(stories).toContain('videoDurationSeconds: mediaType === "VIDEO" ? storedDurationSeconds : undefined');
+    // The server measures the stored file; the phone's length is the fallback when it can't be measured.
+    expect(stories).toContain("(await probeStoredVideoSeconds(mediaUrl)) ?? videoDurationSeconds");
+    // Every composer's probe falls back to the MP4/MOV container when the <video> element can't say.
+    expect(readFileSync("src/lib/upload-client.ts", "utf8")).toContain("readMp4DurationSeconds(blobByteReader(file), file.size)");
     expect(readFileSync("src/app/actions/shares.ts", "utf8")).toContain("videoDurationSeconds: root.videoDurationSeconds ?? undefined");
     expect(readFileSync("src/app/actions/muse.ts", "utf8")).toContain("videoDurationSeconds: muse.videoDurationSeconds,");
   });

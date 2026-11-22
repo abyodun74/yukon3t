@@ -19,7 +19,7 @@ import {
   requestIgnoreBatteryOptimizationsOnce,
 } from "@/lib/call-foreground-native";
 import { startScreenCaptureWatch, stopScreenCaptureWatch } from "@/lib/screen-capture-guard";
-import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
+import { beginCallMediaHold, endCallMediaHold } from "@/lib/video-playback-guard";
 import { useReloadHold } from "@/lib/stale-build-client";
 import { sessionNeedsWakeLock } from "@/lib/call-resilience";
 
@@ -142,6 +142,9 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     dailyCallRef.current = dailyCall;
   });
   const reconnectingRef = useRef(false);
+  // Whether this provider holds the page's media for a call (beginCallMediaHold): taken once per session, released
+  // once, however many times a start (a new call replacing one) or an end (several leave paths) runs.
+  const callMediaHeldRef = useRef(false);
   // A stale-build reload would hang up the call or drop the live stream.
   useReloadHold("call", session !== null);
 
@@ -166,8 +169,12 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     // (via CallButton, which has no "ringing" state of its own and only
     // ever reaches this point) — confirmed live that pausing only from
     // the ringing side left a playing video fighting the call's own
-    // audio for whoever placed the call.
-    pauseAllPlayingVideos();
+    // audio for whoever placed the call. beginCallMediaHold also holds a
+    // full-screen viewer's own video (a Story) the plain pause can't reach.
+    if (!callMediaHeldRef.current) {
+      callMediaHeldRef.current = true;
+      beginCallMediaHold();
+    }
   }, []);
 
   const endSession = useCallback(() => {
@@ -176,7 +183,10 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     setDailyCall(null);
     stopActiveCallForeground();
     stopScreenCaptureWatch();
-    resumePausedVideos();
+    if (callMediaHeldRef.current) {
+      callMediaHeldRef.current = false;
+      endCallMediaHold();
+    }
   }, []);
 
   const hangUp = useCallback(() => {

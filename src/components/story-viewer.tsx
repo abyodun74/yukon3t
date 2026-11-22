@@ -4,7 +4,7 @@ import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, Eye, Trash2, Send, MessageCircle, Pause, Play, Heart } from "lucide-react";
+import { X, Eye, Trash2, Send, MessageCircle, Pause, Play, Heart, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserLink, UserAvatar } from "@/components/user-link";
 import {
@@ -23,7 +23,6 @@ import { optimisticStoryLike, settleStoryLike } from "@/lib/story-likes";
 import { hapticImpact } from "@/lib/haptics";
 import { StoryShareButton } from "@/components/story-share-button";
 import { StoryCaption } from "@/components/story-caption";
-import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
 import { formatDateTime, formatShortAge } from "@/lib/format-date";
 import { useScreenshotContext } from "@/lib/screenshot-context";
 import { QUICK_REACTIONS } from "@/lib/emoji";
@@ -53,6 +52,16 @@ import { useShellText } from "@/components/ui-text";
 import { format, plural, byCode } from "@/lib/i18n/locales";
 import { clearDeliveredPushesFor } from "@/lib/delivered-push-clear";
 import { storyHref } from "@/lib/notification-href";
+import {
+  STORY_VIDEO_WATCHDOG_INTERVAL_MS,
+  playFailureAction,
+  shouldResumeAfterPause,
+  soundTrackOutOfStep,
+  soundTrackPosition,
+  stallAction,
+  type StoryVideoIssue,
+} from "@/lib/story-video-playback";
+import { useCallMediaHold } from "@/lib/use-call-media-hold";
 
 type StoryComment = {
   id: string;
@@ -90,6 +99,9 @@ export type StoryData = {
   // (prisma/schema.prisma) for why an embed has no file of ours.
   mediaUrl: string | null;
   mediaThumbnailUrl: string | null;
+  // VIDEO only: a Muse's sound track this Story was made with (Story.audioUrl, shareMuseToStory). Replaces the
+  // video's own sound: the video plays muted and this plays in step with it.
+  audioUrl: string | null;
   embedProvider: EmbedProvider | null;
   embedId: string | null;
   caption: string | null;
@@ -173,7 +185,9 @@ export function StoryViewer({
   // A guest preview session (src/lib/guest-preview.ts) can look, not react, comment, reply or count as a viewer.
   const { isGuest, promptSignUp } = useGuestPreview();
   const [index, setIndex] = useState(startIndex);
-  const [progress, setProgress] = useState(0);
+  // Keyed by story id like the state below, so a story never starts out showing the previous one's bar (a video
+  // only reports progress once it is playing).
+  const [progressState, setProgressState] = useState<{ storyId: string; value: number } | null>(null);
   // One flag per reason the story can be paused, with the real paused state
   // derived from all of them (isPaused below) — not one shared boolean each
   // source sets and clears. They overlap: with the reply field focused,
@@ -223,8 +237,26 @@ export function StoryViewer({
   const likePendingRef = useRef(false);
   const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
   const [comments, setComments] = useState<StoryComment[] | null>(null);
+  // Why the current video story isn't playing when it should be (src/lib/story-video-playback.ts): "Tap to play"
+  // for blocked/stalled, a note and a timed advance for a file this device can't play. Keyed by story id.
+  const [videoIssue, setVideoIssue] = useState<{ storyId: string; kind: StoryVideoIssue } | null>(null);
+  // Set when the browser only allowed the video muted: shows "Tap for sound". Keyed by story id.
+  const [autoMutedForId, setAutoMutedForId] = useState<string | null>(null);
+  // A Muse's sound track (story.audioUrl) that can't be played here (a missing file, a format this device can't
+  // decode): the story falls back to the video's own sound. Keyed by story id.
+  const [soundTrackFailedForId, setSoundTrackFailedForId] = useState<string | null>(null);
+  // A call ringing or under way (beginCallMediaHold): the story holds still like for any other pause, and plays on
+  // after. The call's own pause can't reach this video, the viewer's PageMediaHold already holds the page's media.
+  const callHold = useCallMediaHold();
 
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Playback bookkeeping for the current video story: when it last moved forward, and how many automatic restarts
+  // it has had (the watchdog's one, and those after something else paused it). Reset per story / per (re)start.
+  const lastVideoProgressAtRef = useRef(0);
+  const lastVideoTimeRef = useRef(0);
+  const stallRetriesRef = useRef(0);
+  const autoResumesRef = useRef(0);
   const elapsedRef = useRef(0);
   const seenRef = useRef<Set<string>>(new Set());
   const pointerDownAtRef = useRef(0);
@@ -262,7 +294,14 @@ export function StoryViewer({
   const captionExpanded = story ? captionExpandedForId === story.id : false;
   const liked = story && likeState?.storyId === story.id ? likeState.liked : false;
   const likeCount = story && likeState?.storyId === story.id ? likeState.likeCount : null;
-  const isPaused = paused || userPaused || replyFocused || shareOpen || emojiOpen || closing || captionExpanded;
+  const isPaused =
+    paused || userPaused || replyFocused || shareOpen || emojiOpen || closing || captionExpanded || callHold;
+  const progress = story && progressState?.storyId === story.id ? progressState.value : 0;
+  const currentVideoIssue = story && videoIssue?.storyId === story.id ? videoIssue.kind : null;
+  const autoMuted = story ? autoMutedForId === story.id : false;
+  // The Muse sound track this video story plays instead of the video's own sound, unless it can't play here.
+  const soundTrackUrl =
+    story?.mediaType === "VIDEO" && story.audioUrl && soundTrackFailedForId !== story.id ? story.audioUrl : null;
   // A panel shown inside the viewer. Back closes it before the viewer (its own same-URL history entry, on top of the
   // viewer's: src/lib/viewer-history.ts).
   const panelOpen = showComments || showViewers || confirmingDelete;
@@ -375,17 +414,9 @@ export function StoryViewer({
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
-  // Pauses whatever else was playing behind this full-screen viewer (a feed
-  // video, another Muse upload) for as long as it's open, and resumes it on
-  // close — same reference-counted guard the call frames use. Runs once for
-  // the whole viewer's lifetime, not per-story: switching between this
-  // person's own stories (index changes, component stays mounted) must not
-  // release-then-reacquire the guard, which would incorrectly resume
-  // whatever was paused before this viewer ever opened.
-  useEffect(() => {
-    pauseAllPlayingVideos();
-    return () => resumePausedVideos();
-  }, []);
+  // The page's own media (feed videos behind the viewer) is held by PageMediaHold, mounted beside this viewer by
+  // whoever opens it, never here: this component remounts per person, and taking and releasing that hold on every
+  // remount is what froze the next person's video story (see page-media-hold.tsx).
 
   // Records a view once per story — the timer effect below is what actually
   // (re)starts progress from 0 for the new story, via its own rAF/video
@@ -422,8 +453,14 @@ export function StoryViewer({
   // Image/embed auto-advance timer — a real video drives its own progress
   // via onTimeUpdate/onEnded below; an embed can't (see EMBED_DURATION_MS's
   // own comment), so it times out the same way an image does, just longer.
+  // A video this device can't play at all (currentVideoIssue "error") is timed
+  // like an image too, so it moves on instead of sitting there.
+  const timedStory = Boolean(
+    story && (story.mediaType === "IMAGE" || story.mediaType === "EMBED" || currentVideoIssue === "error"),
+  );
   useEffect(() => {
-    if (!story || (story.mediaType !== "IMAGE" && story.mediaType !== "EMBED") || isPaused || showViewers || showComments) return undefined;
+    if (!story || !timedStory || isPaused || showViewers || showComments) return undefined;
+    const storyId = story.id;
     const durationMs = story.mediaType === "EMBED" ? EMBED_DURATION_MS : IMAGE_DURATION_MS;
 
     let raf: number;
@@ -432,7 +469,7 @@ export function StoryViewer({
       elapsedRef.current += ts - lastTs;
       lastTs = ts;
       const pct = Math.min(1, elapsedRef.current / durationMs);
-      setProgress(pct);
+      setProgressState({ storyId, value: pct });
       if (pct >= 1) {
         next();
         return;
@@ -441,14 +478,195 @@ export function StoryViewer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [story, isPaused, showViewers, showComments, next]);
+  }, [story, timedStory, isPaused, showViewers, showComments, next]);
+
+  // A video story plays whenever nothing holds it, and is never left frozen: every play() rejection is handled
+  // (retried muted, or "Tap to play"), a pause nobody here asked for is undone (onPause below), and a watchdog
+  // restarts a video that stops moving, then offers "Tap to play" (src/lib/story-video-playback.ts).
+  const wantVideoPlaying = !isPaused && !showViewers && !showComments;
+  const wantVideoPlayingRef = useRef(wantVideoPlaying);
+  const videoIssueShownRef = useRef(false);
+  useEffect(() => {
+    wantVideoPlayingRef.current = wantVideoPlaying;
+    videoIssueShownRef.current = currentVideoIssue !== null;
+  });
+
+  const playStoryVideo = useCallback((video: HTMLVideoElement, storyId: string) => {
+    video.play().catch((error: unknown) => {
+      if (!video.isConnected) return;
+      const action = playFailureAction(error, video.muted);
+      if (action === "retry-muted") {
+        video.muted = true;
+        setAutoMutedForId(storyId);
+        video.play().catch((mutedError: unknown) => {
+          if (!video.isConnected) return;
+          const mutedAction = playFailureAction(mutedError, true);
+          if (mutedAction === "blocked" || mutedAction === "error") setVideoIssue({ storyId, kind: mutedAction });
+        });
+      } else if (action === "blocked" || action === "error") {
+        setVideoIssue({ storyId, kind: action });
+      }
+    });
+  }, []);
+
+  // A Muse's sound track (story.audioUrl), played like the video: with sound when allowed, else muted with "Tap for
+  // sound" (the same note); a track this device can't play at all falls back to the video's own sound.
+  const playSoundTrack = useCallback((audio: HTMLAudioElement, storyId: string) => {
+    audio.play().catch((error: unknown) => {
+      if (!audio.isConnected) return;
+      const action = playFailureAction(error, audio.muted);
+      if (action === "retry-muted") {
+        audio.muted = true;
+        setAutoMutedForId(storyId);
+        audio.play().catch((mutedError: unknown) => {
+          if (audio.isConnected && playFailureAction(mutedError, true) === "error") setSoundTrackFailedForId(storyId);
+        });
+      } else if (action === "error") {
+        setSoundTrackFailedForId(storyId);
+      }
+    });
+  }, []);
+
+  // Keeps the sound track with the video, the clock (src/lib/story-video-playback.ts): playing only while the video
+  // is actually moving and the story should play (its pause, a buffering wait and its end silence the track), and
+  // moved back into step whenever it has drifted. Called from the video's own events.
+  const syncSoundTrack = useCallback(
+    (video: HTMLVideoElement, storyId: string) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const moving =
+        !video.paused &&
+        !video.ended &&
+        video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
+        wantVideoPlayingRef.current;
+      if (!moving) {
+        if (!audio.paused) audio.pause();
+        return;
+      }
+      const target = soundTrackPosition(video.currentTime, audio.duration);
+      if (target !== null && soundTrackOutOfStep(audio.currentTime, target, audio.duration)) audio.currentTime = target;
+      if (audio.paused) playSoundTrack(audio, storyId);
+    },
+    [playSoundTrack],
+  );
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || story?.mediaType !== "VIDEO") return;
-    if (isPaused || showViewers || showComments) video.pause();
-    else video.play().catch(() => {});
-  }, [isPaused, showViewers, showComments, story]);
+    if (!video || !story || story.mediaType !== "VIDEO") return undefined;
+    if (!wantVideoPlaying || currentVideoIssue === "blocked" || currentVideoIssue === "error") {
+      video.pause();
+      // An already-paused video fires no pause event: the sound track is silenced here too.
+      audioRef.current?.pause();
+      return undefined;
+    }
+    const storyId = story.id;
+    lastVideoProgressAtRef.current = performance.now();
+    lastVideoTimeRef.current = video.currentTime;
+    stallRetriesRef.current = 0;
+    playStoryVideo(video, storyId);
+    // "Tap to play" is up for a stall: the video keeps trying underneath, and onPlaying takes the note away.
+    if (currentVideoIssue === "stalled") return undefined;
+    const watchdog = setInterval(() => {
+      if (!video.isConnected) return;
+      if (document.visibilityState !== "visible") {
+        // Backgrounded: nothing is expected to move. Count from when the page is back.
+        lastVideoProgressAtRef.current = performance.now();
+        return;
+      }
+      const action = stallAction(performance.now() - lastVideoProgressAtRef.current, stallRetriesRef.current);
+      if (action === "retry") {
+        stallRetriesRef.current += 1;
+        lastVideoProgressAtRef.current = performance.now();
+        // Never got a frame to play from: fetch it again. Otherwise just start it again from where it is.
+        if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA && video.currentTime === 0) video.load();
+        playStoryVideo(video, storyId);
+      } else if (action === "give-up") {
+        setVideoIssue({ storyId, kind: "stalled" });
+      }
+    }, STORY_VIDEO_WATCHDOG_INTERVAL_MS);
+    return () => clearInterval(watchdog);
+  }, [wantVideoPlaying, currentVideoIssue, story, playStoryVideo]);
+
+  // Each story starts with a fresh budget of automatic restarts.
+  useEffect(() => {
+    autoResumesRef.current = 0;
+  }, [story]);
+
+  // React 19 ref cleanup: a story video leaving the screen gives up its media player at once instead of whenever
+  // it is garbage-collected. Android WebView has only a few hardware decoders, and a run of video stories would
+  // otherwise hold one each.
+  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    if (!el) return undefined;
+    return () => {
+      if (videoRef.current === el) videoRef.current = null;
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    };
+  }, []);
+  // The sound track's element, released the same way when its story leaves the screen (or the viewer closes).
+  const attachAudio = useCallback((el: HTMLAudioElement | null) => {
+    audioRef.current = el;
+    if (!el) return undefined;
+    return () => {
+      if (audioRef.current === el) audioRef.current = null;
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    };
+  }, []);
+
+  function handleVideoPause(video: HTMLVideoElement) {
+    if (!story) return;
+    // The track never plays on over a paused video; it starts again with the video (onPlaying).
+    audioRef.current?.pause();
+    if (
+      !shouldResumeAfterPause({
+        wantPlaying: wantVideoPlayingRef.current,
+        ended: video.ended,
+        connected: video.isConnected,
+        pageVisible: document.visibilityState === "visible",
+        issueShown: videoIssueShownRef.current,
+        autoResumes: autoResumesRef.current,
+      })
+    ) {
+      return;
+    }
+    autoResumesRef.current += 1;
+    playStoryVideo(video, story.id);
+  }
+
+  // "Tap to play": a real tap, so the browser lets it play with sound.
+  function handleTapToPlay() {
+    const video = videoRef.current;
+    if (!video || !story) return;
+    autoResumesRef.current = 0;
+    // With a sound track the video stays muted: the track is the sound.
+    video.muted = Boolean(soundTrackUrl);
+    setAutoMutedForId(null);
+    setVideoIssue(null);
+    playStoryVideo(video, story.id);
+    const audio = audioRef.current;
+    if (audio) {
+      // Started inside the tap, so the browser allows its sound; syncSoundTrack moves it into step once the video runs.
+      audio.muted = false;
+      playSoundTrack(audio, story.id);
+    }
+  }
+
+  function handleUnmute() {
+    const video = videoRef.current;
+    if (!video || !story) return;
+    setAutoMutedForId(null);
+    const audio = audioRef.current;
+    if (soundTrackUrl && audio) {
+      audio.muted = false;
+      if (!video.paused) playSoundTrack(audio, story.id);
+      return;
+    }
+    video.muted = false;
+  }
 
   function handlePointerDown(e: PointerEvent<HTMLButtonElement>) {
     pointerDownAtRef.current = Date.now();
@@ -703,20 +921,51 @@ export function StoryViewer({
           />
         ) : (
           <video
-            ref={videoRef}
+            ref={attachVideo}
             src={story.mediaUrl ?? undefined}
             poster={story.mediaThumbnailUrl ?? undefined}
             autoPlay
             playsInline
+            // A Muse's sound track replaces the video's own sound (never both at once), like the Muse viewer.
+            muted={Boolean(soundTrackUrl)}
             aria-label={format(t.stories.viewer.videoBy, { name: authorName })}
             className="max-h-full max-w-full object-contain"
             onTimeUpdate={(e) => {
               const el = e.currentTarget;
+              if (el.currentTime !== lastVideoTimeRef.current) {
+                lastVideoTimeRef.current = el.currentTime;
+                lastVideoProgressAtRef.current = performance.now();
+              }
               // An iPhone screen recording can report Infinity until it has played through: no progress then
               // (onEnded still advances), rather than a bar stuck at 0 or NaN.
-              if (Number.isFinite(el.duration) && el.duration > 0) setProgress(el.currentTime / el.duration);
+              if (Number.isFinite(el.duration) && el.duration > 0) {
+                setProgressState({ storyId: story.id, value: el.currentTime / el.duration });
+              }
+              syncSoundTrack(el, story.id);
             }}
-            onEnded={next}
+            onPlaying={(e) => {
+              setVideoIssue((v) => (v?.storyId === story.id && v.kind === "stalled" ? null : v));
+              syncSoundTrack(e.currentTarget, story.id);
+            }}
+            onWaiting={() => audioRef.current?.pause()}
+            onSeeked={(e) => syncSoundTrack(e.currentTarget, story.id)}
+            onPause={(e) => handleVideoPause(e.currentTarget)}
+            onError={() => setVideoIssue({ storyId: story.id, kind: "error" })}
+            onEnded={() => {
+              audioRef.current?.pause();
+              next();
+            }}
+          />
+        )}
+        {soundTrackUrl && (
+          // The Muse's sound track: looped over its own length, started, stopped and kept in step by the video's
+          // events above. Never shown; a track that can't play falls back to the video's own sound.
+          <audio
+            ref={attachAudio}
+            src={soundTrackUrl}
+            preload="auto"
+            loop
+            onError={() => setSoundTrackFailedForId(story.id)}
           />
         )}
       </div>
@@ -749,6 +998,44 @@ export function StoryViewer({
           onClick={() => handleZoneClick("next")}
         />
       </div>
+
+      {/* A video story that isn't playing when it should: "Tap to play" (blocked / stalled) or a note while it moves
+          on (a file this device can't play). Only the button catches taps; the tap zones around it keep working. */}
+      {story.mediaType === "VIDEO" && currentVideoIssue && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-6">
+          {currentVideoIssue === "error" ? (
+            <p role="status" className="rounded-full bg-black/60 px-4 py-2 text-center text-sm text-white">
+              {t.stories.viewer.videoCantPlay}
+            </p>
+          ) : (
+            <button
+              type="button"
+              data-story-tap-to-play
+              onClick={handleTapToPlay}
+              className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-full bg-black/60 px-5 py-3 text-sm font-medium text-white ring-1 ring-white/25 backdrop-blur-sm hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              <Play size={20} aria-hidden />
+              {t.stories.viewer.tapToPlay}
+            </button>
+          )}
+        </div>
+      )}
+      {story.mediaType === "VIDEO" && autoMuted && !currentVideoIssue && (
+        // Under the header, out of the way of the picture.
+        <div
+          className="pointer-events-none absolute inset-x-0 z-20 flex justify-center"
+          style={{ top: `calc(${SAFE_AREA_TOP} + 4.5rem)` }}
+        >
+          <button
+            type="button"
+            onClick={handleUnmute}
+            className="pointer-events-auto flex min-h-11 items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm text-white ring-1 ring-white/25 backdrop-blur-sm hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <Volume2 size={18} aria-hidden />
+            {t.stories.viewer.tapForSound}
+          </button>
+        </div>
+      )}
 
       {/* The bloom on a like: decorative, never catches a tap (the tap zones under it keep working), and skipped
           entirely under reduced motion (handleToggleLike never sets it then; the CSS hides it as well). */}

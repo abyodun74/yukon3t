@@ -158,6 +158,8 @@ export const shell: typeof shellEn = {
       frame_required: "Non siamo riusciti a leggere un fotogramma di anteprima di questo video, quindi non è stato condiviso. Prova con un altro video o salvalo prima come MP4.",
       upload_check_failed: "Non siamo riusciti a verificare il tuo file per un problema da parte nostra. Il tuo post non ha nulla che non va; riprova fra un momento.",
       too_large: "Questo file è troppo grande.",
+      // createStory refuses a video measured over MAX_STORY_VIDEO_SECONDS (the phone couldn't read its length).
+      videoTooLong: "Un video della storia può durare fino a 2 minuti.",
       rate_limited: "Stai pubblicando troppo velocemente. Vai un po' più piano.",
       send_failed: "Impossibile inviare a questa conversazione.",
       network: serverUnreachable,

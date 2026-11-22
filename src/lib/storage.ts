@@ -188,6 +188,14 @@ export const MAX_AUDIO_NOTE_SECONDS = 60;
 export const MAX_VIDEO_NOTE_SECONDS = 30;
 export const MAX_DICTATION_SECONDS = 120;
 export const MAX_STORY_VIDEO_SECONDS = 120;
+/**
+ * Whether a Story video's length, in whole seconds, is over MAX_STORY_VIDEO_SECONDS (createStory's server-side check).
+ * One second of grace: the composer lets a clip through up to half a second over (durationVerdict, "2:00" is often
+ * 120.03s), and a whole-second length rounds that up. Unknown (null) is not over: see createStory.
+ */
+export function storyVideoOverCap(seconds: number | null | undefined): boolean {
+  return typeof seconds === "number" && Number.isFinite(seconds) && seconds > MAX_STORY_VIDEO_SECONDS + 1;
+}
 // A "what's new" demo clip, not a full video post — same ceiling as a Story.
 export const MAX_ANNOUNCEMENT_VIDEO_SECONDS = 120;
 export const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
@@ -419,6 +427,35 @@ export async function downloadObject(
     return { body, contentType: object.ContentType ?? "application/octet-stream" };
   } catch (err) {
     console.error(`[storage] failed to download object ${key}`, err);
+    return null;
+  }
+}
+
+/** An object's size in the public bucket, or null when it's missing or R2 can't be asked. */
+export async function publicObjectSize(key: string): Promise<number | null> {
+  try {
+    const head = await client().send(new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key }));
+    return typeof head.ContentLength === "number" ? head.ContentLength : null;
+  } catch (err) {
+    console.error(`[storage] failed to read the size of ${key}`, err);
+    return null;
+  }
+}
+
+/**
+ * `length` bytes of an object in the public bucket from `offset` (a ranged GET: never the whole file), or null. Same
+ * trust note as downloadObject: for keys of our own bucket the caller already holds.
+ */
+export async function readObjectRange(key: string, offset: number, length: number): Promise<Uint8Array | null> {
+  if (!(length > 0) || offset < 0) return null;
+  try {
+    const object = await client().send(
+      new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key, Range: `bytes=${offset}-${offset + length - 1}` }),
+    );
+    if (!object.Body) return null;
+    return await object.Body.transformToByteArray();
+  } catch (err) {
+    console.error(`[storage] failed to read a range of ${key}`, err);
     return null;
   }
 }

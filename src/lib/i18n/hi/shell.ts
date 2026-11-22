@@ -158,6 +158,8 @@ export const shell: typeof shellEn = {
       frame_required: "हम उस वीडियो का प्रीव्यू फ़्रेम नहीं पढ़ सके, इसलिए वह शेयर नहीं हुआ। कोई दूसरा वीडियो आज़माएँ या पहले उसे MP4 के रूप में सेव करें।",
       upload_check_failed: "हमारी तरफ़ की एक समस्या के कारण हम आपकी फ़ाइल की पुष्टि नहीं कर सके। आपकी पोस्ट में कोई गड़बड़ी नहीं है; थोड़ी देर बाद फिर कोशिश करें।",
       too_large: "यह फ़ाइल बहुत बड़ी है।",
+      // createStory refuses a video measured over MAX_STORY_VIDEO_SECONDS (the phone couldn't read its length).
+      videoTooLong: "स्टोरी का वीडियो 2 मिनट तक लंबा हो सकता है।",
       rate_limited: "आप बहुत तेज़ी से पोस्ट कर रहे हैं। थोड़ा धीरे चलें।",
       send_failed: "उस बातचीत में भेजा नहीं जा सका।",
       network: serverUnreachable,

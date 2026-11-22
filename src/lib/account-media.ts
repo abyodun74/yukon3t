@@ -26,7 +26,10 @@ export async function collectAccountMedia(userId: string, avatarUrl: string | nu
       where: { senderId: userId, mediaUrl: { not: null } },
       select: { mediaUrl: true, mediaThumbnailUrl: true },
     }),
-    prisma.story.findMany({ where: { authorId: userId }, select: { mediaUrl: true, mediaThumbnailUrl: true } }),
+    prisma.story.findMany({
+      where: { authorId: userId },
+      select: { mediaUrl: true, mediaThumbnailUrl: true, audioUrl: true },
+    }),
     prisma.muse.findMany({ where: { authorId: userId }, select: { videoUrl: true, videoThumbnailUrl: true, audioUrl: true } }),
     prisma.ambientMoment.findMany({ where: { authorId: userId }, select: { imageUrl: true } }),
     prisma.circle.findMany({ where: { createdById: userId, coverImageUrl: { not: null } }, select: { coverImageUrl: true } }),
@@ -35,7 +38,7 @@ export async function collectAccountMedia(userId: string, avatarUrl: string | nu
     ...posts.flatMap((p) => [...p.mediaUrls, p.videoUrl, p.videoThumbnailUrl]),
     ...comments.flatMap((c) => [c.audioUrl, c.videoUrl, c.videoThumbnailUrl]),
     ...messages.flatMap((m) => [m.mediaUrl, m.mediaThumbnailUrl]),
-    ...stories.flatMap((s) => [s.mediaUrl, s.mediaThumbnailUrl]),
+    ...stories.flatMap((s) => [s.mediaUrl, s.mediaThumbnailUrl, s.audioUrl]),
     ...muses.flatMap((m) => [m.videoUrl, m.videoThumbnailUrl, m.audioUrl]),
     ...moments.map((m) => m.imageUrl),
   ].filter((u): u is string => Boolean(u) && keyFromPublicUrl(u as string) !== null);

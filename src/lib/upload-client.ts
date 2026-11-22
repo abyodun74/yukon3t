@@ -24,6 +24,7 @@ import {
   type FrameCaptureState,
   type FrameFailureReason,
 } from "@/lib/media-file";
+import { blobByteReader, readMp4DurationSeconds } from "@/lib/mp4-duration";
 
 /**
  * Where a failed upload stopped (diagnostics, and so a composer can tell "pick the file again" from "try again"):
@@ -1001,8 +1002,23 @@ export function captureVideoFrameFromFile(file: File): Promise<File | null> {
  * Infinity and left Muse's Post button disabled with no message). The
  * element is muted + playsinline with an explicit load(): without those, iOS
  * WKWebView may never load a detached element's metadata at all.
+ *
+ * When the element can't say (a codec this WebView can't decode, such as HEVC .mov on some Android phones, or a
+ * stalled load), the length is read from the file's own MP4 / QuickTime container instead (src/lib/mp4-duration.ts:
+ * the moov box, no decoding), so every phone gets a length for an MP4 or MOV. Still null for a WebM without one.
  */
-export function probeVideoDuration(file: File): Promise<number | null> {
+export async function probeVideoDuration(file: File): Promise<number | null> {
+  const fromElement = await probeVideoElementDuration(file);
+  if (fromElement !== null) return fromElement;
+  try {
+    return await readMp4DurationSeconds(blobByteReader(file), file.size);
+  } catch {
+    return null;
+  }
+}
+
+/** probeVideoDuration's first try: what a hidden <video> element reports (after the seek-to-end scan). */
+function probeVideoElementDuration(file: File): Promise<number | null> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const probe = hiddenProbeVideo("metadata");

@@ -14,9 +14,15 @@
  *   two, never wider (a HIDDEN profile makes it Private). Muse (public to everyone) and a Circle take someone else's
  *   Story only when its author's profile is PUBLIC: a Friends-only author chose their connections, not the reposter's
  *   Circle or everyone (same rule as shareToMuse / shareToCircle for a non-public post, audit M3).
- * - Media: Feed and Circle take a photo, a video or an embed; Muse a video or an embed only (it has no photo variant).
- *   A video needs its length (Story.videoDurationSeconds) to route the video scan; one without (Stories posted before
- *   it was stored) is `unsupported_media` for every destination.
+ * - Media: a Story is a photo, a video (with its own sound) or an embed; there is no audio-only or text-only Story.
+ *   Feed and Circle take all three; Muse a video or an embed only (it has no photo variant).
+ * - A video's length (Story.videoDurationSeconds) routes the video scan. The phone probes it (with an MP4/MOV container
+ *   read as fallback, upload-client.ts) and the server reads it from the stored file when the phone couldn't
+ *   (video-duration-server.ts, in createStory and again before a repost). A Feed / Circle copy whose length is still
+ *   unknown (a WebM without one) is routed like createPost's unknown-length upload: published, left to the
+ *   moderate-videos cron, which samples an unknown length conservatively and holds what it can't scan for an admin. A
+ *   Muse needs a known length (createMuse requires one, and the Muse scans key on it): such a video has no Muse row
+ *   (`museBlocked: "length_unknown"`), and one longer than a Muse may be has none either (`"too_long"`).
  */
 
 export type StoryReshareDestination = "feed" | "muse" | "circle";
@@ -74,15 +80,57 @@ export type StoryReshareMedia = {
   videoDurationSeconds: number | null;
   embedProvider: string | null;
   embedId: string | null;
+  /** VIDEO only: a Muse's sound track the Story was made with (Story.audioUrl); absent or null for none. */
+  audioUrl?: string | null;
 };
 
-/** Whether the Story's media can be copied at all (a video needs its length; an embed its provider + id). */
+/** A video Story that plays a Muse's sound track instead of the video's own sound (Story.audioUrl). */
+export function storyHasSoundTrack(story: Pick<StoryReshareMedia, "mediaType" | "audioUrl">): boolean {
+  return story.mediaType === "VIDEO" && Boolean(story.audioUrl);
+}
+
+/** Whether the Story's media can be copied at all (a photo or video needs its file; an embed its provider + id). */
 export function storyMediaCopyable(story: StoryReshareMedia): boolean {
   if (story.mediaType === "EMBED") return Boolean(story.embedProvider && story.embedId);
-  if (!story.mediaUrl) return false;
-  if (story.mediaType === "VIDEO") return Boolean(story.videoDurationSeconds && story.videoDurationSeconds > 0);
-  return true;
+  return Boolean(story.mediaUrl);
 }
+
+/** A video Story's known length in whole seconds, or null (never stored, or not a usable number). */
+export function storyVideoSeconds(story: Pick<StoryReshareMedia, "videoDurationSeconds">): number | null {
+  const seconds = story.videoDurationSeconds;
+  return typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+}
+
+/**
+ * Same value as storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS (that file is server-only; story-reshare.test.ts keeps
+ * the two equal).
+ */
+export const STORY_TO_MUSE_MAX_SECONDS = 300;
+
+export type StoryMuseBlock = "photo" | "length_unknown" | "too_long";
+
+/** Why this Story's media can't become a Muse, or null when it can (an embed, or a video of known, allowed length). */
+export function storyMuseBlock(story: StoryReshareMedia): StoryMuseBlock | null {
+  if (story.mediaType === "IMAGE") return "photo";
+  if (story.mediaType === "EMBED") return null;
+  const seconds = storyVideoSeconds(story);
+  if (seconds === null) return "length_unknown";
+  return seconds > STORY_TO_MUSE_MAX_SECONDS ? "too_long" : null;
+}
+
+export type StoryReshareOptions = {
+  feed: boolean;
+  muse: boolean;
+  circle: boolean;
+  reason: "opted_out" | "unsupported_media" | null;
+  /** A video Story with no Muse row, and why (its sheet says so); null otherwise. */
+  museBlocked: "length_unknown" | "too_long" | null;
+  /**
+   * The Story has a Muse's sound track and a Feed or Circle row is offered: a Post has no audio field, so that copy
+   * plays the video's own sound, and the sheet says so (a Muse copy keeps the track: Muse.audioUrl).
+   */
+  soundTrackNote: boolean;
+};
 
 /**
  * Which destinations the sheet offers for one Story and viewer, and why none when none: the same decision the actions
@@ -93,15 +141,21 @@ export function storyReshareOptions(input: {
   authorAllowsReposts: boolean;
   authorPostsVisibility: string;
   media: StoryReshareMedia;
-}): { feed: boolean; muse: boolean; circle: boolean; reason: "opted_out" | "unsupported_media" | null } {
-  if (!input.own && !input.authorAllowsReposts) return { feed: false, muse: false, circle: false, reason: "opted_out" };
-  if (!storyMediaCopyable(input.media)) return { feed: false, muse: false, circle: false, reason: "unsupported_media" };
+}): StoryReshareOptions {
+  const none = { feed: false, muse: false, circle: false, museBlocked: null, soundTrackNote: false };
+  if (!input.own && !input.authorAllowsReposts) return { ...none, reason: "opted_out" };
+  if (!storyMediaCopyable(input.media)) return { ...none, reason: "unsupported_media" };
   const widensAudience = !input.own && input.authorPostsVisibility !== "PUBLIC";
+  const block = storyMuseBlock(input.media);
   return {
     feed: true,
-    muse: input.media.mediaType !== "IMAGE" && !widensAudience,
+    muse: block === null && !widensAudience,
     circle: !widensAudience,
     reason: null,
+    // Said under the rows only for a video that could otherwise go to Muse (a photo simply has no Muse row).
+    museBlocked: !widensAudience && (block === "length_unknown" || block === "too_long") ? block : null,
+    // Feed is always offered here, so a Story with a sound track always gets the note.
+    soundTrackNote: storyHasSoundTrack(input.media),
   };
 }
 

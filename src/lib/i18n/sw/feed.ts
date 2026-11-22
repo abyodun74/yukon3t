@@ -278,6 +278,9 @@ export const feed: typeof feedEn = {
       previous: "Story iliyotangulia",
       next: "Story inayofuata",
       play: "Cheza Story",
+      tapToPlay: "Gusa ili kucheza",
+      tapForSound: "Gusa upate sauti",
+      videoCantPlay: "Video hii haiwezi kuchezwa kwenye kifaa hiki.",
       pause: "Sitisha Story",
       delete: "Futa Story",
       deleteConfirm: "Futa Story hii?",
@@ -332,6 +335,10 @@ export const feed: typeof feedEn = {
       alreadyPosted: "Tayari imechapishwa",
       museHeld: "Imechapishwa. Itaonekana kwenye Muse ukaguzi wetu wa video ukikamilika.",
       repostOff: "Kuchapisha upya kumezimwa kwa Story hii.",
+      museLengthUnknown: "Urefu wa video hii haukuweza kusomwa, kwa hiyo haiwezi kwenda Muse. Mlisho wako na Circles bado vinafanya kazi.",
+      museTooLong: "Video hii ni ndefu kuliko Muse inavyoruhusu (dakika 5), kwa hiyo haiwezi kwenda Muse.",
+      // A Story with a Muse's sound track (Story.audioUrl): what a Feed / Circle / Muse copy gets.
+      soundTrackPostNote: "Story hii ina wimbo wa sauti ulioongezwa. Nakala kwenye mlisho wako au kwenye Circle hucheza sauti asili ya video badala yake (machapisho hayana wimbo wa sauti tofauti); nakala kwenye Muse huuhifadhi.",
       chooseCircle: "Chagua Circle",
       repostErrors: {
         invalid: "Imeshindikana kuchapisha. Jaribu tena.",

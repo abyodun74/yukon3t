@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   const expired = await prisma.story.findMany({
     where: { expiresAt: { lte: new Date() } },
-    select: { id: true, mediaUrl: true, mediaThumbnailUrl: true },
+    select: { id: true, mediaUrl: true, mediaThumbnailUrl: true, audioUrl: true },
     take: 200,
   });
 
@@ -30,8 +30,8 @@ export async function GET(request: Request) {
 
   await prisma.story.deleteMany({ where: { id: { in: expired.map((s) => s.id) } } });
 
-  // A story shared from a post/Muse reuses that file — only delete files nothing else still uses.
-  await deleteMediaIfUnreferenced(expired.flatMap((s) => [s.mediaUrl, s.mediaThumbnailUrl]));
+  // A story shared from a post/Muse reuses that file (and a Muse's sound track) — only delete files nothing else still uses.
+  await deleteMediaIfUnreferenced(expired.flatMap((s) => [s.mediaUrl, s.mediaThumbnailUrl, s.audioUrl]));
 
   return NextResponse.json({ error: null, deleted: expired.length });
 }

@@ -60,7 +60,7 @@ const FUNCTIONS = topLevelFunctions(UPLOAD_CLIENT);
 describe("upload-client.ts releases every media resource it creates", () => {
   it("finds the functions that create them (scanner sanity check)", () => {
     const names = FUNCTIONS.map((f) => f.name);
-    expect(names).toEqual(expect.arrayContaining(["resizeImageToMax", "captureVideoFrameDetailed", "probeVideoDuration"]));
+    expect(names).toEqual(expect.arrayContaining(["resizeImageToMax", "captureVideoFrameDetailed", "probeVideoElementDuration"]));
   });
 
   it("every URL.createObjectURL is revoked in a finally / finish of the same function", () => {
@@ -123,7 +123,7 @@ describe("upload-client.ts releases every media resource it creates", () => {
 
   it("every frame-capture and probe timer is cleared in its settle function", () => {
     const capture = FUNCTIONS.find((f) => f.name === "captureVideoFrameDetailed")!;
-    const probe = FUNCTIONS.find((f) => f.name === "probeVideoDuration")!;
+    const probe = FUNCTIONS.find((f) => f.name === "probeVideoElementDuration")!;
     expect(releaseRegions(capture.body)).toMatch(/clearTimeout\(overallTimer\)/);
     expect(releaseRegions(capture.body)).toMatch(/clearTimeout\(stallTimer\)/);
     expect(releaseRegions(probe.body)).toMatch(/clearTimeout\(timeout\)/);

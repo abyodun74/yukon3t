@@ -21,7 +21,23 @@ import { announce } from "@/lib/announce";
 import { byCode } from "@/lib/i18n/locales";
 
 type View = "root" | "chats" | "circles";
-type Options = { feed: boolean; muse: boolean; circle: boolean; reason: "opted_out" | "unsupported_media" | null };
+type Options = {
+  feed: boolean;
+  muse: boolean;
+  circle: boolean;
+  reason: "opted_out" | "unsupported_media" | null;
+  museBlocked: "length_unknown" | "too_long" | null;
+  /** A Muse's sound track on this Story: a Feed / Circle copy plays the video's own sound (a Post has no audio). */
+  soundTrackNote: boolean;
+};
+const NO_OPTIONS: Options = {
+  feed: false,
+  muse: false,
+  circle: false,
+  reason: null,
+  museBlocked: null,
+  soundTrackNote: false,
+};
 type Circle = { id: string; name: string; parentName: string | null };
 /** One destination's state: idle, in flight, done (with its confirmation) or refused (with the reason, worded). */
 type RowState = { status: "idle" } | { status: "posting" } | { status: "done"; label: string } | { status: "error"; message: string };
@@ -32,8 +48,10 @@ const IDLE: RowState = { status: "idle" };
  * "Share" for a story. The root view offers: Send to chats (up to SHARE_MAX_RECIPIENTS of the caller's own DMs or
  * groups, SendToChatsPicker, unlike StoryReplyBar which always replies to the author), and, where the server allows it
  * (getStoryReshareOptions: the author's opt-out, the media, the author's audience), Post to my feed / Post to Muse
- * (video or embed only) / Post to a Circle. Each of those posts a COPY that stays after the Story disappears (the row
- * says so); actions/story-reshare.ts re-checks everything.
+ * (video of known length or embed only; a video without one says why) / Post to a Circle. Photo, video and embed
+ * Stories all go to chats, Feed and Circles; there is no audio-only Story. Each of those posts a COPY that stays after
+ * the Story disappears (the row says so); actions/story-reshare.ts re-checks everything. A Story made from a Muse with
+ * an added sound track keeps it on a Muse copy; a Feed / Circle copy plays the video's own sound, and the sheet says so.
  */
 export function StoryShareButton({
   storyId,
@@ -100,8 +118,8 @@ export function StoryShareButton({
     if (options === null) {
       // Which "Post to" rows this Story offers. A failed load just leaves them out: Send to chats still works.
       getStoryReshareOptions(storyId)
-        .then((result) => setOptions(result.error ? { feed: false, muse: false, circle: false, reason: null } : result))
-        .catch(() => setOptions({ feed: false, muse: false, circle: false, reason: null }));
+        .then((result) => setOptions(result.error ? NO_OPTIONS : result))
+        .catch(() => setOptions(NO_OPTIONS));
     }
   }
 
@@ -276,6 +294,16 @@ export function StoryShareButton({
                 )}
                 {options?.reason === "opted_out" && (
                   <p className="px-2 py-1 text-xs text-foreground-soft">{text.repostOff}</p>
+                )}
+                {/* A video with no Muse row says why (Feed and Circles still take it). */}
+                {options?.museBlocked && (
+                  <p className="px-2 py-1 text-xs text-foreground-soft">
+                    {options.museBlocked === "too_long" ? text.museTooLong : text.museLengthUnknown}
+                  </p>
+                )}
+                {/* A Post has no sound track of its own: say so before a Feed / Circle copy is made, not after. */}
+                {options?.soundTrackNote && (options.feed || options.circle) && (
+                  <p className="px-2 py-1 text-xs text-foreground-soft">{text.soundTrackPostNote}</p>
                 )}
               </div>
             )}

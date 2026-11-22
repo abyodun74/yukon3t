@@ -171,6 +171,7 @@ export default async function PublicProfilePage({
     mediaType: s.mediaType,
     mediaUrl: s.mediaUrl,
     mediaThumbnailUrl: s.mediaThumbnailUrl,
+    audioUrl: s.audioUrl,
     embedProvider: s.embedProvider,
     embedId: s.embedId,
     caption: s.caption,

@@ -21,7 +21,7 @@ import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { isCallOverStatus } from "@/lib/call-resilience";
 import { endCallDurably } from "@/lib/end-call-durably";
 import { RingtonePlayer, type RingtoneId } from "@/lib/ringtones";
-import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
+import { beginCallMediaHold, endCallMediaHold } from "@/lib/video-playback-guard";
 import { hapticNotification, hapticImpact } from "@/lib/haptics";
 import { useCallsText } from "@/components/calls-text";
 import { answeredCallLabel, callLabel, isPrivateCaller } from "@/lib/call-names";
@@ -312,9 +312,11 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   const isRinging = Boolean(incoming);
   useEffect(() => {
     if (!isRinging) return;
-    pauseAllPlayingVideos();
+    // Also holds a full-screen viewer's own video (a Story), which the plain pause can't reach while that viewer
+    // holds the page's media itself (beginCallMediaHold).
+    beginCallMediaHold();
     return () => {
-      resumePausedVideos();
+      endCallMediaHold();
     };
   }, [isRinging]);
 

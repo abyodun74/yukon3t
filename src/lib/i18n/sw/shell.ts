@@ -158,6 +158,8 @@ export const shell: typeof shellEn = {
       frame_required: "Hatukuweza kusoma fremu ya onyesho la awali ya video hiyo, kwa hiyo haikushirikiwa. Jaribu video nyingine au ihifadhi kwanza kama MP4.",
       upload_check_failed: "Hatukuweza kuthibitisha faili yako kwa sababu ya tatizo upande wetu. Hakuna kasoro kwenye chapisho lako; jaribu tena baada ya muda mfupi.",
       too_large: "Faili hiyo ni kubwa mno.",
+      // createStory refuses a video measured over MAX_STORY_VIDEO_SECONDS (the phone couldn't read its length).
+      videoTooLong: "Video ya Story inaweza kuwa na urefu wa hadi dakika 2.",
       rate_limited: "Unachapisha haraka mno. Punguza kasi kidogo.",
       send_failed: "Haikuweza kutumwa kwenye mazungumzo hayo.",
       network: serverUnreachable,

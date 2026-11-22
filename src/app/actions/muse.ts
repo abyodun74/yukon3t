@@ -714,10 +714,10 @@ function reshareText(author: { name: string | null; username: string | null }, c
  * not a link. A Muse can run up to 5 minutes and a Story only takes MAX_STORY_VIDEO_SECONDS, so a longer one is
  * refused ("too_long"). Counts as a share.
  *
- * A Muse with its own added sound track (Muse.audioUrl) still goes to the Story, with the video's original sound: a
- * Story has no separate audio track (owner decision 2026-11-22). The answer's `soundTrackLeftOut` says so, and the share
- * sheet shows that note before and after; the Story shows no link back to the Muse (Story.sharedMuseId is kept for
- * repost access checks only).
+ * A Muse with its own added sound track (Muse.audioUrl) keeps it on the Story: Story.audioUrl points at the same file
+ * (never a copy; the media reference check, findReferencedUrls, keeps it while either uses it), and the Story viewer
+ * plays the video muted with that track in step, like the Muse viewer. The Story shows no link back to the Muse
+ * (Story.sharedMuseId is kept for repost access checks only).
  */
 export async function shareMuseToStory(museId: string) {
   const user = await requireVerifiedUser();
@@ -767,6 +767,8 @@ export async function shareMuseToStory(museId: string) {
               mediaThumbnailUrl: muse.videoThumbnailUrl,
               // A repost of this Story to Feed or Muse routes its video check on the length.
               videoDurationSeconds: muse.videoDurationSeconds,
+              // The Muse's own sound track, replacing the video's sound (played in step by the Story viewer).
+              audioUrl: muse.audioUrl,
               caption: muse.caption ? muse.caption.trim().slice(0, 200) : undefined,
               ...museSource,
               expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
@@ -788,7 +790,7 @@ export async function shareMuseToStory(museId: string) {
   revalidatePath("/muse");
   revalidatePath("/home");
   revalidatePath(`/u/${user.id}`);
-  return { error: null, shareCount, soundTrackLeftOut: muse.mediaType === "VIDEO" && Boolean(muse.audioUrl) };
+  return { error: null, shareCount };
 }
 
 /**

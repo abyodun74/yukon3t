@@ -279,6 +279,9 @@ export const feed: typeof feedEn = {
       previous: "Story précédente",
       next: "Story suivante",
       play: "Lire la story",
+      tapToPlay: "Touchez pour lire",
+      tapForSound: "Touchez pour activer le son",
+      videoCantPlay: "Cette vidéo ne peut pas être lue sur cet appareil.",
       pause: "Mettre la story en pause",
       delete: "Supprimer la story",
       deleteConfirm: "Supprimer cette story ?",
@@ -334,6 +337,10 @@ export const feed: typeof feedEn = {
       alreadyPosted: "Déjà publié",
       museHeld: "Publié. Il apparaîtra sur Muse une fois notre vérification de la vidéo terminée.",
       repostOff: "La republication est désactivée pour cette story.",
+      museLengthUnknown: "La durée de cette vidéo n'a pas pu être lue, elle ne peut donc pas aller sur Muse. Ton fil et les Circles restent possibles.",
+      museTooLong: "Cette vidéo dépasse la durée autorisée sur Muse (5 minutes), elle ne peut donc pas y aller.",
+      // A Story with a Muse's sound track (Story.audioUrl): what a Feed / Circle / Muse copy gets.
+      soundTrackPostNote: "Cette story a une piste sonore ajoutée. Une copie dans votre fil ou dans un Circle diffuse à la place le son d'origine de la vidéo (les publications n'ont pas de piste sonore distincte) ; une copie sur Muse la garde.",
       chooseCircle: "Choisissez un Circle",
       repostErrors: {
         invalid: "Impossible de publier. Réessayez.",

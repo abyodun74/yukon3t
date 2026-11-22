@@ -94,6 +94,13 @@ describe("shareMuseToStory records its source for repost checks", () => {
     expect(storyData()).not.toHaveProperty("sharedPostId");
   });
 
+  it("keeps the Muse's sound track on the Story (the same file) and answers no 'left out' flag", async () => {
+    museFindUnique.mockResolvedValue(muse({ audioUrl: "https://media.example/track.mp3" }));
+    const result = await shareMuseToStory(MUSE);
+    expect(result).toEqual({ error: null, shareCount: 4 });
+    expect(storyData()).toMatchObject({ mediaType: "VIDEO", audioUrl: "https://media.example/track.mp3" });
+  });
+
   it("links an embed Story the same way", async () => {
     museFindUnique.mockResolvedValue(
       muse({ mediaType: "EMBED", videoUrl: null, embedProvider: "YOUTUBE", embedId: "dQw4w9WgXcQ" }),

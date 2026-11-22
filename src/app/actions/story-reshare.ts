@@ -16,17 +16,16 @@ import { notifySubscribers } from "@/lib/notify-subscribers";
 import { pushActivityNotification } from "@/lib/notify-push";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
-import {
-  HIVE_VIDEO_MODERATION_MAX_SECONDS,
-  MAX_MUSE_VIDEO_DURATION_SECONDS,
-  VIDEO_INSTANT_PUBLISH_MAX_SECONDS,
-} from "@/lib/storage";
+import { probeStoredVideoSeconds } from "@/lib/video-duration-server";
+import { HIVE_VIDEO_MODERATION_MAX_SECONDS, VIDEO_INSTANT_PUBLISH_MAX_SECONDS } from "@/lib/storage";
 import {
   storyMediaCopyable,
+  storyMuseBlock,
   storyRepostFeedAudience,
   storyRepostRequestId,
   storyRepostText,
   storyReshareOptions,
+  storyVideoSeconds,
   type StoryReshareDestination,
 } from "@/lib/story-reshare";
 
@@ -41,7 +40,15 @@ import {
 // HIVE_VIDEO_MODERATION_MAX_SECONDS it publishes with videoModeratedAt null (the moderate-videos cron scans it); longer
 // takes the Cloudflare Stream long review (videoLongReviewNeeded + an eager createStreamCopy): a Post publishes at once
 // (instant-publish range, a Story video is at most 2 minutes), a Muse publishes FLAGGED until the review clears, like
-// shareToMuse / createMuse.
+// shareToMuse / createMuse. A video whose length the phone couldn't read is measured from the stored file first
+// (withKnownVideoLength); one still unknown is never sent to the long review (it keys on a known length, so the copy
+// would never be reviewed): a Post copy goes to the moderate-videos cron like createPost's unknown-length upload, and
+// Muse refuses it (`unsupported_media`; createMuse requires a length too). There is no audio-only Story to route.
+//
+// Sound track: a Story made from a Muse can carry that Muse's added sound track (Story.audioUrl). A Muse copy keeps it
+// (Muse.audioUrl, the same file). A Post has no audio field, so a Feed / Circle copy plays the video's own sound; the
+// Share sheet says so beforehand (storyReshareOptions' soundTrackNote). The track was never scanned as audio, exactly
+// as on the Muse it came from (createMuse doesn't scan Muse audio either).
 
 /** Media columns read from a Story for a copy, plus its author's two settings this needs. */
 const STORY_SOURCE_SELECT = {
@@ -50,6 +57,7 @@ const STORY_SOURCE_SELECT = {
   mediaType: true,
   mediaUrl: true,
   mediaThumbnailUrl: true,
+  audioUrl: true,
   videoDurationSeconds: true,
   embedProvider: true,
   embedId: true,
@@ -126,7 +134,24 @@ async function loadRepostSource(userId: string, storyId: unknown) {
   if (!(await reshareSourceAllowsRepost(userId, raw))) {
     return { error: "not_shareable" as const };
   }
-  return { error: null, story: raw, own };
+  return { error: null, story: await withKnownVideoLength(raw), own };
+}
+
+type LengthFields = { id: string; mediaType: string; mediaUrl: string | null; videoDurationSeconds: number | null };
+
+/**
+ * A video Story without a stored length (the phone couldn't read it, or it was posted before lengths were kept) gets
+ * it from the stored file's MP4/MOV container (probeStoredVideoSeconds), saved on the Story so the next sheet or
+ * repost doesn't read it again. Unchanged when that can't be read either. Best-effort: never fails the repost.
+ */
+async function withKnownVideoLength<T extends LengthFields>(story: T): Promise<T> {
+  if (story.mediaType !== "VIDEO" || storyVideoSeconds(story) !== null) return story;
+  const seconds = await probeStoredVideoSeconds(story.mediaUrl);
+  if (seconds === null) return story;
+  await prisma.story
+    .updateMany({ where: { id: story.id, videoDurationSeconds: null }, data: { videoDurationSeconds: seconds } })
+    .catch((err: unknown) => console.error("[story-reshare] couldn't save a measured story length", err));
+  return { ...story, videoDurationSeconds: seconds };
 }
 
 type RepostSource = Extract<Awaited<ReturnType<typeof loadRepostSource>>, { error: null }>;
@@ -156,16 +181,35 @@ async function notifyStoryAuthor(
 
 /**
  * Which destinations the Share sheet offers for this Story (src/lib/story-reshare.ts storyReshareOptions), so a row
- * that would be refused isn't shown: none when the author turned reposting off or the media can't be copied (a video
- * without its length), no Muse for a photo, and only Feed for someone else's Friends-only Story.
+ * that would be refused isn't shown: none when the author turned reposting off or the media can't be copied, no Muse
+ * for a photo or for a video whose length is unknown or over Muse's limit (museBlocked says which), and only Feed for
+ * someone else's Friends-only Story.
  */
 export async function getStoryReshareOptions(storyId: string) {
   const user = await requireVerifiedUser();
   const source = await loadRepostSource(user.id, storyId);
   if (source.error === "opted_out") {
-    return { error: null, feed: false, muse: false, circle: false, reason: "opted_out" as const };
+    return {
+      error: null,
+      feed: false,
+      muse: false,
+      circle: false,
+      reason: "opted_out" as const,
+      museBlocked: null,
+      soundTrackNote: false,
+    };
   }
-  if (source.error) return { error: source.error, feed: false, muse: false, circle: false, reason: null };
+  if (source.error) {
+    return {
+      error: source.error,
+      feed: false,
+      muse: false,
+      circle: false,
+      reason: null,
+      museBlocked: null,
+      soundTrackNote: false,
+    };
+  }
   return {
     error: null,
     ...storyReshareOptions({
@@ -200,8 +244,9 @@ async function createPostCopy(
   const content = storyRepostText({ own: source.own, author: story.author, caption: story.caption, max: 50_000 });
 
   // A video copy is routed like a new upload (see the file header). A Story video is at most 2 minutes, inside the
-  // instant-publish range, but the hold is kept for any longer length a client reported.
-  const duration = story.mediaType === "VIDEO" ? story.videoDurationSeconds! : null;
+  // instant-publish range, but the hold is kept for any longer length a client reported. An unknown length (null)
+  // takes createPost's unknown-length route: published, videoModeratedAt null, so the moderate-videos cron scans it.
+  const duration = story.mediaType === "VIDEO" ? storyVideoSeconds(story) : null;
   const videoNeedsLongReview = duration !== null && duration > HIVE_VIDEO_MODERATION_MAX_SECONDS;
   const moderationStatus: "PUBLISHED" | "FLAGGED" =
     duration !== null && duration > VIDEO_INSTANT_PUBLISH_MAX_SECONDS ? "FLAGGED" : "PUBLISHED";
@@ -348,8 +393,8 @@ export async function shareStoryToCircle(storyId: string, circleId: string) {
 }
 
 /**
- * "Post to Muse": a copy of a video or embed Story as a new Muse of the caller's (a photo can't go to Muse:
- * `unsupported_media`). Muse is public to everyone, so someone else's Story only when its author's profile is PUBLIC
+ * "Post to Muse": a copy of a video or embed Story as a new Muse of the caller's (a photo, or a video whose length
+ * couldn't be read even from the stored file, can't go to Muse: `unsupported_media`; one over Muse's limit: `too_long`). Muse is public to everyone, so someone else's Story only when its author's profile is PUBLIC
  * (`not_shareable`). A video over HIVE_VIDEO_MODERATION_MAX_SECONDS publishes FLAGGED until the long review clears it,
  * exactly like shareToMuse; the author is told only about a copy that is live. Idempotent per (caller, Story).
  */
@@ -372,14 +417,14 @@ export async function shareStoryToMuse(storyId: string) {
   if (source.error) return { error: source.error };
   const { story } = source;
   if (!source.own && story.author.postsVisibility !== "PUBLIC") return { error: "not_shareable" as const };
-  if (story.mediaType === "IMAGE" || !storyMediaCopyable(story)) return { error: "unsupported_media" as const };
-  if (story.mediaType === "VIDEO" && story.videoDurationSeconds! > MAX_MUSE_VIDEO_DURATION_SECONDS) {
-    return { error: "too_long" as const };
-  }
+  if (!storyMediaCopyable(story)) return { error: "unsupported_media" as const };
+  const museBlock = storyMuseBlock(story);
+  if (museBlock === "too_long") return { error: "too_long" as const };
+  if (museBlock) return { error: "unsupported_media" as const };
+  const seconds = storyVideoSeconds(story);
 
   const caption = storyRepostText({ own: source.own, author: story.author, caption: story.caption, max: 200 }) || null;
-  const videoNeedsManualReview =
-    story.mediaType === "VIDEO" && story.videoDurationSeconds! > HIVE_VIDEO_MODERATION_MAX_SECONDS;
+  const videoNeedsManualReview = seconds !== null && seconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;
   const streamUid = videoNeedsManualReview && isStreamConfigured() ? await createStreamCopy(story.mediaUrl!) : null;
   const moderationStatus = videoNeedsManualReview ? ("FLAGGED" as const) : ("PUBLISHED" as const);
 
@@ -397,7 +442,10 @@ export async function shareStoryToMuse(storyId: string) {
               mediaType: "VIDEO" as const,
               videoUrl: story.mediaUrl!,
               videoThumbnailUrl: story.mediaThumbnailUrl,
-              videoDurationSeconds: story.videoDurationSeconds!,
+              videoDurationSeconds: seconds!,
+              // A Story made from a Muse with a sound track keeps it on the copy (the same file; the media reference
+              // check keeps it while any row uses it).
+              audioUrl: story.audioUrl,
               // Over the scan limit: pre-claimed so the moderate-videos cron skips it; the long review keys on
               // videoLongReviewNeeded. Otherwise null, so the moderate-videos cron scans the body.
               videoModeratedAt: videoNeedsManualReview ? new Date() : null,

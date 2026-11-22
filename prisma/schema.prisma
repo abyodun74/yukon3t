@@ -2286,11 +2286,20 @@ model Story {
   embedProvider     EmbedProvider?
   embedId           String?
   caption           String?        @db.Text
-  // VIDEO only: the client-probed length in whole seconds (createStory from the composer; shareToStory and
-  // shareMuseToStory copy the source's). A routing hint, like Post.videoDurationSeconds: reposting the Story to Feed or
-  // Muse (actions/story-reshare.ts) uses it to pick the video-scan path. Null for photos, embeds and Stories posted
-  // before it existed; a video Story without it can't be reposted to Feed, Muse or a Circle.
+  // VIDEO only: the length in whole seconds (createStory measures the stored file's MP4/MOV container,
+  // video-duration-server.ts, with the phone's value as the fallback, and refuses one over MAX_STORY_VIDEO_SECONDS;
+  // shareToStory and shareMuseToStory copy the source's). A routing hint, like Post.videoDurationSeconds: reposting the
+  // Story to Feed or Muse (actions/story-reshare.ts) uses it to pick the video-scan path; a repost measures and saves
+  // it here when it is missing.
+  // Null for photos, embeds, Stories posted before it existed and a video whose length nothing could read (a WebM
+  // without one): such a video still goes to Feed or a Circle (moderate-videos cron, unknown-length route), not Muse.
   videoDurationSeconds Int?
+  // VIDEO only: a separate sound track that replaces the video's own sound, copied from the Muse a Story was made
+  // from (shareMuseToStory: Muse.audioUrl, the same file, never a copy). The Story viewer plays the video muted with
+  // this in step, like the Muse viewer. A repost to Muse carries it (Muse.audioUrl); Post has no audio field, so a
+  // Feed / Circle copy gets the video's own sound and the Share sheet says so. A file the Story shares with the Muse
+  // is only deleted once nothing references it (findReferencedUrls covers this column).
+  audioUrl          String?
   createdAt         DateTime       @default(now())
   expiresAt         DateTime
 
@@ -2333,6 +2342,7 @@ model Story {
   @@index([sharedMuseId])
   @@index([mediaUrl])
   @@index([mediaThumbnailUrl])
+  @@index([audioUrl])
 }
 
 /**

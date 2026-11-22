@@ -47,8 +47,6 @@ export const muse: typeof museEn = {
     toHome: "Shiriki kwenye Mwanzo wako",
     copyFailed: "Imeshindwa kunakili kiungo.",
     linkOnly: "Video haikuweza kuambatishwa hapa, kwa hiyo kiungo pekee kimeshirikiwa.",
-    // Shown by "Add to your story" for a Muse with its own added sound track (shareMuseToStory).
-    storySoundNote: "Story yako itakuwa na sauti asili ya video. Wimbo wa sauti ulioongezwa haujajumuishwa.",
     storyErrors: {
       too_long: "Muse hii ni ndefu mno kwa Story.",
       rate_limited: "Punguza kasi kidogo kisha ujaribu tena.",

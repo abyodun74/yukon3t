@@ -165,6 +165,8 @@ export const shellEn = {
       frame_required: "Couldn't read a preview frame from that video, so it wasn't shared. Try another video, or save it as MP4 first.",
       upload_check_failed: "We couldn't confirm your upload because of a problem on our side. Nothing is wrong with your post — please try again in a moment.",
       too_large: "That file is too large.",
+      // createStory refuses a video measured over MAX_STORY_VIDEO_SECONDS (the phone couldn't read its length).
+      videoTooLong: "A Story video can be up to 2 minutes long.",
       rate_limited: "You're posting too fast — slow down a little.",
       send_failed: "Couldn't send to that conversation.",
       network: serverUnreachable,

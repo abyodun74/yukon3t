@@ -7,9 +7,10 @@ import { findDirectConversationId } from "@/lib/direct-conversation";
 import { storySchema, messageSchema, shareToChatsSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { moderateMedia, moderateText } from "@/lib/moderation";
-import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, STORY_LIFETIME_MS, verifyUploadedSize, keyFromPublicUrl, storyVideoOverCap } from "@/lib/storage";
 import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
+import { probeStoredVideoSeconds } from "@/lib/video-duration-server";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { isEmojiOnly } from "@/lib/emoji";
 import { isBlockedEitherWay } from "@/lib/blocks";
@@ -85,6 +86,7 @@ export async function getConnectionsStories() {
         mediaType: "IMAGE" | "VIDEO" | "EMBED";
         mediaUrl: string | null;
         mediaThumbnailUrl: string | null;
+        audioUrl: string | null;
         embedProvider: EmbedProvider | null;
         embedId: string | null;
         caption: string | null;
@@ -119,6 +121,7 @@ export async function getConnectionsStories() {
       mediaType: story.mediaType,
       mediaUrl: story.mediaUrl,
       mediaThumbnailUrl: story.mediaThumbnailUrl,
+      audioUrl: story.audioUrl,
       embedProvider: story.embedProvider,
       embedId: story.embedId,
       caption: story.caption,
@@ -208,6 +211,20 @@ export async function createStory(formData: FormData) {
     }
   }
 
+  // A video's length, as measured from the stored file's MP4/MOV container (probeStoredVideoSeconds), not as the
+  // phone reported it: the composer and share-target refuse a known length over MAX_STORY_VIDEO_SECONDS, but let a
+  // video through when the phone couldn't read it, and a client value is only a hint. The measured length decides;
+  // the phone's is used only when the file can't be measured (a WebM, which has no such header, R2 slow or
+  // unreachable). Over the cap either way: refused with the composer's own code ("videoTooLong") and the upload
+  // removed. Unknown both ways: accepted, as before (a Story video is still size-capped above). Kept on the Story
+  // for a later repost to Feed/Muse, which routes the video scan on it (src/lib/story-reshare.ts).
+  const storedDurationSeconds =
+    mediaType === "VIDEO" ? ((await probeStoredVideoSeconds(mediaUrl)) ?? videoDurationSeconds ?? undefined) : undefined;
+  if (storyVideoOverCap(storedDurationSeconds)) {
+    await cleanupUploads();
+    return { error: "videoTooLong" as const };
+  }
+
   const modResult = await moderateMedia({
     text: caption,
     imageUrls: mediaType === "IMAGE" ? [mediaUrl!] : [],
@@ -227,7 +244,7 @@ export async function createStory(formData: FormData) {
         mediaUrl,
         mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
         // Kept for a later repost to Feed/Muse (actions/story-reshare.ts), which routes the video scan on it.
-        videoDurationSeconds: mediaType === "VIDEO" ? videoDurationSeconds : undefined,
+        videoDurationSeconds: mediaType === "VIDEO" ? storedDurationSeconds : undefined,
         caption: caption || undefined,
         expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
       },
@@ -278,7 +295,8 @@ export async function deleteStory(id: string) {
 
   await prisma.story.delete({ where: { id } });
   // A Story can share its file with the post/Muse it came from — only delete it once nothing else uses it.
-  await deleteMediaIfUnreferenced([story.mediaUrl, story.mediaThumbnailUrl]);
+  // A Muse's sound track (Story.audioUrl, shareMuseToStory) is the Muse's own file too.
+  await deleteMediaIfUnreferenced([story.mediaUrl, story.mediaThumbnailUrl, story.audioUrl]);
 
   revalidatePath(`/u/${story.authorId}`);
   revalidatePath("/home");
@@ -628,6 +646,7 @@ export async function getStory(storyId: string) {
       mediaType: story.mediaType,
       mediaUrl: story.mediaUrl,
       mediaThumbnailUrl: story.mediaThumbnailUrl,
+      audioUrl: story.audioUrl,
       embedProvider: story.embedProvider,
       embedId: story.embedId,
       caption: story.caption,

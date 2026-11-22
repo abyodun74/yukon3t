@@ -277,6 +277,9 @@ export const feed: typeof feedEn = {
       previous: "القصة السابقة",
       next: "القصة التالية",
       play: "تشغيل القصة",
+      tapToPlay: "انقر للتشغيل",
+      tapForSound: "انقر لتشغيل الصوت",
+      videoCantPlay: "لا يمكن تشغيل هذا الفيديو على هذا الجهاز.",
       pause: "إيقاف القصة مؤقتًا",
       delete: "حذف القصة",
       deleteConfirm: "هل تريد حذف هذه القصة؟",
@@ -332,6 +335,10 @@ export const feed: typeof feedEn = {
       alreadyPosted: "منشورة بالفعل",
       museHeld: "تم النشر. ستظهر في Muse بعد انتهاء فحصنا للفيديو.",
       repostOff: "إعادة النشر متوقفة لهذه القصة.",
+      museLengthUnknown: "تعذّرت معرفة مدة هذا الفيديو، لذلك لا يمكن نشره في Muse. لا يزال بإمكانك نشره في موجزك وCircles.",
+      museTooLong: "هذا الفيديو أطول مما يسمح به Muse (5 دقائق)، لذلك لا يمكن نشره في Muse.",
+      // A Story with a Muse's sound track (Story.audioUrl): what a Feed / Circle / Muse copy gets.
+      soundTrackPostNote: "تحتوي هذه القصة على مقطع صوتي مضاف. النسخة في موجزك أو في Circle تشغّل الصوت الأصلي للفيديو بدلًا منه (لا تحتوي المنشورات على مقطع صوتي منفصل)؛ أما النسخة في Muse فتحتفظ به.",
       chooseCircle: "اختر Circle",
       repostErrors: {
         invalid: "تعذّر النشر. حاول مرة أخرى.",

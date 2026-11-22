@@ -155,6 +155,8 @@ export const shell: typeof shellEn = {
       frame_required: "تعذّرت قراءة إطار معاينة من هذا الفيديو، لذا لم تتم مشاركته. جرّب فيديو آخر أو احفظه أولًا بصيغة MP4.",
       upload_check_failed: "تعذّر علينا التأكد من ملفك بسبب مشكلة من جهتنا. لا خطأ في منشورك، فحاول مرة أخرى بعد قليل.",
       too_large: "هذا الملف كبير جدًا.",
+      // createStory refuses a video measured over MAX_STORY_VIDEO_SECONDS (the phone couldn't read its length).
+      videoTooLong: "يمكن أن يصل طول فيديو القصة إلى دقيقتين.",
       rate_limited: "أنت تنشر بسرعة كبيرة. تمهّل قليلًا.",
       send_failed: "تعذّر الإرسال إلى تلك المحادثة.",
       network: serverUnreachable,

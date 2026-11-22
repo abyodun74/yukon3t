@@ -47,8 +47,6 @@ export const muse: typeof museEn = {
     toHome: "अपने होम पर शेयर करें",
     copyFailed: "लिंक कॉपी नहीं हो सका।",
     linkOnly: "वीडियो यहाँ अटैच नहीं हो सका, इसलिए सिर्फ़ लिंक शेयर किया गया।",
-    // Shown by "Add to your story" for a Muse with its own added sound track (shareMuseToStory).
-    storySoundNote: "आपकी स्टोरी में वीडियो की मूल आवाज़ रहेगी। जोड़ा गया साउंड ट्रैक शामिल नहीं है।",
     storyErrors: {
       too_long: "यह Muse स्टोरी के लिए बहुत लंबा है।",
       rate_limited: "थोड़ा धीरे चलें और फिर कोशिश करें।",

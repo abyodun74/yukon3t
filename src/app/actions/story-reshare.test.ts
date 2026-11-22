@@ -16,6 +16,7 @@ type StoryRow = {
   mediaType: "IMAGE" | "VIDEO" | "EMBED";
   mediaUrl: string | null;
   mediaThumbnailUrl: string | null;
+  audioUrl?: string | null;
   videoDurationSeconds: number | null;
   embedProvider: string | null;
   embedId: string | null;
@@ -47,6 +48,9 @@ const pushActivityNotification = vi.fn();
 const createStreamCopy = vi.fn();
 const checkRateLimit = vi.fn();
 const isMembersOnlyPost = vi.fn();
+// The server-side length read from the stored file (video-duration-server.ts) and the Story write that saves it.
+const probeStoredVideoSeconds = vi.fn();
+const storyUpdateMany = vi.fn();
 // The post a shareToStory Story was made from (Story.sharedPostId), looked up by id.
 let sharedPost: {
   id: string;
@@ -87,6 +91,9 @@ vi.mock("@/lib/cloudflare-stream", () => ({
   isStreamConfigured: () => true,
   createStreamCopy: (...a: unknown[]) => createStreamCopy(...a),
 }));
+vi.mock("@/lib/video-duration-server", () => ({
+  probeStoredVideoSeconds: (...a: unknown[]) => probeStoredVideoSeconds(...a),
+}));
 vi.mock("@/lib/storage", () => ({
   HIVE_VIDEO_MODERATION_MAX_SECONDS: 59,
   MAX_MUSE_VIDEO_DURATION_SECONDS: 300,
@@ -97,7 +104,10 @@ vi.mock("@/lib/prisma-errors", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    story: { findUnique: async ({ where }: { where: { id: string } }) => (story && where.id === story.id ? story : null) },
+    story: {
+      findUnique: async ({ where }: { where: { id: string } }) => (story && where.id === story.id ? story : null),
+      updateMany: (a: unknown) => storyUpdateMany(a),
+    },
     post: {
       create: (a: unknown) => postCreate(a),
       findUnique: (a: { where: { id?: string } }) =>
@@ -171,6 +181,8 @@ beforeEach(() => {
   sharedPost = null;
   sharedMuse = null;
   blockedWith = new Set();
+  probeStoredVideoSeconds.mockResolvedValue(null);
+  storyUpdateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("who may repost", () => {
@@ -366,13 +378,75 @@ describe("what is copied", () => {
     expect(museCreate).not.toHaveBeenCalled();
   });
 
-  it("refuses a video Story without a known length (old Stories) for every destination", async () => {
+  it("measures a video Story with no stored length from its file, saves it, and routes the copy on it", async () => {
     story = video(null);
-    expect(await shareStoryToFeed(STORY)).toEqual({ error: "unsupported_media" });
+    probeStoredVideoSeconds.mockResolvedValue(90);
+    await shareStoryToFeed(STORY);
+    expect(probeStoredVideoSeconds).toHaveBeenCalledWith(story.mediaUrl);
+    expect(storyUpdateMany).toHaveBeenCalledWith({
+      where: { id: STORY, videoDurationSeconds: null },
+      data: { videoDurationSeconds: 90 },
+    });
+    expect(postData()).toMatchObject({ videoDurationSeconds: 90, videoLongReviewNeeded: true, moderationStatus: "PUBLISHED" });
+    const muse = await shareStoryToMuse(STORY);
+    expect(muse).toMatchObject({ error: null, held: true });
+    expect(museData()).toMatchObject({ videoDurationSeconds: 90, videoLongReviewNeeded: true, moderationStatus: "FLAGGED" });
+  });
+
+  it("never fails a repost because saving the measured length failed", async () => {
+    story = video(null);
+    probeStoredVideoSeconds.mockResolvedValue(30);
+    storyUpdateMany.mockRejectedValue(new Error("db down"));
+    expect((await shareStoryToFeed(STORY)).error).toBeNull();
+    expect(postData()).toMatchObject({ videoDurationSeconds: 30, videoModeratedAt: null });
+  });
+
+  it("copies a video whose length nothing could read to Feed and Circles for the moderate-videos cron, never to the long review", async () => {
+    story = video(null);
+    expect((await shareStoryToFeed(STORY)).error).toBeNull();
+    expect(postData()).toMatchObject({
+      mediaType: "VIDEO",
+      videoUrl: story.mediaUrl,
+      videoDurationSeconds: null,
+      // Left for the moderate-videos cron, which samples an unknown length conservatively and holds what it can't scan.
+      videoModeratedAt: null,
+      videoLongReviewNeeded: false,
+      videoStreamUid: null,
+      moderationStatus: "PUBLISHED",
+    });
+    expect(createStreamCopy).not.toHaveBeenCalled();
+    expect(storyUpdateMany).not.toHaveBeenCalled();
+
+    circleFindUnique.mockResolvedValue({ id: CIRCLE, slug: "runners", visibility: "PUBLIC", createdById: "cowner00000001" });
+    membershipFindUnique.mockResolvedValue({ id: "m1" });
+    channelFindMany.mockResolvedValue([{ id: "chGeneral", circleId: CIRCLE, visibility: "PUBLIC" }]);
+    canAccessChannel.mockResolvedValue(true);
+    expect((await shareStoryToCircle(STORY, CIRCLE)).error).toBeNull();
+    expect(postCreate.mock.calls[1][0].data).toMatchObject({ videoDurationSeconds: null, videoModeratedAt: null });
+  });
+
+  it("keeps a video whose length nothing could read off Muse (createMuse and the Muse scans need a length)", async () => {
+    story = video(null);
     expect(await shareStoryToMuse(STORY)).toEqual({ error: "unsupported_media" });
-    expect(await shareStoryToCircle(STORY, CIRCLE)).toEqual({ error: "unsupported_media" });
-    expect(postCreate).not.toHaveBeenCalled();
     expect(museCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a measured video longer than a Muse may be (too_long), still taking it on Feed", async () => {
+    story = video(null);
+    probeStoredVideoSeconds.mockResolvedValue(400);
+    expect(await shareStoryToMuse(STORY)).toEqual({ error: "too_long" });
+    expect((await shareStoryToFeed(STORY)).error).toBeNull();
+    expect(postData()).toMatchObject({ videoDurationSeconds: 400, videoLongReviewNeeded: true, moderationStatus: "PUBLISHED" });
+  });
+
+  it("doesn't re-measure a video that already has its length, nor a photo or an embed", async () => {
+    story = video(20);
+    await shareStoryToFeed(STORY);
+    story = makeStory();
+    await shareStoryToFeed(STORY);
+    story = embed();
+    await shareStoryToFeed(STORY);
+    expect(probeStoredVideoSeconds).not.toHaveBeenCalled();
   });
 
   it("leaves a video of 59s or less for the moderate-videos cron (videoModeratedAt null, no long review)", async () => {
@@ -581,12 +655,67 @@ describe("the original author's notification", () => {
   });
 });
 
+describe("a Story made from a Muse with a sound track (Story.audioUrl)", () => {
+  const TRACK = "https://media.example.com/muse-audio/cmuseauthor001/t.mp3";
+  const withTrack = () => ({ ...video(20), audioUrl: TRACK });
+
+  it("keeps the track on a Muse copy (the same file)", async () => {
+    story = withTrack();
+    expect((await shareStoryToMuse(STORY)).error).toBeNull();
+    expect(museData()).toMatchObject({ mediaType: "VIDEO", audioUrl: TRACK });
+  });
+
+  it("leaves it off a Feed or Circle copy (a Post has no audio field), and the sheet says so beforehand", async () => {
+    story = withTrack();
+    expect((await shareStoryToFeed(STORY)).error).toBeNull();
+    expect(postData()).not.toHaveProperty("audioUrl");
+    expect(await getStoryReshareOptions(STORY)).toMatchObject({ feed: true, muse: true, soundTrackNote: true });
+  });
+
+  it("a Muse copy of a Story without a track has none", async () => {
+    story = video(20);
+    await shareStoryToMuse(STORY);
+    expect(museData().audioUrl ?? null).toBeNull();
+  });
+});
+
 describe("getStoryReshareOptions", () => {
   it("offers Feed, Muse and a Circle for a public author's video, no Muse for a photo", async () => {
     story = video(20);
-    expect(await getStoryReshareOptions(STORY)).toEqual({ error: null, feed: true, muse: true, circle: true, reason: null });
+    expect(await getStoryReshareOptions(STORY)).toEqual({
+      error: null,
+      feed: true,
+      muse: true,
+      circle: true,
+      reason: null,
+      museBlocked: null,
+      soundTrackNote: false,
+    });
     story = makeStory();
-    expect(await getStoryReshareOptions(STORY)).toEqual({ error: null, feed: true, muse: false, circle: true, reason: null });
+    expect(await getStoryReshareOptions(STORY)).toEqual({
+      error: null,
+      feed: true,
+      muse: false,
+      circle: true,
+      reason: null,
+      museBlocked: null,
+      soundTrackNote: false,
+    });
+  });
+
+  it("offers Feed and Circles for a video of unknown length, with the Muse note; Muse once it is measured", async () => {
+    story = video(null);
+    expect(await getStoryReshareOptions(STORY)).toEqual({
+      error: null,
+      feed: true,
+      muse: false,
+      circle: true,
+      reason: null,
+      museBlocked: "length_unknown",
+      soundTrackNote: false,
+    });
+    probeStoredVideoSeconds.mockResolvedValue(45);
+    expect(await getStoryReshareOptions(STORY)).toMatchObject({ muse: true, museBlocked: null });
   });
 
   it("offers nothing when the author opted out, and passes a refusal through", async () => {
@@ -597,6 +726,8 @@ describe("getStoryReshareOptions", () => {
       muse: false,
       circle: false,
       reason: "opted_out",
+      museBlocked: null,
+      soundTrackNote: false,
     });
     blocked = true;
     expect((await getStoryReshareOptions(STORY)).error).toBe("blocked");

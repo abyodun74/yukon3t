@@ -71,6 +71,43 @@ export function resumePausedVideos() {
   });
 }
 
+// A call (ringing, then the session) as its own signal, on top of the pause above. That pause only captures what is
+// playing on its FIRST activation, so while a full-screen viewer already holds it (a Story viewer's PageMediaHold,
+// the Lightbox) a call's pause captured nothing and the viewer's own video played on under the ringtone and the call.
+// A viewer that drives its own playback subscribes here (useCallMediaHold) and holds itself while a call is on.
+let callHoldCount = 0;
+const callHoldListeners = new Set<() => void>();
+
+function notifyCallHold() {
+  callHoldListeners.forEach((listener) => listener());
+}
+
+/** A call starts (rings, or its session begins): everything pauses, and call-aware viewers hold themselves. */
+export function beginCallMediaHold() {
+  pauseAllPlayingVideos();
+  callHoldCount++;
+  notifyCallHold();
+}
+
+/** The matching end of beginCallMediaHold: once the last one ends, call-aware viewers play on and the rest resumes. */
+export function endCallMediaHold() {
+  if (callHoldCount === 0) return;
+  callHoldCount--;
+  notifyCallHold();
+  resumePausedVideos();
+}
+
+export function isCallMediaHoldActive(): boolean {
+  return callHoldCount > 0;
+}
+
+export function subscribeCallMediaHold(listener: () => void): () => void {
+  callHoldListeners.add(listener);
+  return () => {
+    callHoldListeners.delete(listener);
+  };
+}
+
 let coordinatorInstalled = false;
 
 /**

@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CheckCheck, Circle, Clock, Eye, Forward, ImagePlus, Mic, MoreHorizontal, Reply, Send, ShoppingCart, Upload, Video, X } from "lucide-react";
+import { Camera, Check, CheckCheck, Circle, Clock, Eye, Forward, ImagePlus, Mic, MoreHorizontal, Play, Reply, Send, ShoppingCart, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -28,6 +28,7 @@ import { DictationRecorder, dictationErrorMessage } from "@/components/dictation
 import { UserLink } from "@/components/user-link";
 import { Lightbox } from "@/components/lightbox";
 import { StoryViewer, type StoryData } from "@/components/story-viewer";
+import { PageMediaHold } from "@/components/page-media-hold";
 import { getStory } from "@/app/actions/stories";
 import type { EmbedProvider } from "@/lib/video-embed";
 import { uploadFileDirect, uploadViewOnceMedia, captureVideoFrameFromFile, resizeImageFile } from "@/lib/upload-client";
@@ -801,7 +802,7 @@ const MessageBubble = memo(function MessageBubble({
                   )}
                 >
                   {/* A story's picture isn't saveable anywhere, so its preview isn't copyable either. */}
-                  <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-black" data-no-copy-media>
+                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-black" data-no-copy-media>
                     {(message.story.mediaType === "IMAGE" ? message.story.mediaUrl : message.story.mediaThumbnailUrl) && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -811,6 +812,12 @@ const MessageBubble = memo(function MessageBubble({
                         decoding="async"
                         className="h-full w-full object-cover"
                       />
+                    )}
+                    {/* A video or embedded-video Story: a play mark, so the chip reads as a video (an embed has no still). */}
+                    {message.story.mediaType !== "IMAGE" && (
+                      <span aria-hidden className="absolute inset-0 flex items-center justify-center text-white">
+                        <Play size={14} className="fill-white drop-shadow" />
+                      </span>
                     )}
                   </div>
                   <span className={cn(mine ? "text-accent-ink/70" : "text-foreground-soft")}>
@@ -828,6 +835,7 @@ const MessageBubble = memo(function MessageBubble({
                   </span>
                 </button>
               )}
+              {storyViewer && <PageMediaHold />}
               {storyViewer && (
                 <StoryViewer
                   stories={storyViewer.stories}

@@ -277,6 +277,9 @@ export const feed: typeof feedEn = {
       previous: "पिछली स्टोरी",
       next: "अगली स्टोरी",
       play: "स्टोरी चलाएँ",
+      tapToPlay: "चलाने के लिए टैप करें",
+      tapForSound: "आवाज़ के लिए टैप करें",
+      videoCantPlay: "यह वीडियो इस डिवाइस पर नहीं चल सकता।",
       pause: "स्टोरी रोकें",
       delete: "स्टोरी हटाएँ",
       deleteConfirm: "यह स्टोरी हटाएँ?",
@@ -331,6 +334,10 @@ export const feed: typeof feedEn = {
       alreadyPosted: "पहले ही पोस्ट हो चुका है",
       museHeld: "पोस्ट हो गया। हमारी वीडियो जाँच पूरी होते ही यह Muse पर दिखेगा।",
       repostOff: "इस स्टोरी के लिए दोबारा पोस्ट करना बंद है।",
+      museLengthUnknown: "इस वीडियो की लंबाई पढ़ी नहीं जा सकी, इसलिए यह Muse पर नहीं जा सकता। फ़ीड और Circles अब भी काम करते हैं।",
+      museTooLong: "यह वीडियो Muse की सीमा (5 मिनट) से लंबा है, इसलिए यह Muse पर नहीं जा सकता।",
+      // A Story with a Muse's sound track (Story.audioUrl): what a Feed / Circle / Muse copy gets.
+      soundTrackPostNote: "इस स्टोरी में अलग से जोड़ा गया साउंड ट्रैक है। आपकी फ़ीड या किसी Circle में इसकी कॉपी में उसकी जगह वीडियो की मूल आवाज़ चलती है (पोस्ट में अलग साउंड ट्रैक नहीं होता); Muse पर कॉपी में वह रहता है।",
       chooseCircle: "कोई Circle चुनें",
       repostErrors: {
         invalid: "पोस्ट नहीं हो सका। फिर से कोशिश करें।",

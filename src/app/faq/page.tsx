@@ -1283,6 +1283,24 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "video-story-wont-play",
+        q: "What if a video Story doesn't start playing?",
+        a: (
+          <>
+            A video Story starts by itself wherever it comes in the row,
+            first or after other Stories. If it stops or doesn&apos;t get
+            going (a slow connection, for example), the app tries again on
+            its own; if it still hasn&apos;t started after a few seconds,
+            you&apos;ll see &ldquo;Tap to play&rdquo; in the middle of the
+            Story. If your phone or browser only lets the video play without
+            sound, it plays muted with &ldquo;Tap for sound&rdquo; at the
+            top. A video your device can&apos;t play at all says so and moves
+            on to the next Story after a few seconds. You can always tap the
+            right side of the screen to skip ahead.
+          </>
+        ),
+      },
+      {
         id: "people-react-reply-comment-story",
         q: "Can people react, reply, or comment on my Story?",
         a: (
@@ -1349,9 +1367,17 @@ const sections: Section[] = [
             the same automatic video check as any new video; on Muse, a video
             longer than about a minute appears once that check is done.
             Posting the same Story to the same place again doesn&apos;t make a
-            second copy. A video Story whose length the app couldn&apos;t
-            record (including video Stories posted before this option
-            existed) can only be sent to chats.
+            second copy. Every kind of Story (a photo, a video with its own
+            sound, or an embedded video) can be sent to chats, your feed and
+            your Circles; there are no audio-only Stories. A video whose
+            length can&apos;t be read, even from the file itself (rare, for
+            example some WebM recordings), still goes to chats, your feed and
+            your Circles, but not to Muse, and the Share sheet says so. Muse
+            also doesn&apos;t take a video longer than 5 minutes. A Story
+            made from a Muse with an added sound track keeps that track, and
+            so does its copy on Muse; a copy on your feed or in a Circle
+            plays the video&apos;s original sound instead (posts have no
+            separate sound track), and the Share sheet says so.
           </>
         ),
       },
@@ -1455,8 +1481,7 @@ const sections: Section[] = [
             them so you hear about their future posts. None of these require
             being connected to the creator first, same as liking or
             commenting. If a Muse uses an added sound track, a Story made
-            from it plays the video&apos;s original sound instead (a Story
-            has no separate sound track), and the share sheet tells you so.
+            from it keeps that sound track.
           </>
         ),
       },

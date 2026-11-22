@@ -159,6 +159,8 @@ export const shell: typeof shellEn = {
       frame_required: "Impossible de lire une image d'aperçu de cette vidéo, elle n'a donc pas été partagée. Essayez une autre vidéo ou enregistrez-la d'abord en MP4.",
       upload_check_failed: "Nous n'avons pas pu confirmer votre fichier à cause d'un problème de notre côté. Votre publication n'a rien d'anormal : réessayez dans un instant.",
       too_large: "Ce fichier est trop volumineux.",
+      // createStory refuses a video measured over MAX_STORY_VIDEO_SECONDS (the phone couldn't read its length).
+      videoTooLong: "Une vidéo de story peut durer jusqu'à 2 minutes.",
       rate_limited: "Vous publiez trop vite. Ralentissez un peu.",
       send_failed: "Impossible d'envoyer dans cette discussion.",
       network: serverUnreachable,

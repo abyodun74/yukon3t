@@ -94,6 +94,7 @@ export const FAQ_IDS = [
   "post-more-than-one-story",
   "move-between-different-peoples-stories",
   "close-story",
+  "video-story-wont-play",
   "people-react-reply-comment-story",
   "like-story",
   "post-story-feed-muse-circle",
