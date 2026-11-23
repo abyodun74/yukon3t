@@ -5,7 +5,6 @@ import {
   SHOPPING_LIST_TITLE_MAX,
   canAddChecklistItem,
   checklistFallbackText,
-  checklistModerationText,
   checklistProgress,
   clampText,
   cleanChecklistTitle,
@@ -92,9 +91,8 @@ describe("checklist helpers", () => {
     expect(cleanChecklistTitle("   ")).toBeNull();
   });
 
-  it("builds the content stand-in and the moderation text", () => {
+  it("builds the content stand-in", () => {
     expect(checklistFallbackText("Groceries")).toBe("🛒 Groceries");
-    expect(checklistModerationText("Groceries", ["Milk", "Eggs"])).toBe("Groceries\nMilk\nEggs");
   });
 
   it("counts ticked rows", () => {

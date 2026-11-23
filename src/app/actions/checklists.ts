@@ -3,7 +3,6 @@
 import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateText } from "@/lib/moderation";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat } from "@/lib/e2ee/secret-chat";
 import { isMembershipLocked } from "@/lib/hidden-chats";
@@ -35,7 +34,7 @@ import { z } from "zod";
  *  - in a 1:1, refuses while either person blocks the other (blocked), like sendMessage;
  *  - never writes readable text into a secret (E2EE) chat: a list sent before the chat became secret can still be
  *    ticked, unticked and trimmed, but not given new text (not_supported_in_secret_chat; the bubble doesn't offer it);
- *  - runs new or rewritten text through moderateText and refuses it when flagged (nothing is stored).
+ *  - does not scan new or rewritten text: it is chat text, which is not scanned automatically (it can be reported).
  * Then it writes with a guarded statement (a tick only lands on an unticked row and the other way round, every write is
  * scoped to the list it was checked against, adding takes a per-list advisory lock for the count and position), tells
  * open threads through the conversation's realtime signal, and answers the whole list as it now stands.
@@ -50,7 +49,6 @@ type ChecklistError =
   | "hidden_locked"
   | "blocked"
   | "not_supported_in_secret_chat"
-  | "moderation"
   | "full";
 
 type ChecklistResult = { error: ChecklistError; checklist?: undefined } | { error: null; checklist: ChecklistData };
@@ -104,12 +102,10 @@ async function start(userId: string, checklistId: string | null) {
   return checklistAccess(userId, checklistId);
 }
 
-/** New or rewritten row text: cleaned like the editor does, then moderated. Null text = invalid. */
+/** New or rewritten row text: cleaned like the editor does. Null text = invalid. */
 async function checkedText(raw: unknown): Promise<{ text: string } | { error: ChecklistError }> {
   const parsed = checklistItemTextSchema.safeParse({ text: typeof raw === "string" ? cleanShoppingListItem(raw) : raw });
   if (!parsed.success) return { error: "invalid" };
-  const moderation = await moderateText(parsed.data.text);
-  if (!moderation.allowed) return { error: "moderation" };
   return { text: parsed.data.text };
 }
 

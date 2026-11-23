@@ -12,7 +12,7 @@
 // video with a known length to the Cloudflare Stream review instead (moderate-long-videos), which deletes a video it
 // flags outright, so a file Hive merely couldn't read could end up deleted with no human look. That review is still
 // what every video over Hive's 60s limit gets (videoLongReviewNeeded, set at creation); this path doesn't touch it.
-// The 14-day sweep of unreviewed holds (sweepExpiredMediaHolds) does not delete these: they wait for an admin.
+// Nothing deletes these unreviewed (no hold is ever deleted automatically): they wait for an admin.
 
 // Wait before attempt n+1, indexed by failures so far (1 → 5 min, …). Six failures span about 16 hours.
 export const VIDEO_SCAN_BACKOFF_MS = [5 * 60_000, 15 * 60_000, 60 * 60_000, 3 * 60 * 60_000, 12 * 60 * 60_000];

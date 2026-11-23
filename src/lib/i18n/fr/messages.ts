@@ -241,7 +241,7 @@ export const messages: typeof messagesEn = {
       trust: "Le code correspond. Faire confiance",
     },
     turnOffBody:
-      "Les nouveaux messages seront de nouveau envoyés sans chiffrement et analysés pour détecter d'éventuelles infractions, comme dans n'importe quelle autre discussion. Les messages déjà envoyés restent tels quels.",
+      "Les nouveaux messages seront de nouveau envoyés sans chiffrement, comme dans n'importe quelle autre discussion, et pourront donc être lus s'ils sont signalés. Les messages déjà envoyés restent tels quels.",
     errors: {
       turnOn: "Activation impossible. Réessayez.",
       tooShort: "Utilisez au moins {min} caractères.",
@@ -349,7 +349,6 @@ export const messages: typeof messagesEn = {
       errors: {
         rate_limited: "Vous transférez trop vite. Réessayez dans quelques minutes.",
         not_forwardable: "Ce message ne peut pas être transféré.",
-        moderation: "Ce message ne peut pas être transféré, car il enfreint nos Règles de la communauté.",
         unavailable: "Impossible de transférer vers ces discussions.",
         load: "Impossible de charger vos discussions.",
         other: "Impossible de transférer. Réessayez.",
@@ -368,7 +367,6 @@ export const messages: typeof messagesEn = {
       full: "Cette liste est pleine.",
       errors: {
         update: "Impossible de mettre à jour la liste. Réessayez.",
-        moderation: "Cet article ne peut pas être ajouté à la liste.",
         rateLimited: "Trop de modifications d'un coup. Patientez un instant et réessayez.",
         full: "Cette liste est pleine.",
       },

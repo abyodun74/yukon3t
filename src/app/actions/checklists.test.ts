@@ -159,17 +159,17 @@ describe("setChecklistItemChecked", () => {
 });
 
 describe("addChecklistItem", () => {
-  it("adds a moderated, cleaned row at the end", async () => {
+  it("adds a cleaned row at the end, without scanning the text", async () => {
     const result = await addChecklistItem(LIST, "  Oat   milk ");
     expect(result.error).toBeNull();
-    expect(moderateText).toHaveBeenCalledWith("Oat milk");
+    expect(moderateText).not.toHaveBeenCalled();
     expect(itemCreate).toHaveBeenCalledWith({ data: { checklistId: LIST, text: "Oat milk", position: 2, addedById: ME } });
   });
 
-  it("refuses flagged text without storing it", async () => {
+  it("adds text the scanner would have flagged: chat text is not scanned automatically", async () => {
     moderateText.mockResolvedValue({ allowed: false });
-    expect((await addChecklistItem(LIST, "bad")).error).toBe("moderation");
-    expect(itemCreate).not.toHaveBeenCalled();
+    expect((await addChecklistItem(LIST, "damn good coffee")).error).toBeNull();
+    expect(itemCreate).toHaveBeenCalled();
   });
 
   it("refuses a 31st row", async () => {
@@ -225,13 +225,14 @@ describe("sendMessage with a checklist", () => {
       { text: "Milk", position: 0, addedById: ME },
       { text: "Eggs", position: 1, addedById: ME },
     ]);
-    expect(moderateText).toHaveBeenCalledWith("Groceries\nMilk\nEggs");
+    expect(moderateText).not.toHaveBeenCalled();
   });
 
-  it("holds a flagged list for review like any text", async () => {
+  it("never holds a list for its text: chat text is not scanned automatically", async () => {
     moderateText.mockResolvedValue({ allowed: false });
     await sendMessage(form({ title: "Groceries", items: ["Milk"] }));
-    expect(messageCreate.mock.calls[0][0].data.moderationStatus).toBe("FLAGGED");
+    expect(moderateText).not.toHaveBeenCalled();
+    expect(messageCreate.mock.calls[0][0].data.moderationStatus).toBeUndefined();
   });
 
   it("refuses a checklist in a secret chat", async () => {

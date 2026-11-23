@@ -2,8 +2,8 @@ import type { MediaModerationCheck } from "@/lib/moderation";
 
 /**
  * What createPost does with a photo/video post the automated screen (OpenAI moderation of the caption, each photo,
- * and a video's still frame) didn't pass. Pure rules, shared by createPost, the admin moderation page and the
- * expiry sweep in the resolve-stale-reports cron.
+ * and a video's still frame) didn't pass. Pure rules, shared by createPost, createMuse and the admin
+ * moderation page.
  *
  * Before this, any flag at all — a caption the text model didn't like, or one ordinary video frame — rejected the
  * post and deleted the upload on the spot. Nothing was kept and nothing reached /admin/moderation, so a false
@@ -14,8 +14,8 @@ import type { MediaModerationCheck } from "@/lib/moderation";
  *    scanned in full afterwards by the moderate-videos cron.
  *  - hold: flagged, but not in a must-delete category. The post is stored hidden (moderationStatus FLAGGED, so only
  *    the author and admins can open it), its media is kept, and it shows up in /admin/moderation's flagged-content
- *    queue with the reasons, where an admin publishes it or removes it. If nobody reviews it within
- *    MEDIA_HOLD_REVIEW_WINDOW_MS it is deleted, media included, by the sweep.
+ *    queue with the reasons, where an admin publishes it or removes it. It is never deleted automatically
+ *    (owner decision 2026-11-22: the 14-day expiry sweep is gone); it waits for an admin however long that takes.
  *  - reject: flagged in a category in MUST_DELETE_MODERATION_CATEGORIES (sexual content involving minors). The upload
  *    is deleted at once and never kept for review; only an audit record without the media remains, which the admin
  *    page lists under "Rejected automatically".
@@ -24,18 +24,10 @@ import type { MediaModerationCheck } from "@/lib/moderation";
 /** Categories whose media is never kept, not even hidden for review: deleted immediately, as before. */
 export const MUST_DELETE_MODERATION_CATEGORIES: ReadonlySet<string> = new Set(["sexual/minors"]);
 
-/**
- * How long a held post waits for an admin before the sweep deletes it. Same 14 days as the longest existing
- * keep-then-purge rule for user media (an unopened view-once photo/video, VIEW_ONCE_LIFETIME_MS in src/lib/view-once.ts).
- */
-export const MEDIA_HOLD_REVIEW_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
-
-/** How far back past the review window the sweep looks for holds it hasn't dealt with (e.g. after a cron outage). */
-export const MEDIA_HOLD_SWEEP_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
-
 /** AuditLog.performedBy sentinels (that column isn't a foreign key; see the long-video review's own). */
 export const MEDIA_HOLD_PERFORMED_BY = "system:media-moderation-hold";
 export const MEDIA_REJECT_PERFORMED_BY = "system:media-moderation-reject";
+/** Written by the removed 14-day expiry sweep; only read now, so the admin page can still list those older rows. */
 export const MEDIA_HOLD_EXPIRED_PERFORMED_BY = "system:media-hold-expired";
 
 export type MediaModerationDecision =
@@ -74,17 +66,23 @@ export function mediaHoldAuditReason(postId: string, mediaType: string, reasons:
   return `${HOLD_PREFIX} (post:${postId}, ${mediaType}): ${reasons.join("; ")}`;
 }
 
+/** A Muse held at posting (createMuse): the same prefix, naming the Muse instead of a post. */
+export function museMediaHoldAuditReason(museId: string, reasons: string[]): string {
+  return `${HOLD_PREFIX} (muse:${museId}, VIDEO): ${reasons.join("; ")}`;
+}
+
+/** The held Muse's id out of a museMediaHoldAuditReason string, or null. */
+export function museIdFromMediaAuditReason(reason: string): string | null {
+  if (!reason.startsWith(HOLD_PREFIX)) return null;
+  const match = /\(muse:([A-Za-z0-9_-]+), VIDEO\)/.exec(reason);
+  return match ? match[1] : null;
+}
+
 export function mediaRejectAuditReason(mediaType: string, reasons: string[]): string {
   return `${REJECT_PREFIX} (${mediaType}, must-delete category, media not kept): ${reasons.join("; ")}`;
 }
 
-export function mediaHoldExpiredAuditReason(postId: string): string {
-  return `Held media post (post:${postId}) was not reviewed within ${Math.round(
-    MEDIA_HOLD_REVIEW_WINDOW_MS / (24 * 60 * 60 * 1000),
-  )} days and was deleted with its media. Not a confirmed violation.`;
-}
-
-/** The held post's id out of a mediaHoldAuditReason / mediaHoldExpiredAuditReason string, or null. */
+/** The held post's id out of a mediaHoldAuditReason string, or null. */
 export function postIdFromMediaAuditReason(reason: string): string | null {
   const match = /\(post:([A-Za-z0-9_-]+)[,)]/.exec(reason);
   return match ? match[1] : null;
@@ -110,9 +108,8 @@ export function mediaTypeFromMediaAuditReason(reason: string): string | null {
 // --- Video scan failure holds ----------------------------------------------
 // The moderate-videos cron gives up on a video Hive couldn't scan after VIDEO_SCAN_MAX_ATTEMPTS
 // (src/lib/video-scan-retry.ts) and holds it for an admin: FLAGGED, media kept, one CONTENT_FLAGGED_FOR_REVIEW audit
-// row with its own performedBy, so sweepExpiredMediaHolds (which reads MEDIA_HOLD_PERFORMED_BY rows only, and also
-// skips any post that has one of these) never deletes it: an unscannable file isn't a finding against anyone, so it
-// waits for an admin's Publish or Remove however long that takes. Post, Comment and Muse alike.
+// row with its own performedBy: an unscannable file isn't a finding against anyone, so it waits for an admin's Publish
+// or Remove however long that takes, like every other hold. Post, Comment and Muse alike.
 
 export const VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY = "system:video-scan-failed-hold";
 
@@ -131,12 +128,12 @@ export function videoScanFailedHoldAuditReason(kind: VideoScanHoldKind, id: stri
 // --- Video scan verdict holds -----------------------------------------------
 // The VLM scan (src/lib/hive.ts) answers "unsure" when it can't confidently call a video clean, and names categories
 // when it flags one. Both hide the item (FLAGGED, media kept) and write one CONTENT_FLAGGED_FOR_REVIEW row under
-// VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY with the model's reason, so /admin/moderation can show why. Like a scan-failure
-// hold, it is never deleted unreviewed (the sweep skips both performedBy values): neither is a confirmed violation.
+// VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY with the model's reason, so /admin/moderation can show why. Like every hold, it
+// is never deleted unreviewed: neither is a confirmed violation.
 
 export const VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY = "system:video-scan-review-hold";
 
-/** Every performedBy a moderate-videos hold row is written under (the admin page and the sweep read all of them). */
+/** Every performedBy a moderate-videos hold row is written under (the admin page reads all of them). */
 export const VIDEO_SCAN_HOLD_PERFORMED_BY_ALL: readonly string[] = [
   VIDEO_SCAN_FAILED_HOLD_PERFORMED_BY,
   VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY,
@@ -158,7 +155,7 @@ export function videoScanUnsureHoldAuditReason(kind: VideoScanHoldKind, id: stri
   return `${UNSURE_PREFIX} (${kind}:${id}, VIDEO): ${oneLine(modelReason) || "no reason given"}`;
 }
 
-/** e.g. "... automatic video scan flagged this video (muse:c1, VIDEO): sexual_nudity,violence_gore; <reason>" */
+/** e.g. "... automatic video scan flagged this video (muse:c1, VIDEO): sexual_explicit,violence; <reason>" */
 export function videoScanFlaggedHoldAuditReason(
   kind: VideoScanHoldKind,
   id: string,
@@ -204,15 +201,4 @@ export function videoScanHoldTargetFromAuditReason(reason: string): { kind: Vide
 /** Map key for a held item: "post:<id>", "comment:<id>", "muse:<id>". */
 export function videoScanHoldKey(kind: VideoScanHoldKind, id: string): string {
   return `${kind}:${id}`;
-}
-
-/** When a hold that started at `heldAt` is deleted if nobody has reviewed it. */
-export function mediaHoldExpiresAt(heldAt: Date): Date {
-  return new Date(heldAt.getTime() + MEDIA_HOLD_REVIEW_WINDOW_MS);
-}
-
-/** The createdAt range of hold audit rows the sweep should act on at `now`. */
-export function expiredMediaHoldWindow(now: Date): { gte: Date; lt: Date } {
-  const lt = new Date(now.getTime() - MEDIA_HOLD_REVIEW_WINDOW_MS);
-  return { gte: new Date(lt.getTime() - MEDIA_HOLD_SWEEP_LOOKBACK_MS), lt };
 }

@@ -87,13 +87,11 @@ export function ChecklistBubble({
     }
     if (result.error === "hidden_locked") onHiddenLocked();
     setError(
-      result.error === "moderation"
-        ? t.errors.moderation
-        : result.error === "rate_limited"
-          ? t.errors.rateLimited
-          : result.error === "full"
-            ? t.errors.full
-            : t.errors.update,
+      result.error === "rate_limited"
+        ? t.errors.rateLimited
+        : result.error === "full"
+          ? t.errors.full
+          : t.errors.update,
     );
     return false;
   }

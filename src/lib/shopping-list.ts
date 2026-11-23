@@ -101,11 +101,6 @@ export function normalizeChecklistInput(input: { title: string; items: readonly 
   return { title, items };
 }
 
-/** All of a new checklist's text in one string, for one moderation call. */
-export function checklistModerationText(title: string, items: readonly string[]): string {
-  return [title, ...items].join("\n");
-}
-
 /** "3 of 8": how many rows are ticked. */
 export function checklistProgress(items: readonly { checkedAt: Date | string | null }[]): { done: number; total: number } {
   return { done: items.filter((item) => item.checkedAt !== null).length, total: items.length };

@@ -1,9 +1,10 @@
 import { pagesEn } from "@/lib/i18n/en/pages";
 import { categoryName, noticeText } from "@/lib/notification-notice";
 
-// Turns the raw category tokens produced by moderation.ts/profanity-wordlist.ts
-// (OpenAI's own moderation category names, e.g. "sexual", "sexual/minors",
-// plus this app's own "profanity" and "moderation_api_error" sentinels)
+// Turns the raw category tokens produced by moderation.ts (OpenAI's own
+// moderation category names, e.g. "sexual", "sexual/minors", plus this app's
+// "moderation_api_error" sentinel; older records can also carry "profanity"
+// and self-harm names from before the 2026-11-22 narrowing)
 // into keys and short human-readable phrases — see video-review.ts's
 // VideoReviewResult "flagged" reasons, the shape these are derived from. The
 // phrases themselves, in every language, are pages.notifications.notices in

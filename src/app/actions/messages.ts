@@ -18,18 +18,17 @@ import {
 import {
   CHECKLIST_SELECT,
   checklistFallbackText,
-  checklistModerationText,
   normalizeChecklistInput,
 } from "@/lib/shopping-list";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateText, moderateMedia } from "@/lib/moderation";
+import { moderateText, moderateChatImage } from "@/lib/moderation";
 import { isEmojiOnly } from "@/lib/emoji";
 import { MEDIA_LIMITS, verifyUploadedSize, keyFromPublicUrl } from "@/lib/storage";
 import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { getBlockedEitherWayIds, isBlockedEitherWay, isBlockedWithAny } from "@/lib/blocks";
-import { isSecretChat, checkSecretSend, textForModeration, withoutSecretChats } from "@/lib/e2ee/secret-chat";
+import { isSecretChat, checkSecretSend, withoutSecretChats } from "@/lib/e2ee/secret-chat";
 import { isEncryptedContent } from "@/lib/e2ee/constants";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { updateConversationEmbedding } from "@/lib/embeddings";
@@ -632,11 +631,6 @@ export async function sendMessage(formData: FormData) {
     await cleanupUploads();
     return { error: secretGate };
   }
-  // A checklist is checked as a whole (title and every item), like any text message: flagged = held for review.
-  const scanText = checklist
-    ? checklistModerationText(checklist.title, checklist.items)
-    : textForModeration({ secret, content });
-
   if (mediaType === "AUDIO" || mediaType === "VIDEO" || mediaType === "IMAGE") {
     const key = mediaUrl ? keyFromPublicUrl(mediaUrl) : null;
     const maxBytes =
@@ -669,33 +663,18 @@ export async function sendMessage(formData: FormData) {
     }
   }
 
-  let moderationStatus: "PUBLISHED" | "FLAGGED" = "PUBLISHED";
-
-  if (mediaType === "VIDEO") {
-    // Same strict, reject-outright policy as post videos: the thumbnail
-    // frame is the only inspectable signal, held to the zero-tolerance
-    // media policy. A voice note has no equivalent frame to check — see the
-    // NONE/AUDIO branch below, same accepted gap already documented for
-    // video content generally (SECURITY.md).
-    const modResult = await moderateMedia({ text: scanText, thumbnailUrl: mediaThumbnailUrl });
+  // Chat text (messages, captions, checklists) is not scanned automatically (owner decision 2026-11-22); people can
+  // still report a message and an admin can remove it. Only the picture is checked: a photo itself, a video by its
+  // still frame, against the chat media categories alone (CHAT_MEDIA_MODERATION_CATEGORIES: sexual content involving
+  // minors, explicit sexual content), and a flagged one is refused with its upload deleted. Never in a secret chat's
+  // text (there is none to read); a voice note has no frame to check, the accepted gap SECURITY.md describes.
+  if (mediaType === "VIDEO" || mediaType === "IMAGE") {
+    const imageUrl = mediaType === "VIDEO" ? mediaThumbnailUrl : mediaUrl;
+    const modResult = imageUrl ? await moderateChatImage(imageUrl) : { allowed: true, flaggedCategories: [] };
     if (!modResult.allowed) {
       await cleanupUploads();
       return { error: "moderation" as const, categories: modResult.flaggedCategories };
     }
-  } else if (mediaType === "IMAGE") {
-    // Unlike video, the full attached image itself is inspectable directly —
-    // no thumbnail proxy needed.
-    const modResult = await moderateMedia({ text: scanText, imageUrls: mediaUrl ? [mediaUrl] : [] });
-    if (!modResult.allowed) {
-      await cleanupUploads();
-      return { error: "moderation" as const, categories: modResult.flaggedCategories };
-    }
-  } else if (scanText) {
-    // A voice note with no caption has no text to check — skip the call
-    // rather than sending an empty string to the moderation endpoint. (In a
-    // secret chat there's never text to check: scanText is "".)
-    const modResult = await moderateText(scanText);
-    moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
   }
 
   const message = await prisma.message.create({
@@ -706,7 +685,6 @@ export async function sendMessage(formData: FormData) {
       mediaType,
       mediaUrl: mediaType !== "NONE" ? mediaUrl : undefined,
       mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
-      moderationStatus,
       replyToMessageId,
       checklist: checklist
         ? {
@@ -924,8 +902,8 @@ export async function editMessage(messageId: string, formData: FormData) {
     return { error: "hidden_locked" as const };
   }
 
-  // Same rule as sendMessage: an edit in a secret chat must be ciphertext, and
-  // is never scanned.
+  // Same rule as sendMessage: an edit in a secret chat must be ciphertext. Chat text is not scanned automatically, and
+  // an edit leaves the message's moderation status as it was (a message held or removed by an admin stays so).
   const editedConversation = await prisma.conversation.findUnique({
     where: { id: message.conversationId },
     select: { isGroup: true, members: { select: { e2eeEnabledAt: true } } },
@@ -935,13 +913,10 @@ export async function editMessage(messageId: string, formData: FormData) {
   if (secretGate) {
     return { error: secretGate };
   }
-  const scanText = textForModeration({ secret, content });
-  const moderationStatus =
-    scanText && !(await moderateText(scanText)).allowed ? "FLAGGED" : "PUBLISHED";
 
   const updated = await prisma.message.update({
     where: { id: messageId },
-    data: { content, moderationStatus, editedAt: new Date() },
+    data: { content, editedAt: new Date() },
     include: {
       reactions: { select: REACTION_SELECT },
       corrections: { include: CORRECTION_INCLUDE },
@@ -1031,7 +1006,7 @@ export async function suggestCorrection(messageId: string, formData: FormData) {
   if (await isMembershipLocked(membership, user.id)) {
     return { error: "hidden_locked" as const };
   }
-  // Corrections are stored, scanned and shown by the server as plain text, which
+  // Corrections are stored and shown by the server as plain text, which
   // can't happen for an encrypted message — and a correction typed into a secret
   // chat would put readable text in it. Not offered there.
   const correctedConversation = await prisma.conversation.findUnique({
@@ -1048,11 +1023,7 @@ export async function suggestCorrection(messageId: string, formData: FormData) {
   }
   const { correctedText } = parsed.data;
 
-  const modResult = await moderateText(correctedText);
-  if (!modResult.allowed) {
-    return { error: "moderation" as const };
-  }
-
+  // Chat text, so not scanned automatically (it can be reported like the message itself).
   await prisma.messageCorrection.upsert({
     where: { messageId_authorId: { messageId, authorId: user.id } },
     create: { messageId, authorId: user.id, correctedText },
@@ -1321,15 +1292,8 @@ export async function forwardMessage(messageId: string, conversationIds: string[
     return { error: "not_found" as const };
   }
 
-  // Checked again here, not trusted from when it was first sent: forwarding is how a message spreads, so text that
-  // fails moderation now is refused outright rather than copied in as "under review". Links are part of the text.
-  // Media keeps its original verdict: the same file was checked when it was first sent (a GIF is Giphy's catalog).
-  if (source.content) {
-    const modResult = await moderateText(source.content);
-    if (!modResult.allowed) {
-      return { error: "moderation" as const };
-    }
-  }
+  // Chat text is not scanned automatically, so a forward isn't either; media keeps the verdict it got when it was
+  // first sent (the same file; a GIF is Giphy's catalog). A held or removed source is refused by forwardSourceRefusal.
 
   const [targets, blockedIds] = await Promise.all([
     // A collab chat hidden from the caller by a block with its author isn't found, so it counts as failed.

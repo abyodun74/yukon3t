@@ -80,7 +80,7 @@ import { readHiveCooldown, writeHiveCooldown } from "@/lib/hive-cooldown-store";
  *    CONTENT_FLAGGED_FOR_REVIEW row (VIDEO_SCAN_REVIEW_HOLD_PERFORMED_BY) naming the categories and the model's reason;
  *  - unsure (no category, unsure true): held for an admin at once, exactly like a give-up hold below (FLAGGED, media
  *    kept, audit row "automatic video scan was unsure (<kind>:<id>, VIDEO): <reason>"), without counting an attempt.
- * Neither hold is deleted unreviewed (sweepExpiredMediaHolds skips both performedBy values).
+ * Neither hold is ever deleted unreviewed: both wait for an admin.
  *
  * Claims each item (sets videoModeratedAt) BEFORE calling Hive, not after — this call is the real (billable)
  * moderation work, so an overlapping cron run must not redo it. On failure, un-claims the item so a later run retries
@@ -222,7 +222,7 @@ type HoldAuditRow = {
   reason: string;
 };
 
-/** The audit row a give-up hold writes: what /admin/moderation shows as the reason. Never swept (see the sweep). */
+/** The audit row a give-up hold writes: what /admin/moderation shows as the reason. Never deleted unreviewed. */
 function giveUpAuditRow(item: Candidate, diagnostic: VideoScanFailureDiagnostic): HoldAuditRow {
   return {
     targetId: item.authorId,

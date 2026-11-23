@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateText } from "@/lib/moderation";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { createNonE2eeMessage } from "@/lib/non-e2ee-message";
 import { afterMessageSent } from "@/lib/after-message-sent";
@@ -20,14 +19,14 @@ import { birthdayWishContent, type BirthdayPresetId, type BirthdayWishChoice } f
 // Sending a birthday wish (sendBirthdayWish in actions/birthdays.ts). The wish is an ordinary direct message from the
 // sender to the celebrant, written through the same machinery as any other server-built message: blocks and audience
 // re-checked (birthdayWishContext), the "message request" a first message to a non-connection is
-// (startDirectConversation), the hidden-chat lock, the messageSend limit, moderation of custom text, and
+// (startDirectConversation), the hidden-chat lock, the messageSend limit, and
 // createNonE2eeMessage, which refuses a secret chat. What differs is the notification: the celebrant gets no push per
 // wish, only one combined BIRTHDAY_WISHES row per year (BirthdayWishDigest), pushed on the first wish.
 // In a lib file, not the "use server" one: it trusts its `user` argument.
 
 export type BirthdayWishResult =
   | { error: null; conversationId: string }
-  | { error: "invalid" | "rate_limited" | "unavailable" | "already_wished" | "moderation" | "hidden_locked" };
+  | { error: "invalid" | "rate_limited" | "unavailable" | "already_wished" | "hidden_locked" };
 
 export async function sendBirthdayWishAs(
   user: { id: string; name: string | null },
@@ -53,9 +52,7 @@ export async function sendBirthdayWishAs(
 
   const content = birthdayWishContent(input, presets);
   if (!content) return { error: "invalid" };
-  // Custom text is checked like any other message text; flagged text is refused rather than sent hidden, so the sender
-  // can reword it (the emoji and ready-made messages are ours).
-  if (input.kind === "custom" && !(await moderateText(content)).allowed) return { error: "moderation" };
+  // A wish is a chat message, and chat text (custom wishes included) is not scanned automatically; it can be reported.
 
   let conversationId = await findDirectConversationId(user.id, celebrantId);
   if (conversationId) {

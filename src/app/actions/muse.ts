@@ -5,7 +5,14 @@ import { requireVerifiedUser, requireVerifiedViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { museSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateMedia, moderateText } from "@/lib/moderation";
+import { moderateMediaChecks, moderateText } from "@/lib/moderation";
+import {
+  decideMediaModeration,
+  MEDIA_HOLD_PERFORMED_BY,
+  MEDIA_REJECT_PERFORMED_BY,
+  mediaRejectAuditReason,
+  museMediaHoldAuditReason,
+} from "@/lib/media-moderation-hold";
 import {
   MEDIA_LIMITS,
   HIVE_VIDEO_MODERATION_MAX_SECONDS,
@@ -67,7 +74,9 @@ export async function createMuse(formData: FormData) {
     videoUrl: formData.get("videoUrl") || undefined,
     videoThumbnailUrl: formData.get("videoThumbnailUrl") || undefined,
     embedUrl: formData.get("embedUrl") || undefined,
-    videoDurationSeconds: formData.get("videoDurationSeconds"),
+    // `|| undefined`: an EMBED sends no duration, and z.coerce.number() would turn a missing field (null) into 0 and
+    // refuse it. VIDEO still requires one (checked below).
+    videoDurationSeconds: formData.get("videoDurationSeconds") || undefined,
     audioUrl: formData.get("audioUrl") || undefined,
   });
   if (!parsed.success) {
@@ -88,10 +97,9 @@ export async function createMuse(formData: FormData) {
     if (!embed) {
       return { error: "invalid" as const };
     }
+    // A flagged caption is held for an admin (stored FLAGGED, shown only to the author and admins), like a Post's
+    // embed: nothing flagged is refused or deleted automatically.
     const modResult = await moderateText(caption);
-    if (!modResult.allowed) {
-      return { error: "moderation" as const, categories: modResult.flaggedCategories };
-    }
     let muse;
     try {
       muse = await prisma.muse.create({
@@ -101,13 +109,17 @@ export async function createMuse(formData: FormData) {
           mediaType: "EMBED",
           embedProvider: embed.provider,
           embedId: embed.id,
-          moderationStatus: "PUBLISHED",
+          moderationStatus: modResult.allowed ? "PUBLISHED" : "FLAGGED",
         },
       });
     } catch (err) {
       console.error("[createMuse] failed to create embed muse row", err);
       await captureError(err, { action: "createMuse", mediaType: "EMBED", userId: user.id });
       return { error: "server_error" as const };
+    }
+    if (!modResult.allowed) {
+      revalidatePath("/admin/moderation");
+      return { error: null, museId: muse.id, held: true as const };
     }
     await notifySubscribers(user.id, "SUBSCRIPTION_MUSE", { museId: muse.id });
     revalidatePath("/muse");
@@ -160,21 +172,34 @@ export async function createMuse(formData: FormData) {
     }
   }
 
-  const modResult = await moderateMedia({
-    text: caption,
-    imageUrls: [],
-    thumbnailUrl: videoThumbnailUrl,
-  });
-  if (!modResult.allowed) {
+  // Same rule as createPost (decideMediaModeration): only a must-delete category (sexual content involving minors) is
+  // rejected and its upload deleted at once; anything else flagged in the caption or the video's still frame is stored
+  // hidden (FLAGGED, media kept) for an admin on /admin/moderation, never deleted automatically.
+  const decision = decideMediaModeration(
+    await moderateMediaChecks({ text: caption, thumbnailUrl: videoThumbnailUrl }),
+  );
+  if (decision.kind === "reject") {
     await cleanupUploads();
-    return { error: "moderation" as const, categories: modResult.flaggedCategories };
+    await prisma.auditLog.create({
+      data: {
+        targetId: user.id,
+        action: "CONTENT_REMOVED",
+        performedBy: MEDIA_REJECT_PERFORMED_BY,
+        reason: mediaRejectAuditReason("VIDEO", decision.reasons),
+      },
+    });
+    console.warn(`[createMuse] VIDEO muse by ${user.id} rejected: ${decision.reasons.join("; ")}`);
+    revalidatePath("/admin/moderation");
+    return { error: "moderation" as const };
   }
+  const heldAtPosting = decision.kind === "hold";
 
   // Same reasoning as createPost's own videoNeedsManualReview — the Hive
   // video scan doesn't cover past HIVE_VIDEO_MODERATION_MAX_SECONDS,
   // so a longer Muse publishes hidden pending a human/automated long-form
   // look instead of going out immediately.
-  const videoNeedsManualReview = videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;
+  // A Muse held at posting skips both automated video passes, like a held Post: it waits for an admin either way.
+  const videoNeedsManualReview = !heldAtPosting && videoDurationSeconds > HIVE_VIDEO_MODERATION_MAX_SECONDS;
 
   // Kicks off the Cloudflare Stream copy now rather than leaving it to the
   // moderate-long-videos cron's own discovery — same eager-start reasoning
@@ -195,11 +220,11 @@ export async function createMuse(formData: FormData) {
         videoThumbnailUrl,
         videoDurationSeconds,
         audioUrl,
-        moderationStatus: videoNeedsManualReview ? "FLAGGED" : "PUBLISHED",
+        moderationStatus: heldAtPosting || videoNeedsManualReview ? "FLAGGED" : "PUBLISHED",
         // Pre-claimed so moderate-videos' `videoModeratedAt IS NULL` scan
         // never picks this up and wastes/fails a Hive call it was never
         // going to handle — same reasoning as Post's own videoModeratedAt.
-        videoModeratedAt: videoNeedsManualReview ? new Date() : undefined,
+        videoModeratedAt: heldAtPosting || videoNeedsManualReview ? new Date() : undefined,
         videoStreamUid: streamUid ?? undefined,
         // What moderate-long-videos' candidate query keys on (see
         // schema.prisma) — cleared by its verdict or by an admin's
@@ -232,6 +257,26 @@ export async function createMuse(formData: FormData) {
 
   revalidatePath("/muse");
   revalidatePath(`/u/${user.id}`);
+
+  if (heldAtPosting) {
+    // What /admin/moderation shows next to the held Muse. Written after the row exists so it can name it; a failure
+    // here must not turn a stored Muse into an error, so it is logged.
+    try {
+      await prisma.auditLog.create({
+        data: {
+          targetId: user.id,
+          action: "CONTENT_FLAGGED_FOR_REVIEW",
+          performedBy: MEDIA_HOLD_PERFORMED_BY,
+          reason: museMediaHoldAuditReason(muse.id, decision.reasons),
+        },
+      });
+    } catch (err) {
+      console.error(`[createMuse] couldn't record the review hold for muse ${muse.id}`, err);
+    }
+    console.warn(`[createMuse] VIDEO muse by ${user.id} held for review: ${decision.reasons.join("; ")}`);
+    revalidatePath("/admin/moderation");
+    return { error: null, museId: muse.id, held: true as const };
+  }
   return { error: null, museId: muse.id };
 }
 

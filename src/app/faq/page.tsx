@@ -621,28 +621,30 @@ const sections: Section[] = [
         a: (
           <>
             Every upload is screened automatically before it&apos;s visible
-            to anyone else, and content that violates our{" "}
+            to anyone else, for four things only, all against our{" "}
             <a href="/legal/guidelines" className="text-accent hover:underline">
               Community Guidelines
-            </a>{" "}
-            (most commonly sexually explicit material) is never published.
-            When the screen flags a photo or video post, the post is saved
-            but hidden from everyone except you, and our moderators review
-            it: they either publish it as you posted it or remove it. You
-            see a note that it&apos;s waiting for review, and you don&apos;t
-            need to upload it again. Its caption can&apos;t be edited while
-            it&apos;s waiting for review. A held post nobody has reviewed within
-            14 days is deleted, together with its photos or video. Every video is also
-            checked in full shortly after it&apos;s posted: an AI model from our
-            moderation provider reviews frames taken from across the whole
-            video. If it finds a problem, isn&apos;t sure, or can&apos;t process
-            the video at all, the video is hidden the same way until a
-            moderator has looked at it, and it isn&apos;t deleted while it
-            waits. Uploads
-            in the most serious categories (such as sexual content involving
-            minors) are rejected and deleted straight away and never kept
-            for review. If an upload fails because of a problem on our side,
-            the app says so, and you can simply try again.
+            </a>
+            : explicit sexual content, sexual content involving minors,
+            graphic violence or promotion of violence, and hate content or
+            hate symbols. Swimwear, swearing and other non-explicit content
+            aren&apos;t flagged. When the screen flags a photo or video post
+            or a Muse video, it is saved but hidden from everyone except you,
+            and our moderators review it: they either publish it as you
+            posted it or remove it. You see a note that it&apos;s waiting for
+            review, and you don&apos;t need to upload it again. Its caption
+            can&apos;t be edited while it&apos;s waiting for review. Nothing
+            held is deleted automatically: it waits for a moderator. Every
+            video is also checked in full shortly after it&apos;s posted: an AI
+            model from our moderation provider reviews frames taken from
+            across the whole video for the same four things. If it finds one,
+            or can&apos;t tell because the picture is too unclear, or can&apos;t
+            process the video at all, the video is hidden the same way until
+            a moderator has looked at it. The one exception is suspected
+            sexual content involving minors: that upload is rejected and
+            deleted straight away and never kept for review. If an upload
+            fails because of a problem on our side, the app says so, and you
+            can simply try again.
           </>
         ),
       },
@@ -1721,9 +1723,9 @@ const sections: Section[] = [
             messages in a secret chat. Secret chats, hidden chats and chats
             with someone you&apos;ve blocked (or who blocked you) aren&apos;t
             offered as places to forward to, and nothing forwarded ever goes
-            into a secret chat. Forwarded text, links included,
-            is checked against our Community Guidelines again before it&apos;s
-            sent.
+            into a secret chat. Like all chat text, forwarded text isn&apos;t
+            scanned automatically; our Community Guidelines still apply and
+            anyone in the chat can report it.
           </>
         ),
       },
@@ -1751,8 +1753,9 @@ const sections: Section[] = [
             &ldquo;Send list&rdquo; and it arrives as a shared checklist:
             everyone in the chat, you included, can tick items off (and
             untick them), add items, and change or remove them, and everyone
-            sees the changes as they happen. Items are checked against our
-            Community Guidelines like any message. In a secret chat the list
+            sees the changes as they happen. Like any chat text, items
+            aren&apos;t scanned automatically, but our Community Guidelines
+            still apply and a list can be reported. In a secret chat the list
             is sent as ordinary encrypted text instead, one line per item with
             an empty box in front, and those boxes can&apos;t be ticked: we
             can&apos;t read a secret chat, so we can&apos;t keep a shared list
@@ -1789,9 +1792,10 @@ const sections: Section[] = [
             with the other person keeping. And because nothing is kept, a
             view-once message that has been viewed can&apos;t be reviewed by
             our moderators if it&apos;s reported. Photos (and one still
-            frame of each video) are checked automatically when sent, the
-            same as any other upload, and you can still report and block the
-            sender.
+            frame of each video) are checked automatically when sent, like
+            any photo or video in a chat (for sexual content involving minors
+            and explicit sexual content), and you can still report and block
+            the sender.
           </>
         ),
       },
@@ -2097,17 +2101,17 @@ const sections: Section[] = [
         q: "Can moderators read secret chats? How do I report abuse in one?",
         a: (
           <>
-            No — because we can&apos;t read secret chats, we don&apos;t scan
-            their text for policy violations the way we scan ordinary
-            messages, and admins can&apos;t open them. Our rules still apply
+            No — we can&apos;t read secret chats, so admins can&apos;t open
+            them. (We don&apos;t scan the text of any chat automatically, secret
+            or not.) Our rules still apply
             there. If someone sends you something abusive, tap the ⋯ on that
             message and choose Report: the app tells you first that this
             shares that one message&apos;s text with our moderators, so they
             can review it. We can&apos;t independently verify it, so a report
             only contains what you choose to send. Photos and videos in
-            secret chats are still checked. You can turn secret chat off at
-            any time under &ldquo;Chat privacy,&rdquo; after which new
-            messages are scanned again.
+            secret chats are still checked automatically, as in any chat.
+            You can turn secret chat off at any time under &ldquo;Chat
+            privacy&rdquo;.
           </>
         ),
       },

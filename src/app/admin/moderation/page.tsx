@@ -22,8 +22,8 @@ import {
   MEDIA_HOLD_PERFORMED_BY,
   MEDIA_REJECT_PERFORMED_BY,
   MEDIA_HOLD_EXPIRED_PERFORMED_BY,
-  mediaHoldExpiresAt,
   mediaTypeFromMediaAuditReason,
+  museIdFromMediaAuditReason,
   postIdFromMediaAuditReason,
   reasonsFromMediaAuditReason,
   VIDEO_SCAN_HOLD_PERFORMED_BY_ALL,
@@ -605,17 +605,19 @@ async function FlaggedContentSection({ limit }: SectionProps) {
   const [flaggedPosts, flaggedComments, flaggedMessages, flaggedMuses] = data;
   const flaggedCount = flaggedPosts.length + flaggedComments.length + flaggedMessages.length + flaggedMuses.length;
 
-  // Why each held photo/video post was held: the audit row createPost wrote,
-  // which names the post (AuditLog rows point at the author, not the post).
-  const oldestPost = flaggedPosts[0]?.createdAt;
-  const holdRows = oldestPost
+  // Why each held photo/video post or Muse was held: the audit row createPost /
+  // createMuse wrote, which names it (AuditLog rows point at the author).
+  const oldestHeld = [flaggedPosts[0]?.createdAt, flaggedMuses[0]?.createdAt]
+    .filter((d): d is Date => d instanceof Date)
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+  const holdRows = oldestHeld
     ? ((await loadSection("flagged content hold reasons", () =>
         limit(() =>
           prisma.auditLog.findMany({
             where: {
               action: "CONTENT_FLAGGED_FOR_REVIEW",
               performedBy: MEDIA_HOLD_PERFORMED_BY,
-              createdAt: { gte: oldestPost },
+              createdAt: { gte: oldestHeld },
             },
             orderBy: { createdAt: "asc" },
             take: 500,
@@ -628,6 +630,12 @@ async function FlaggedContentSection({ limit }: SectionProps) {
     holdRows.flatMap((row) => {
       const postId = postIdFromMediaAuditReason(row.reason);
       return postId ? [[postId, { reasons: reasonsFromMediaAuditReason(row.reason), heldAt: row.createdAt }] as const] : [];
+    }),
+  );
+  const holdByMuseId = new Map(
+    holdRows.flatMap((row) => {
+      const museId = museIdFromMediaAuditReason(row.reason);
+      return museId ? [[museId, reasonsFromMediaAuditReason(row.reason)] as const] : [];
     }),
   );
 
@@ -705,10 +713,7 @@ async function FlaggedContentSection({ limit }: SectionProps) {
                   <p className="mt-0.5 text-foreground-soft">Detail: {hold.reasons.join("; ")}</p>
                   <p className="mt-0.5 text-foreground-soft">
                     Not visible to anyone but the author. Publish posts it as they intended; Remove deletes it
-                    and its media.
-                    {scanHold
-                      ? " Not deleted automatically: the video scan also held it, so it waits for a decision."
-                      : ` Deleted automatically if not reviewed by ${mediaHoldExpiresAt(hold.heldAt).toLocaleString()}.`}
+                    and its media. Never deleted automatically: it waits for your decision.
                   </p>
                 </div>
               )}
@@ -748,13 +753,26 @@ async function FlaggedContentSection({ limit }: SectionProps) {
         ))}
         {flaggedMuses.map((muse) => {
           const scanHold = scanHoldByKey.get(videoScanHoldKey("muse", muse.id));
+          const museHold = holdByMuseId.get(muse.id);
           return (
             <div key={muse.id} className="rounded-lg border border-line p-3">
               <p className="text-xs text-foreground-soft">
                 Muse by {muse.author.name} · {muse.videoDurationSeconds}s · posted {muse.createdAt.toLocaleString()}
               </p>
               <p className="mt-1 break-words text-sm">{muse.caption || "(no caption)"}</p>
-              {scanHold && muse.videoUrl ? (
+              {museHold && (
+                <div className="mt-2 rounded-md border border-line bg-surface p-2 text-xs">
+                  <p>
+                    <span className="font-medium">Held by the automated screen at posting:</span>{" "}
+                    {violationLabelsFromReasons(museHold).join(", ") || "flagged"}
+                  </p>
+                  <p className="mt-0.5 text-foreground-soft">Detail: {museHold.join("; ")}</p>
+                  <p className="mt-0.5 text-foreground-soft">
+                    Not visible to anyone but the author. Never deleted automatically: it waits for your decision.
+                  </p>
+                </div>
+              )}
+              {museHold ? null : scanHold && muse.videoUrl ? (
                 <VideoScanHold hold={scanHold} videoUrl={muse.videoUrl} />
               ) : (
                 <p className="mt-1 text-xs text-foreground-soft">
@@ -823,9 +841,10 @@ const AUTO_REJECTED_VISIBLE_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * Photo/video uploads the automated screen deleted at posting (a must-delete
- * category, src/lib/media-moderation-hold.ts) and held posts that expired
- * unreviewed. The media no longer exists, so there's no preview and nothing
- * to publish: this is the record of who, when and why.
+ * category, sexual content involving minors; src/lib/media-moderation-hold.ts).
+ * Older rows can also be held posts the removed 14-day sweep expired. The
+ * media no longer exists, so there's no preview and nothing to publish: this
+ * is the record of who, when and why.
  */
 async function AutoRejectedMediaSection({ limit }: SectionProps) {
   const rows = await loadSection("rejected automatically", () =>
@@ -861,8 +880,9 @@ async function AutoRejectedMediaSection({ limit }: SectionProps) {
     <>
       <h2 className={SECTION_HEADING}>Rejected automatically ({rows.length})</h2>
       <p className="mt-1 text-xs text-foreground-soft">
-        Last 30 days. Uploads deleted at posting because the screen matched a category we never keep, and held posts
-        nobody reviewed in time. The media is gone, so there&apos;s nothing to open or restore.
+        Last 30 days. Uploads deleted at posting because the screen matched sexual content involving minors, the one
+        category we never keep (older rows may be held posts the former 14-day expiry removed; nothing expires now).
+        The media is gone, so there&apos;s nothing to open or restore.
       </p>
       <div className="mt-3 space-y-2">
         {rows.map((row) => {

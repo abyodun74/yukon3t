@@ -4,7 +4,7 @@ import { requireVerifiedUser } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import { messageSchema, shareToChatsSchema } from "@/lib/validations";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateText, moderateMedia } from "@/lib/moderation";
+import { moderateChatImage } from "@/lib/moderation";
 import { MEDIA_LIMITS, verifyUploadedSize, keyFromPublicUrl } from "@/lib/storage";
 import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { checkVideoThumbnail } from "@/lib/video-thumbnail-check";
@@ -61,7 +61,7 @@ export async function sendToConversations(formData: FormData) {
   const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
 
   // Ciphertext-looking text is refused outright: these destinations are written by the server, never encrypted on a
-  // device, so it could only be an attempt to dodge text moderation (see checkSecretSend).
+  // device, so it could only be an attempt to hide text from reports and admin review (see checkSecretSend).
   if (checkSecretSend({ secret: false, content })) {
     await cleanupUploads();
     return { error: "invalid" as const };
@@ -95,20 +95,14 @@ export async function sendToConversations(formData: FormData) {
     }
   }
 
-  let moderationStatus: "PUBLISHED" | "FLAGGED" = "PUBLISHED";
+  // Same rule as sendMessage: the text is chat text and is not scanned automatically; only the picture (a photo, or a
+  // video's still frame) is checked, against the chat media categories, and a flagged one is refused.
   if (mediaType === "VIDEO" || mediaType === "IMAGE") {
-    const modResult = await moderateMedia(
-      mediaType === "VIDEO"
-        ? { text: content, thumbnailUrl: mediaThumbnailUrl }
-        : { text: content, imageUrls: mediaUrl ? [mediaUrl] : [] },
-    );
-    if (!modResult.allowed) {
+    const imageUrl = mediaType === "VIDEO" ? mediaThumbnailUrl : mediaUrl;
+    if (imageUrl && !(await moderateChatImage(imageUrl)).allowed) {
       await cleanupUploads();
       return { error: "moderation" as const };
     }
-  } else if (content) {
-    const modResult = await moderateText(content);
-    moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
   }
 
   const tally = await sendToEachChat({
@@ -122,7 +116,7 @@ export async function sendToConversations(formData: FormData) {
         mediaType,
         mediaUrl: mediaType !== "NONE" ? mediaUrl : undefined,
         mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
-        moderationStatus,
+        moderationStatus: "PUBLISHED",
       });
       if (created.error) return created.error;
       await afterMessageSent({

@@ -2,14 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { MediaModerationCheck } from "@/lib/moderation";
 import {
   decideMediaModeration,
-  expiredMediaHoldWindow,
   mediaHoldAuditReason,
-  mediaHoldExpiredAuditReason,
-  mediaHoldExpiresAt,
   mediaRejectAuditReason,
   mediaTypeFromMediaAuditReason,
-  MEDIA_HOLD_REVIEW_WINDOW_MS,
-  MEDIA_HOLD_SWEEP_LOOKBACK_MS,
   postIdFromMediaAuditReason,
   reasonsFromMediaAuditReason,
   MEDIA_HOLD_PERFORMED_BY,
@@ -108,36 +103,25 @@ describe("audit reason strings", () => {
     expect(reasonsFromMediaAuditReason(reason)).toEqual(["photo: sexual/minors"]);
   });
 
-  it("an expiry names the post and says it wasn't a confirmed violation", () => {
-    const reason = mediaHoldExpiredAuditReason("cpost123");
-    expect(postIdFromMediaAuditReason(reason)).toBe("cpost123");
-    expect(reason).toContain("14 days");
-    expect(reason).toContain("Not a confirmed violation");
-  });
-
   it("finds nothing in an unrelated reason", () => {
     expect(postIdFromMediaAuditReason("Long-video automated review flagged for admin review: audio: hate")).toBeNull();
     expect(reasonsFromMediaAuditReason("no structure here")).toEqual([]);
   });
 });
 
-describe("review window", () => {
-  it("is 14 days and expires a hold exactly that long after it started", () => {
-    expect(MEDIA_HOLD_REVIEW_WINDOW_MS).toBe(14 * 24 * 60 * 60 * 1000);
-    const heldAt = new Date("2026-10-01T12:00:00Z");
-    expect(mediaHoldExpiresAt(heldAt).toISOString()).toBe("2026-10-15T12:00:00.000Z");
+describe("no automatic deletion of held content (owner decision 2026-11-22)", () => {
+  it("has no review-window expiry any more", async () => {
+    const hold = await import("@/lib/media-moderation-hold");
+    for (const gone of ["MEDIA_HOLD_REVIEW_WINDOW_MS", "mediaHoldExpiresAt", "expiredMediaHoldWindow", "mediaHoldExpiredAuditReason"]) {
+      expect(gone in hold).toBe(false);
+    }
   });
 
-  it("sweeps holds older than the window, looking back a bounded way further", () => {
-    const now = new Date("2026-10-26T00:00:00Z");
-    const { gte, lt } = expiredMediaHoldWindow(now);
-    expect(lt.getTime()).toBe(now.getTime() - MEDIA_HOLD_REVIEW_WINDOW_MS);
-    expect(gte.getTime()).toBe(lt.getTime() - MEDIA_HOLD_SWEEP_LOOKBACK_MS);
-    // A hold from yesterday is not due; one from 15 days ago is.
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
-    expect(yesterday < lt).toBe(false);
-    expect(fifteenDaysAgo < lt && fifteenDaysAgo >= gte).toBe(true);
+  it("only a must-delete category (sexual content involving minors) is ever rejected; every other flag is a hold", () => {
+    for (const category of ["sexual", "violence", "violence/graphic", "harassment/threatening", "hate", "hate/threatening"]) {
+      expect(decideMediaModeration([flagged("video frame", category)]).kind).toBe("hold");
+    }
+    expect(decideMediaModeration([flagged("video frame", "sexual/minors")]).kind).toBe("reject");
   });
 });
 
@@ -188,14 +172,14 @@ describe("video scan verdict hold reasons (VLM unsure / flagged)", () => {
   });
 
   it("a flagged hold lists the categories then the model's reason", () => {
-    const reason = videoScanFlaggedHoldAuditReason("comment", "cc1", ["sexual_nudity", "violence_gore"], "nudity\nand blood");
+    const reason = videoScanFlaggedHoldAuditReason("comment", "cc1", ["sexual_explicit", "violence"], "nudity\nand blood");
     expect(reason).toBe(
-      "Video held for admin review: automatic video scan flagged this video (comment:cc1, VIDEO): sexual_nudity,violence_gore; nudity and blood",
+      "Video held for admin review: automatic video scan flagged this video (comment:cc1, VIDEO): sexual_explicit,violence; nudity and blood",
     );
     expect(videoScanHoldTargetFromAuditReason(reason)).toEqual({ kind: "comment", id: "cc1" });
     expect(videoScanHoldTypeFromAuditReason(reason)).toBe("flagged");
     expect(videoScanHoldHeadline(reason)).toBe(
-      "Hidden: automatic video scan flagged this video — sexual_nudity,violence_gore; nudity and blood",
+      "Hidden: automatic video scan flagged this video — sexual_explicit,violence; nudity and blood",
     );
   });
 

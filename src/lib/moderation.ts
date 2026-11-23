@@ -40,8 +40,40 @@ async function moderationErrorDetail(res: Response): Promise<string | undefined>
   }
 }
 
+/**
+ * The OpenAI moderation categories that count as a flag anywhere this app checks posted text or media at publish time
+ * (owner decision 2026-11-22): explicit sexual content, sexual content involving minors, violence and graphic violence,
+ * threats of violence, and hate (content attacking people for a protected characteristic, sexual orientation and gender
+ * identity included). Every other category OpenAI returns (harassment without a threat, self-harm, illicit, ...) is
+ * ignored: it neither holds nor refuses anything. sexual/minors is also MUST_DELETE_MODERATION_CATEGORIES
+ * (src/lib/media-moderation-hold.ts).
+ */
+export const MODERATION_CATEGORIES: ReadonlySet<string> = new Set([
+  "sexual",
+  "sexual/minors",
+  "violence",
+  "violence/graphic",
+  "harassment/threatening",
+  "hate",
+  "hate/threatening",
+]);
+
+/**
+ * The only categories a chat photo or video still frame is refused for (owner decision 2026-11-22): sexual content
+ * involving minors and explicit sexual content. Chat text is not scanned at all.
+ */
+export const CHAT_MEDIA_MODERATION_CATEGORIES: ReadonlySet<string> = new Set(["sexual", "sexual/minors"]);
+
+/** The categories in `allowlist` that OpenAI's `categories` object marks true, in allowlist order. Pure. */
+export function flaggedModerationCategories(categories: unknown, allowlist: ReadonlySet<string>): string[] {
+  if (!categories || typeof categories !== "object") return [];
+  const record = categories as Record<string, unknown>;
+  return [...allowlist].filter((category) => record[category] === true);
+}
+
 async function callModerationApi(
   input: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>,
+  categories: ReadonlySet<string> = MODERATION_CATEGORIES,
 ): Promise<ModerationResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -74,14 +106,9 @@ async function callModerationApi(
     }
 
     const data = await res.json();
-    const result = data.results?.[0];
-    if (!result?.flagged) {
-      return { allowed: true, flaggedCategories: [] };
-    }
-    const flaggedCategories = Object.entries(result.categories ?? {})
-      .filter(([, value]) => value)
-      .map(([key]) => key);
-    return { allowed: false, flaggedCategories };
+    // OpenAI's own overall "flagged" is not used: it is true for categories this app doesn't act on.
+    const flaggedCategories = flaggedModerationCategories(data.results?.[0]?.categories, categories);
+    return flaggedCategories.length > 0 ? { allowed: false, flaggedCategories } : { allowed: true, flaggedCategories: [] };
   } catch (err) {
     // Covers both a real network/API error and the timeout abort above.
     reportModerationFailOpen(timeoutController.signal.aborted ? "timeout" : "network error", err);
@@ -100,8 +127,8 @@ export async function moderateText(text: string): Promise<ModerationResult> {
 }
 
 // Same fail-open-without-key / fail-open-on-error semantics as moderateText,
-// applied to an already-uploaded image's public URL. This is the enforcement
-// point for the "no sexually explicit content" policy on photos and on the
+// applied to an already-uploaded image's public URL, against MODERATION_CATEGORIES.
+// This is the enforcement point for the "no sexually explicit content" policy on photos and on the
 // client-captured video thumbnail frame that stands in for a video. For an
 // animated GIF (storage.ts's post-image/message-image kinds), OpenAI's
 // endpoint only ever looks at the first frame — the same "one frame stands
@@ -109,6 +136,14 @@ export async function moderateText(text: string): Promise<ModerationResult> {
 // thumbnail frame, not a new gap this introduces.
 export async function moderateImage(url: string): Promise<ModerationResult> {
   return callModerationApi([{ type: "image_url", image_url: { url } }]);
+}
+
+/**
+ * A chat photo, or a chat video's still frame: moderateImage narrowed to CHAT_MEDIA_MODERATION_CATEGORIES, so only
+ * sexual content involving minors or explicit sexual content refuses it. Same fail-open semantics.
+ */
+export async function moderateChatImage(url: string): Promise<ModerationResult> {
+  return callModerationApi([{ type: "image_url", image_url: { url } }], CHAT_MEDIA_MODERATION_CATEGORIES);
 }
 
 /** One labelled check out of moderateMediaChecks: which part of the upload it was ("caption", "photo 2", "video frame"). */

@@ -30,6 +30,7 @@ const checkRateLimit = vi.fn(async (name: string) => {
 });
 const moderateText = vi.fn();
 const moderateMedia = vi.fn();
+const moderateChatImage = vi.fn();
 const verifyUploadedSize = vi.fn();
 const deleteOwnedObject = vi.fn();
 const messageCreate = vi.fn();
@@ -72,6 +73,7 @@ vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: (name: string) => checkRate
 vi.mock("@/lib/moderation", () => ({
   moderateText: (t: string) => moderateText(t),
   moderateMedia: (a: unknown) => moderateMedia(a),
+  moderateChatImage: (url: string) => moderateChatImage(url),
 }));
 vi.mock("@/lib/storage", () => ({
   MEDIA_LIMITS: { "message-image": 1, "message-video": 1, "message-audio": 1 },
@@ -168,6 +170,7 @@ beforeEach(() => {
   secretAtInsert = new Set();
   moderateText.mockResolvedValue({ allowed: true });
   moderateMedia.mockResolvedValue({ allowed: true });
+  moderateChatImage.mockResolvedValue({ allowed: true, flaggedCategories: [] });
   verifyUploadedSize.mockResolvedValue(true);
   messageCreate.mockResolvedValue({ id: "new" });
   museUpdate.mockResolvedValue({ shareCount: 7 });
@@ -274,17 +277,28 @@ describe("sendToConversations: each destination on its own", () => {
 });
 
 describe("sendToConversations: moderation and uploads", () => {
-  it("holds flagged text as FLAGGED in every copy, like sendMessage", async () => {
+  it("does not scan the text (chat text is not scanned automatically): every copy is PUBLISHED", async () => {
     moderateText.mockResolvedValue({ allowed: false });
     await sendToConversations(form([D1, D2]));
-    expect(moderateText).toHaveBeenCalledTimes(1);
+    expect(moderateText).not.toHaveBeenCalled();
+    expect(moderateMedia).not.toHaveBeenCalled();
+    expect(messageCreate).toHaveBeenCalledTimes(2);
     for (const [arg] of messageCreate.mock.calls) {
-      expect((arg as { data: { moderationStatus: string } }).data.moderationStatus).toBe("FLAGGED");
+      expect((arg as { data: { moderationStatus: string } }).data.moderationStatus).toBe("PUBLISHED");
     }
   });
 
+  it("still checks the photo itself with the chat media check, and not the caption", async () => {
+    await sendToConversations(
+      form([D1], { content: "a caption", mediaType: "IMAGE", mediaUrl: "https://media.example/u/k.jpg" }),
+    );
+    expect(moderateChatImage).toHaveBeenCalledWith("https://media.example/u/k.jpg");
+    expect(moderateText).not.toHaveBeenCalled();
+    expect(moderateMedia).not.toHaveBeenCalled();
+  });
+
   it("refuses flagged media for everyone and deletes the upload", async () => {
-    moderateMedia.mockResolvedValue({ allowed: false, flaggedCategories: [] });
+    moderateChatImage.mockResolvedValue({ allowed: false, flaggedCategories: ["sexual"] });
     const result = await sendToConversations(
       form([D1, D2], { mediaType: "IMAGE", mediaUrl: "https://media.example/u/k.jpg" }),
     );
@@ -484,10 +498,11 @@ describe("replyToStory", () => {
     expect(sendFcmActivityToUsers).not.toHaveBeenCalled();
   });
 
-  it("still notifies for a reply held as FLAGGED, like sendMessage", async () => {
+  it("does not scan the reply text: chat text is not scanned automatically", async () => {
     moderateText.mockResolvedValue({ allowed: false });
     await reply();
-    expect(messageCreate.mock.calls[0][0]).toMatchObject({ data: { moderationStatus: "FLAGGED" } });
+    expect(moderateText).not.toHaveBeenCalled();
+    expect(messageCreate.mock.calls[0][0]).toMatchObject({ data: { moderationStatus: "PUBLISHED" } });
     expect(afterMessageSent).toHaveBeenCalledTimes(1);
   });
 

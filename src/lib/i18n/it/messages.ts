@@ -238,7 +238,7 @@ export const messages: typeof messagesEn = {
       trust: "Il codice coincide. Fidati",
     },
     turnOffBody:
-      "I nuovi messaggi torneranno a essere inviati non cifrati e verranno analizzati alla ricerca di violazioni, come in qualsiasi altra chat. I messaggi già inviati restano come sono.",
+      "I nuovi messaggi torneranno a essere inviati non cifrati, come in qualsiasi altra chat, quindi si potranno leggere se qualcuno li segnala. I messaggi già inviati restano come sono.",
     errors: {
       turnOn: "Non siamo riusciti ad attivarla. Riprova.",
       tooShort: "Usa almeno {min} caratteri.",
@@ -345,7 +345,6 @@ export const messages: typeof messagesEn = {
       errors: {
         rate_limited: "Stai inoltrando troppo velocemente. Riprova fra qualche minuto.",
         not_forwardable: "Questo messaggio non può essere inoltrato.",
-        moderation: "Questo messaggio non può essere inoltrato perché viola le nostre Linee guida della community.",
         unavailable: "Impossibile inoltrare a queste chat.",
         load: "Impossibile caricare le tue chat.",
         other: "Impossibile inoltrare. Riprova.",
@@ -364,7 +363,6 @@ export const messages: typeof messagesEn = {
       full: "Questa lista è piena.",
       errors: {
         update: "Impossibile aggiornare la lista. Riprova.",
-        moderation: "Questo articolo non può essere aggiunto alla lista.",
         rateLimited: "Troppe modifiche di seguito. Aspetta un momento e riprova.",
         full: "Questa lista è piena.",
       },

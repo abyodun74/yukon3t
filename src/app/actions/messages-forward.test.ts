@@ -235,11 +235,12 @@ describe("forwardMessage: the source", () => {
     expect(await forwardMessage(MSG, [D1])).toEqual({ error: "not_found" });
   });
 
-  it("runs text moderation again and refuses outright when it fails", async () => {
+  it("does not scan the text again: chat text is not scanned automatically (owner decision 2026-11-22)", async () => {
     moderateText.mockResolvedValue({ allowed: false });
-    expect(await forwardMessage(MSG, [D1])).toEqual({ error: "moderation" });
-    expect(moderateText).toHaveBeenCalledWith("see https://example.com/x");
-    expect(messageCreate).not.toHaveBeenCalled();
+    const result = await forwardMessage(MSG, [D1]);
+    expect(result.error).toBeNull();
+    expect(moderateText).not.toHaveBeenCalled();
+    expect(messageCreate).toHaveBeenCalled();
   });
 });
 

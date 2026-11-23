@@ -141,16 +141,15 @@ describe("sendBirthdayWishAs", () => {
     expect(createNonE2eeMessage).not.toHaveBeenCalled();
   });
 
-  it("moderates custom text and refuses flagged text", async () => {
+  it("sends custom text without scanning it (chat text is not scanned automatically)", async () => {
     moderateText.mockResolvedValue({ allowed: false });
-    expect(await sendBirthdayWishAs(me, { celebrantId: "bday", kind: "custom", text: "nasty" }, presets)).toEqual({
-      error: "moderation",
-    });
-    expect(moderateText).toHaveBeenCalledWith("nasty");
-    expect(wishCreate).not.toHaveBeenCalled();
+    const result = await sendBirthdayWishAs(me, { celebrantId: "bday", kind: "custom", text: "you old dog" }, presets);
+    expect(result.error).toBeNull();
+    expect(moderateText).not.toHaveBeenCalled();
+    expect(createNonE2eeMessage.mock.calls[0][0]).toMatchObject({ content: "you old dog", moderationStatus: "PUBLISHED" });
   });
 
-  it("doesn't moderate the app's own emoji and ready-made messages", async () => {
+  it("sends the app's own emoji and ready-made messages as they are", async () => {
     await sendBirthdayWishAs(me, { celebrantId: "bday", kind: "emoji", emoji: "🎂" }, presets);
     expect(moderateText).not.toHaveBeenCalled();
     expect(createNonE2eeMessage.mock.calls[0][0].content).toBe("🎂");

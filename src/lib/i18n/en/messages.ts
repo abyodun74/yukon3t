@@ -251,7 +251,7 @@ export const messagesEn = {
       trust: "It matches — trust it",
     },
     turnOffBody:
-      "New messages will be sent unencrypted again, and scanned for policy violations like any other chat. Messages already sent stay as they are.",
+      "New messages will be sent unencrypted again, like any other chat, so they can be read if someone reports them. Messages already sent stay as they are.",
     errors: {
       turnOn: "Couldn't turn that on — try again.",
       tooShort: "Use at least {min} characters.",
@@ -359,7 +359,6 @@ export const messagesEn = {
       errors: {
         rate_limited: "You're forwarding too fast. Try again in a few minutes.",
         not_forwardable: "This message can't be forwarded.",
-        moderation: "This message can't be forwarded because it goes against our Community Guidelines.",
         unavailable: "Couldn't forward to those chats.",
         load: "Couldn't load your chats.",
         other: "Couldn't forward that. Try again.",
@@ -379,7 +378,6 @@ export const messagesEn = {
       full: "This list is full.",
       errors: {
         update: "Couldn't update the list. Try again.",
-        moderation: "That item can't be added to the list.",
         rateLimited: "Too many changes at once. Wait a moment and try again.",
         full: "This list is full.",
       },

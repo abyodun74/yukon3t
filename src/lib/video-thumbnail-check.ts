@@ -8,7 +8,7 @@ import { isOwnedUploadKey } from "@/lib/media-keys";
  *  - the sender's own `video-thumb/` upload ("invalid": any URL used to be accepted, e.g. an outside image that shows
  *    the screen one thing and viewers another, or someone else's file that a later cleanup would delete),
  *  - within the thumbnail size cap ("too_large", also when the upload is missing).
- * Moderation itself stays with the caller's moderateMedia call (thumbnailUrl).
+ * Moderation itself stays with the caller (moderateMedia / moderateChatImage on the frame).
  */
 export type VideoThumbnailCheck = "ok" | "required" | "invalid" | "too_large";
 

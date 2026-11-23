@@ -238,7 +238,7 @@ export const messages: typeof messagesEn = {
       trust: "El código coincide. Confiar",
     },
     turnOffBody:
-      "Los mensajes nuevos volverán a enviarse sin cifrar y se analizarán en busca de infracciones, como en cualquier otro chat. Los mensajes ya enviados quedan como están.",
+      "Los mensajes nuevos volverán a enviarse sin cifrar, como en cualquier otro chat, así que se podrán leer si alguien los reporta. Los mensajes ya enviados quedan como están.",
     errors: {
       turnOn: "No pudimos activarla. Inténtalo de nuevo.",
       tooShort: "Usa al menos {min} caracteres.",
@@ -345,7 +345,6 @@ export const messages: typeof messagesEn = {
       errors: {
         rate_limited: "Estás reenviando demasiado rápido. Inténtalo de nuevo en unos minutos.",
         not_forwardable: "Este mensaje no se puede reenviar.",
-        moderation: "Este mensaje no se puede reenviar porque infringe nuestras Normas de la comunidad.",
         unavailable: "No se pudo reenviar a esos chats.",
         load: "No se pudieron cargar tus chats.",
         other: "No se pudo reenviar. Inténtalo de nuevo.",
@@ -364,7 +363,6 @@ export const messages: typeof messagesEn = {
       full: "Esta lista está llena.",
       errors: {
         update: "No se pudo actualizar la lista. Inténtalo de nuevo.",
-        moderation: "Ese artículo no se puede agregar a la lista.",
         rateLimited: "Demasiados cambios seguidos. Espera un momento e inténtalo de nuevo.",
         full: "Esta lista está llena.",
       },

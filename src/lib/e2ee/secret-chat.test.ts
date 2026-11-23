@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkSecretSend, inboxPreview, isSecretChat, pushPreview, textForModeration } from "./secret-chat";
+import { checkSecretSend, inboxPreview, isSecretChat, pushPreview } from "./secret-chat";
 
 const on = { e2eeEnabledAt: new Date() };
 const off = { e2eeEnabledAt: null };
@@ -40,23 +40,10 @@ describe("checkSecretSend — plaintext can never slip into a secret chat", () =
     expect(checkSecretSend({ secret: false, content: "hello" })).toBeNull();
     expect(checkSecretSend({ secret: false, content: "" })).toBeNull();
   });
-  it("refuses ciphertext in an ordinary chat — otherwise the prefix would be a way to skip text moderation", () => {
+  it("refuses ciphertext in an ordinary chat — otherwise the prefix would hide text from reports and admin review", () => {
     expect(checkSecretSend({ secret: false, content: CIPHERTEXT })).toBe("not_a_secret_chat");
-    // Even junk that merely starts with the prefix: the server never scans such text, so it can't be let through.
+    // Even junk that merely starts with the prefix: it would read as unreadable to a reviewer, so it can't be let through.
     expect(checkSecretSend({ secret: false, content: "e2ee:v1:anything at all, insults included" })).toBe("not_a_secret_chat");
-  });
-});
-
-describe("textForModeration — nothing from a secret chat reaches the scanner", () => {
-  it("sends no text to the scanner in a secret chat", () => {
-    expect(textForModeration({ secret: true, content: CIPHERTEXT })).toBe("");
-    expect(textForModeration({ secret: true, content: "hello" })).toBe("");
-  });
-  it("never sends ciphertext to the scanner even if the chat isn't secret", () => {
-    expect(textForModeration({ secret: false, content: CIPHERTEXT })).toBe("");
-  });
-  it("still scans ordinary text in ordinary chats", () => {
-    expect(textForModeration({ secret: false, content: "hello there" })).toBe("hello there");
   });
 });
 

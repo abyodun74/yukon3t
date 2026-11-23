@@ -31,8 +31,13 @@
 export const HIVE_VLM_ENDPOINT = "https://api.thehive.ai/api/v3/chat/completions";
 export const HIVE_VLM_MODEL = "hive/vision-language-model";
 
-/** The policy categories, in the order the schema and the admin reason list them. */
-export const VLM_CATEGORIES = ["sexual_nudity", "minor_sexualized", "violence_gore", "hate_symbols", "self_harm"] as const;
+/**
+ * The policy categories, in the order the schema and the admin reason list them. Exactly these four (owner decision
+ * 2026-11-22): explicit sexual content, minors in a sexual context, graphic violence or promotion of violence, and hate.
+ * Nothing else (partial nudity, swimwear, self-harm, profanity, ...) is a category. No category may target a group of
+ * people: the hate category protects people (sexual orientation and gender identity included), it never flags them.
+ */
+export const VLM_CATEGORIES = ["sexual_explicit", "minor_sexualized", "violence", "hate"] as const;
 export type VlmCategory = (typeof VLM_CATEGORIES)[number];
 
 const VERDICT_KEYS = [...VLM_CATEGORIES, "unsure", "reason"] as const;
@@ -41,11 +46,10 @@ const VERDICT_KEYS = [...VLM_CATEGORIES, "unsure", "reason"] as const;
 export const VLM_VERDICT_SCHEMA = {
   type: "object",
   properties: {
-    sexual_nudity: { type: "boolean" },
+    sexual_explicit: { type: "boolean" },
     minor_sexualized: { type: "boolean" },
-    violence_gore: { type: "boolean" },
-    hate_symbols: { type: "boolean" },
-    self_harm: { type: "boolean" },
+    violence: { type: "boolean" },
+    hate: { type: "boolean" },
     unsure: { type: "boolean" },
     reason: { type: "string" },
   },
@@ -54,19 +58,19 @@ export const VLM_VERDICT_SCHEMA = {
 } as const;
 
 /**
- * The policy prompt. Conservative on purpose: any doubt is "unsure", which holds the video for a person to look at,
- * never "clean". Kept free of user data (the video URL is the only per-request input, in the media part).
+ * The policy prompt. Strict on the four categories and on minors, and nothing beyond them: unsure is for a frame that
+ * plausibly shows one of the four but can't be told apart, never for a merely dark, blurry or low-quality video.
+ * Kept free of user data (the video URL is the only per-request input, in the media part).
  */
 export const VLM_POLICY_PROMPT = [
-  "You are a strict content-safety reviewer for a social app. You are shown frames sampled from one user-uploaded video.",
-  "Check every frame and set each field to true if it appears anywhere in the video:",
-  "- sexual_nudity: nudity or sexual content of any kind, including partial nudity (exposed genitals, buttocks or female nipples, also through see-through clothing), sexual acts or simulated sexual acts, sexual touching, or sexually suggestive posing that focuses on intimate body parts.",
+  "You are a content-safety reviewer for a social app. You are shown frames sampled from one user-uploaded video.",
+  "Check every frame and set each field to true only if it clearly appears anywhere in the video:",
+  "- sexual_explicit: explicit sexual content or pornography: sexual acts or simulated sexual acts, sexual touching of genitals, or exposed genitals shown in a sexual way. Swimwear, underwear, shirtless people, kissing, dancing, breastfeeding, medical or educational content, and artistic or other non-explicit nudity are NOT this category.",
   "- minor_sexualized: anyone who is or may be under 18 shown in any sexual, nude, partially nude or sexually suggestive context. If a person's age is unclear and the context is sexual or suggestive, set this to true.",
-  "- violence_gore: graphic violence or gore: serious injuries, blood or open wounds, mutilation, dead bodies, torture, or people or animals being seriously hurt.",
-  "- hate_symbols: hate symbols or extremist imagery, such as swastikas and other Nazi symbols, white-supremacist symbols, or flags, logos or salutes of terrorist or violent extremist groups.",
-  "- self_harm: self-harm or suicide: cutting, self-inflicted wounds, suicide attempts or methods, or content that encourages them.",
-  "Set unsure to true whenever you cannot confidently say the video is free of all of the above: frames that are dark, blurry, obscured or very low quality, something that appears only in a brief flash, a scene that could be one of the categories, or anything you cannot tell. When in doubt, set unsure to true, never false.",
-  "Ordinary everyday content (people talking, sports, cooking, pets, landscapes, cartoons, games without gore) with nothing above in it is clean: set every field to false.",
+  "- violence: graphic violence (serious injuries, gore, mutilation, dead bodies, torture, people or animals being seriously hurt) or content that promotes or glorifies violence, including explicit threats of violence against people. Sports, news reporting without gore, films or games without graphic gore, and play-fighting are NOT this category.",
+  "- hate: content that attacks, dehumanizes or calls for harm against people because of a protected characteristic (race, ethnicity, national origin, religion, caste, disability, sex, sexual orientation or gender identity), or hate symbols and extremist imagery such as swastikas and other Nazi symbols, white-supremacist symbols, or flags, logos or salutes of terrorist or violent extremist groups. People simply being who they are (for example a same-sex couple, a pride flag, religious dress) is never hate; this category protects people, it never targets them.",
+  "Set unsure to true only when a frame plausibly shows one of the four categories above but the image quality (dark, blurry, obscured, a brief flash) prevents you from deciding. An ordinary video that is dark, blurry or low quality with no sign of any category is clean, not unsure.",
+  "Everything else is clean: set every field to false. That includes everyday content (people talking, sports, cooking, pets, landscapes, cartoons, games), swearing, non-explicit partial nudity of adults, and anything outside the four categories.",
   "reason: one short sentence (at most 20 words) saying what you saw that made a field true, or \"clean\" if every field is false. Do not identify or describe people beyond what the reason needs.",
   "Answer with the JSON object only.",
 ].join("\n");
@@ -80,10 +84,14 @@ export const VLM_MAX_FPS = 0.5;
  * with no recorded duration samples more and may be refused by Hive (400 -> rejected_media -> retry -> admin hold).
  */
 export const VLM_UNKNOWN_DURATION_FPS = 0.25;
-/** Measured input tokens per sampled frame with this prompt (2026-11-18), plus the prompt itself. */
+/**
+ * Measured input tokens per sampled frame (2026-11-18, with the earlier prompt), plus the prompt itself: the
+ * 2026-11-22 four-category prompt is ~2,500 characters, about 150 tokens longer than the one measured, so its share is
+ * estimated, not measured.
+ */
 export const VLM_TOKENS_PER_FRAME = 770;
-export const VLM_PROMPT_TOKENS = 500;
-/** The most input tokens a call with a known duration can need (30 frames): ~23,600, the size verified live. */
+export const VLM_PROMPT_TOKENS = 650;
+/** The most input tokens a call with a known duration can need (30 frames): ~23,750, just over the 23,548 verified live. */
 export const VLM_MAX_INPUT_TOKENS = VLM_PROMPT_TOKENS + VLM_MAX_FRAMES * VLM_TOKENS_PER_FRAME;
 /** Output cap: the verdict is ~60-90 tokens; a cut-off answer (finish_reason "length") is a bad_response. */
 export const VLM_MAX_OUTPUT_TOKENS = 300;

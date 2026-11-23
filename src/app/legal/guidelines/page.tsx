@@ -62,6 +62,16 @@ export default function GuidelinesPage() {
         another member.
       </p>
       <p className="mt-2 text-foreground-soft">
+        Hate speech means attacking, dehumanizing or calling for harm against
+        people because of who they are: race, ethnicity, national origin,
+        religion, caste, disability, sex, sexual orientation or gender
+        identity. Hate symbols and extremist imagery count too. This rule
+        protects everyone, LGBT people included; simply being who you are, or
+        talking about it, is never a violation. Explicit threats of violence
+        against anyone, and content promoting violence, are not allowed
+        either.
+      </p>
+      <p className="mt-2 text-foreground-soft">
         The same applies to gifts and challenges: no harassing or abusive
         gift notes, no faked or farmed challenge results, and no buying,
         selling or trading of gifts or awards outside YuKon3t. Gifts have no
@@ -69,14 +79,16 @@ export default function GuidelinesPage() {
         reversed by our moderators.
       </p>
 
-      <h2 className="mt-8 font-semibold">4. Photos and videos: strict, zero-tolerance policy</h2>
+      <h2 className="mt-8 font-semibold">4. Photos and videos</h2>
       <p className="mt-2 text-foreground-soft">
-        No sexually explicit or sexually suggestive photos or videos,
-        anywhere on YuKon3t — profile pictures, Circle posts, or your
-        personal feed. Every upload is automatically screened before
-        it&apos;s visible to anyone else; violating uploads are rejected and
-        never published. Posting this kind of content results in an
-        immediate, permanent ban. Linked videos are subject to our content
+        No sexually explicit content or pornography anywhere on YuKon3t —
+        profile pictures, Circle posts, Muse, Stories, chats, or your personal
+        feed. Swimwear, shirtless photos, and artistic or other non-explicit
+        content are fine. Sexual content involving anyone under 18 is never
+        allowed in any form: it is removed at once and results in an
+        immediate, permanent ban. No graphic violence (gore, serious injury,
+        torture) or content promoting violence, and no hate content or hate
+        symbols (see section 3). Linked videos are subject to our content
         policy even though they&apos;re hosted elsewhere — embedding a
         YouTube, Vimeo, TikTok, Instagram, Facebook, or Dailymotion link is
         held to the same standard as uploading the video yourself.
@@ -130,11 +142,27 @@ export default function GuidelinesPage() {
         email — moderation decisions are never sealed from you.
       </p>
       <p className="mt-2 text-foreground-soft">
-        Photos and videos are also screened automatically when you post them.
-        A post the screen flags isn&apos;t published straight away: it stays
-        hidden, visible only to you, until a moderator reviews it and either
-        publishes it or removes it. A problem on our side while checking an
+        Posts, comments, Stories, Muse videos, profiles, and Circle and group
+        chat names are also screened automatically, for four things only:
+        explicit sexual content, sexual content involving minors, graphic
+        violence or promotion of violence (including explicit threats), and
+        hate content or hate symbols. Swearing on its own is not screened for.
+        A flagged post, comment or Muse video isn&apos;t published, or is
+        taken down: it stays hidden, visible only to you, until a moderator
+        reviews it and either publishes it or removes it. A Story, a
+        profile, a profile or cover picture, a photo or video attached to a
+        comment, or a name that the screen flags is not accepted when you
+        submit it: you&apos;re told, and you can change it. Nothing already
+        published or held is deleted automatically, except suspected sexual
+        content involving minors, which is removed at once. A problem on our side while checking an
         upload is never treated as a rule violation.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        The text of your chat messages is not scanned automatically. These
+        Guidelines still apply in chats: anyone in a conversation can report
+        a message, and our moderators review reports. Photos and videos sent
+        in chats are checked automatically for sexual content involving
+        minors and explicit sexual content only.
       </p>
     </div>
   );

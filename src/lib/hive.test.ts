@@ -22,11 +22,10 @@ import {
 } from "@/lib/hive";
 
 const CLEAN = {
-  sexual_nudity: false,
+  sexual_explicit: false,
   minor_sexualized: false,
-  violence_gore: false,
-  hate_symbols: false,
-  self_harm: false,
+  violence: false,
+  hate: false,
   unsure: false,
   reason: "clean",
 };
@@ -63,7 +62,7 @@ describe("sampling rate (fps rule)", () => {
     expect(vlmFrameEstimate(null)).toBeNull();
   });
 
-  it("keeps the largest call at the input size verified live (30 frames, ~23,600 tokens)", () => {
+  it("keeps the largest call at the input size verified live (30 frames, ~23,750 tokens)", () => {
     expect(VLM_MAX_INPUT_TOKENS).toBeLessThanOrEqual(24_000);
   });
 });
@@ -100,13 +99,43 @@ describe("request shape", () => {
     expect(VLM_VERDICT_SCHEMA.properties.reason).toEqual({ type: "string" });
   });
 
-  it("the prompt names every category and tells the model to answer unsure when in doubt", () => {
+  it("covers exactly the four kept categories (owner decision 2026-11-22)", () => {
+    expect([...VLM_CATEGORIES]).toEqual(["sexual_explicit", "minor_sexualized", "violence", "hate"]);
+    for (const gone of ["sexual_nudity", "violence_gore", "hate_symbols", "self_harm"]) {
+      expect(Object.keys(VLM_VERDICT_SCHEMA.properties)).not.toContain(gone);
+      expect(VLM_POLICY_PROMPT).not.toContain(gone);
+    }
+  });
+
+  it("the prompt names every category and keeps the minor rule strict", () => {
     for (const key of [...VLM_CATEGORIES, "unsure", "reason"]) expect(VLM_POLICY_PROMPT).toContain(key);
-    expect(VLM_POLICY_PROMPT).toMatch(/partial nudity/);
     expect(VLM_POLICY_PROMPT).toMatch(/under 18/);
-    expect(VLM_POLICY_PROMPT).toMatch(/dark, blurry/);
-    expect(VLM_POLICY_PROMPT).toMatch(/brief flash/);
-    expect(VLM_POLICY_PROMPT).toMatch(/When in doubt, set unsure to true/);
+    expect(VLM_POLICY_PROMPT).toMatch(/If a person's age is unclear and the context is sexual or suggestive, set this to true/);
+  });
+
+  it("explicit sexual content only: swimwear, shirtless, artistic or non-explicit content is clean", () => {
+    expect(VLM_POLICY_PROMPT).toMatch(/explicit sexual content or pornography/);
+    expect(VLM_POLICY_PROMPT).toMatch(/Swimwear, underwear, shirtless people/);
+    expect(VLM_POLICY_PROMPT).toMatch(/artistic or other non-explicit nudity are NOT this category/);
+    expect(VLM_POLICY_PROMPT).not.toMatch(/suggestive posing/);
+    expect(VLM_POLICY_PROMPT).not.toMatch(/self-harm|suicide/);
+  });
+
+  it("violence includes promotion of violence and explicit threats against people", () => {
+    expect(VLM_POLICY_PROMPT).toMatch(/promotes or glorifies violence, including explicit threats of violence against people/);
+  });
+
+  it("hate protects people, sexual orientation and gender identity included, and never targets them", () => {
+    expect(VLM_POLICY_PROMPT).toMatch(/attacks, dehumanizes or calls for harm against people because of a protected characteristic/);
+    expect(VLM_POLICY_PROMPT).toMatch(/sexual orientation or gender identity/);
+    expect(VLM_POLICY_PROMPT).toMatch(/a same-sex couple, a pride flag, religious dress\) is never hate/);
+    expect(VLM_POLICY_PROMPT).toMatch(/hate symbols and extremist imagery/);
+  });
+
+  it("unsure only for a plausible kept category; an ordinary dark or blurry video is clean", () => {
+    expect(VLM_POLICY_PROMPT).toMatch(/Set unsure to true only when a frame plausibly shows one of the four categories/);
+    expect(VLM_POLICY_PROMPT).toMatch(/dark, blurry or low quality with no sign of any category is clean, not unsure/);
+    expect(VLM_POLICY_PROMPT).not.toMatch(/When in doubt/);
   });
 
   it("sends the unknown-duration rate when the row has no duration", () => {
@@ -140,8 +169,8 @@ describe("verdict parsing matrix", () => {
   }
 
   it("a category wins over unsure (flagged, not just held)", () => {
-    const result = parse(JSON.stringify({ ...CLEAN, violence_gore: true, self_harm: true, unsure: true }));
-    expect(result).toMatchObject({ ok: true, verdict: { flagged: true, categories: ["violence_gore", "self_harm"] } });
+    const result = parse(JSON.stringify({ ...CLEAN, violence: true, hate: true, unsure: true }));
+    expect(result).toMatchObject({ ok: true, verdict: { flagged: true, categories: ["violence", "hate"] } });
   });
 
   it("unsure with no category is review, never clean", () => {
@@ -156,8 +185,8 @@ describe("verdict parsing matrix", () => {
   });
 
   it("invalid JSON is not a verdict", () => {
-    expect(parse("sexual_nudity: false")).toMatchObject({ ok: false });
-    expect(parse("{'sexual_nudity': false}")).toMatchObject({ ok: false });
+    expect(parse("sexual_explicit: false")).toMatchObject({ ok: false });
+    expect(parse("{'sexual_explicit': false}")).toMatchObject({ ok: false });
   });
 
   it("extra text around the JSON is not a verdict", () => {
@@ -175,14 +204,15 @@ describe("verdict parsing matrix", () => {
   }
 
   it("mistyped fields are not a verdict", () => {
-    expect(parse(JSON.stringify({ ...CLEAN, sexual_nudity: "false" }))).toMatchObject({ ok: false });
+    expect(parse(JSON.stringify({ ...CLEAN, sexual_explicit: "false" }))).toMatchObject({ ok: false });
     expect(parse(JSON.stringify({ ...CLEAN, unsure: 0 }))).toMatchObject({ ok: false });
-    expect(parse(JSON.stringify({ ...CLEAN, self_harm: null }))).toMatchObject({ ok: false });
+    expect(parse(JSON.stringify({ ...CLEAN, hate: null }))).toMatchObject({ ok: false });
     expect(parse(JSON.stringify({ ...CLEAN, reason: 5 }))).toMatchObject({ ok: false });
   });
 
-  it("an unexpected extra key is not a verdict", () => {
+  it("an unexpected extra key is not a verdict (a dropped category included)", () => {
     expect(parse(JSON.stringify({ ...CLEAN, drugs: false }))).toMatchObject({ ok: false });
+    expect(parse(JSON.stringify({ ...CLEAN, self_harm: false }))).toMatchObject({ ok: false });
   });
 
   it("empty content, non-strings, arrays and primitives are not a verdict", () => {
@@ -205,7 +235,7 @@ describe("nothing but a fully clean parse is ever clean", () => {
     return r.ok && !r.verdict.flagged && !r.verdict.review;
   };
 
-  it("of all 64 boolean combinations, only all-false is clean", () => {
+  it("of all 32 boolean combinations, only all-false is clean", () => {
     const keys = [...VLM_CATEGORIES, "unsure"] as const;
     let cleanCount = 0;
     for (let mask = 0; mask < 2 ** keys.length; mask++) {
@@ -216,6 +246,7 @@ describe("nothing but a fully clean parse is ever clean", () => {
       if (clean) cleanCount += 1;
     }
     expect(cleanCount).toBe(1);
+    expect(2 ** keys.length).toBe(32);
   });
 
   it("no malformed variant of a clean answer is clean", () => {
@@ -360,11 +391,11 @@ describe("moderateVideo (HTTP)", () => {
 
   it("returns flagged and unsure verdicts", async () => {
     vi.stubEnv("HIVE_API_KEY", "k");
-    stubFetch(async () => json(completion(JSON.stringify({ ...CLEAN, hate_symbols: true, reason: "a swastika flag" }))));
+    stubFetch(async () => json(completion(JSON.stringify({ ...CLEAN, hate: true, reason: "a swastika flag" }))));
     expect(await moderateVideo("https://media.example.com/v.mp4", { durationSeconds: 10 })).toMatchObject({
       ok: true,
       flagged: true,
-      categories: ["hate_symbols"],
+      categories: ["hate"],
       reason: "a swastika flag",
     });
     stubFetch(async () => json(completion(JSON.stringify({ ...CLEAN, unsure: true, reason: "very dark" }))));
@@ -380,7 +411,7 @@ describe("moderateVideo (HTTP)", () => {
     vi.stubEnv("HIVE_API_KEY", "k");
     for (const body of [
       completion(JSON.stringify(CLEAN), "length"),
-      completion("{\"sexual_nudity\": false"),
+      completion("{\"sexual_explicit\": false"),
       completion(""),
       { error: "something" },
     ]) {

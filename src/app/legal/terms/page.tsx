@@ -101,8 +101,10 @@ export default function TermsPage() {
         You are solely responsible for your User Content and confirm you
         have the necessary rights to post it. Automated content moderation
         (see Section 5) reduces but does not eliminate the risk of
-        encountering objectionable content from other users; YuKon3t does
-        not pre-screen all content and does not endorse any User Content.
+        encountering objectionable content from other users; it covers only
+        the categories listed in Section 5 and does not read chat message
+        text. YuKon3t does not pre-screen all content and does not endorse
+        any User Content.
       </p>
 
       <h2 className="mt-8 font-semibold">5. Content moderation and enforcement</h2>
@@ -115,13 +117,40 @@ export default function TermsPage() {
         creates risk for our users or YuKon3t.
       </p>
       <p className="mt-2 text-foreground-soft">
+        <b>What automated screening looks for.</b> Posts, comments, Stories,
+        Muse videos, profiles, and Circle and group chat names are screened
+        automatically for four things only: explicit sexual content; sexual
+        content involving minors; graphic violence or content that promotes
+        violence, including explicit threats of violence against people; and
+        hate, meaning content that attacks or dehumanizes people because of a
+        protected characteristic (including sexual orientation and gender
+        identity) and hate symbols or extremist imagery. Swearing on its own
+        is not screened for. A flagged post, comment or Muse video is hidden
+        and held for review by our team rather than deleted automatically. A
+        Story, a profile, a profile or cover picture, a photo or video
+        attached to a comment, a name, or ad creative that the screen flags is
+        not accepted when it is submitted (you are told, and can change it).
+        Nothing already published or held is deleted automatically; the only
+        exception is suspected sexual content involving minors, which is
+        removed immediately and not kept.
+      </p>
+      <p className="mt-2 text-foreground-soft">
+        <b>Chats.</b> The text of chat messages (including captions, edits,
+        suggested corrections, forwards, Story replies and birthday wishes) is
+        not scanned automatically. These Terms and our Guidelines still apply
+        to it, and you can report a message for our team to review. Photos and
+        videos sent in a chat are checked automatically (a video by one still
+        frame) for sexual content involving minors and explicit sexual content
+        only, and one that is flagged is not sent.
+      </p>
+      <p className="mt-2 text-foreground-soft">
         <b>Secret chats.</b> The text of a secret chat (a one-to-one
         conversation both people opt into) is end-to-end encrypted, so we
         cannot read or scan it. These Terms and our Guidelines still apply to
         it. We rely on reports from participants — which include the text of
         the reported message — to enforce them there. Photos, videos, and
-        voice notes in a secret chat are not encrypted and are screened like
-        any other content.
+        voice notes in a secret chat are not encrypted; photos and videos get
+        the same automatic check as in any other chat.
       </p>
       {isViewOnceConfigured() && (
         <p className="mt-2 text-foreground-soft">
@@ -129,7 +158,8 @@ export default function TermsPage() {
           &quot;view once&quot; can be opened by its recipient a single time
           and is then deleted from our storage; one that is never opened is
           deleted after 14 days. These Terms and our Guidelines apply to it
-          like any other content, and it is screened automatically when sent.
+          like any other content, and it gets the same automatic chat photo
+          and video check when sent.
           Because we keep no copy, we cannot review a view-once photo or video
           after it has been viewed, so a report about one is assessed on the
           report itself and the record that it was sent and opened. View once

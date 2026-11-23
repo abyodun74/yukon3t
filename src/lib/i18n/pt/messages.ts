@@ -238,7 +238,7 @@ export const messages: typeof messagesEn = {
       trust: "O código confere. Confiar",
     },
     turnOffBody:
-      "As novas mensagens voltarão a ser enviadas sem criptografia e analisadas em busca de violações, como em qualquer outra conversa. As mensagens já enviadas continuam como estão.",
+      "As novas mensagens voltarão a ser enviadas sem criptografia, como em qualquer outra conversa, então poderão ser lidas se alguém denunciá-las. As mensagens já enviadas continuam como estão.",
     errors: {
       turnOn: "Não foi possível ativar. Tente novamente.",
       tooShort: "Use pelo menos {min} caracteres.",
@@ -346,7 +346,6 @@ export const messages: typeof messagesEn = {
       errors: {
         rate_limited: "Você está encaminhando rápido demais. Tente de novo em alguns minutos.",
         not_forwardable: "Esta mensagem não pode ser encaminhada.",
-        moderation: "Esta mensagem não pode ser encaminhada porque viola nossas Diretrizes da comunidade.",
         unavailable: "Não foi possível encaminhar para essas conversas.",
         load: "Não foi possível carregar suas conversas.",
         other: "Não foi possível encaminhar. Tente de novo.",
@@ -365,7 +364,6 @@ export const messages: typeof messagesEn = {
       full: "Esta lista está cheia.",
       errors: {
         update: "Não foi possível atualizar a lista. Tente de novo.",
-        moderation: "Esse item não pode ser adicionado à lista.",
         rateLimited: "Muitas alterações seguidas. Espere um pouco e tente de novo.",
         full: "Esta lista está cheia.",
       },

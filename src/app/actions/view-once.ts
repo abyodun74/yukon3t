@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { isConversationLocked, isMembershipLocked } from "@/lib/hidden-chats";
 import { collabChatHiddenFor } from "@/lib/collab-chat-visibility-server";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { moderateImage } from "@/lib/moderation";
+import { moderateChatImage } from "@/lib/moderation";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import { isSecretChat } from "@/lib/e2ee/secret-chat";
 import { publishEvent } from "@/lib/realtime-server";
@@ -254,9 +254,11 @@ export async function sendViewOnceMessage(input: {
 
   // What gets checked: a photo itself (the copy); for a video, one still frame captured by the sender's app — the
   // same stand-in ordinary video messages are checked by. A view-once video without a usable frame is refused rather
-  // than sent unchecked, because once viewed there is nothing left for anyone to review.
+  // than sent unchecked, because once viewed there is nothing left for anyone to review. Checked against the chat media
+  // categories (CHAT_MEDIA_MODERATION_CATEGORIES: sexual content involving minors, explicit sexual content), like
+  // every chat photo and video.
   const moderationKey = mediaType === "VIDEO" && frameKey ? frameKey : storedKey;
-  const modResult = await moderateImage(
+  const modResult = await moderateChatImage(
     await createPrivateDownloadUrl(moderationKey, VIEW_ONCE_MODERATION_URL_TTL_SECONDS),
   );
   // The frame has done its job either way.

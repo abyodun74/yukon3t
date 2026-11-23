@@ -63,8 +63,8 @@ const FLAGGED = {
   ok: true,
   flagged: true,
   review: false,
-  categories: ["sexual_nudity"],
-  reason: "partial nudity",
+  categories: ["sexual_explicit"],
+  reason: "a sexual act",
   usage: { inputTokens: 23_548, outputTokens: 79 },
 };
 
@@ -499,7 +499,7 @@ describe("moderate-videos cron", () => {
           action: "CONTENT_FLAGGED_FOR_REVIEW",
           performedBy: "system:video-scan-review-hold",
           reason:
-            "Video held for admin review: automatic video scan flagged this video (muse:cmuse1, VIDEO): sexual_nudity; partial nudity",
+            "Video held for admin review: automatic video scan flagged this video (muse:cmuse1, VIDEO): sexual_explicit; a sexual act",
         },
       });
       expect(body.muses).toMatchObject({ checked: 1, flagged: 1, cleared: 0 });
@@ -540,11 +540,11 @@ describe("moderate-videos cron", () => {
       const lines = logLines().filter((l) => l.startsWith("[moderate-videos] verdict:"));
       expect(lines).toEqual([
         expect.stringMatching(
-          /^\[moderate-videos\] verdict: post cpost1 flagged \(sexual_nudity\) fps=0\.5 frames=30 durationS=60 ms=\d+ tokens=23548\/79$/,
+          /^\[moderate-videos\] verdict: post cpost1 flagged \(sexual_explicit\) fps=0\.5 frames=30 durationS=60 ms=\d+ tokens=23548\/79$/,
         ),
       ]);
       expect(lines[0]).not.toContain("media.example.com");
-      expect(lines[0]).not.toContain("partial nudity");
+      expect(lines[0]).not.toContain("a sexual act");
       expect(summaryLines()[0]).toContain("posts checked=1 cleared=0 flagged=1 unsure=0 failed=0 held=0");
     });
   });

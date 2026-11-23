@@ -532,15 +532,13 @@ export async function replyToStory(storyId: string, formData: FormData) {
     return { error: "invalid" as const };
   }
 
-  const modResult = await moderateText(parsed.data.content);
-  const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
-
+  // A reply is a chat message, and chat text is not scanned automatically (it can be reported like any message).
   // Checked again at the insert (createNonE2eeMessage): the chat may have become secret since it was read above.
   const created = await createNonE2eeMessage({
     conversationId: conversation.id,
     senderId: user.id,
     content: parsed.data.content,
-    moderationStatus,
+    moderationStatus: "PUBLISHED",
     storyId: story.id,
   });
   if (created.error) {

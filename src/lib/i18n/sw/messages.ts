@@ -238,7 +238,7 @@ export const messages: typeof messagesEn = {
       trust: "Msimbo unalingana. Aminika",
     },
     turnOffBody:
-      "Ujumbe mpya utatumwa tena bila kusimbwa na utakaguliwa kwa ukiukaji, kama kwenye gumzo lingine lolote. Ujumbe uliokwisha tumwa hubaki kama ulivyo.",
+      "Ujumbe mpya utatumwa tena bila kusimbwa, kama kwenye gumzo lingine lolote, kwa hiyo unaweza kusomwa mtu akiuripoti. Ujumbe uliokwisha tumwa hubaki kama ulivyo.",
     errors: {
       turnOn: "Hatukuweza kuiwasha. Jaribu tena.",
       tooShort: "Tumia angalau herufi {min}.",
@@ -345,7 +345,6 @@ export const messages: typeof messagesEn = {
       errors: {
         rate_limited: "Unasambaza haraka mno. Jaribu tena baada ya dakika chache.",
         not_forwardable: "Ujumbe huu hauwezi kusambazwa.",
-        moderation: "Ujumbe huu hauwezi kusambazwa kwa sababu unakiuka Kanuni zetu za jumuiya.",
         unavailable: "Haikuweza kusambazwa kwa mazungumzo hayo.",
         load: "Mazungumzo yako hayakuweza kupakiwa.",
         other: "Imeshindwa kusambaza. Jaribu tena.",
@@ -364,7 +363,6 @@ export const messages: typeof messagesEn = {
       full: "Orodha hii imejaa.",
       errors: {
         update: "Orodha haikuweza kusasishwa. Jaribu tena.",
-        moderation: "Bidhaa hiyo haiwezi kuongezwa kwenye orodha.",
         rateLimited: "Mabadiliko mengi mfululizo. Subiri kidogo kisha ujaribu tena.",
         full: "Orodha hii imejaa.",
       },

@@ -98,7 +98,7 @@ export async function setBirthDateOnce(formData: FormData) {
 
 /**
  * The quick-wish sheet (birthday-wish-sheet.tsx): sends one birthday wish to `celebrantId` as a direct message. All the
- * rules (a reminder in the last 36 hours, still shared, audience, blocks, one per year, moderation, rate limits,
+ * rules (a reminder in the last 36 hours, still shared, audience, blocks, one per year, rate limits,
  * hidden and secret chats) are in sendBirthdayWishAs (src/lib/birthday-wish-server.ts).
  */
 export async function sendBirthdayWish(input: unknown): Promise<BirthdayWishResult> {

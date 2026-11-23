@@ -238,7 +238,7 @@ export const messages: typeof messagesEn = {
       trust: "Der Code stimmt überein. Vertrauen",
     },
     turnOffBody:
-      "Neue Nachrichten werden wieder unverschlüsselt gesendet und wie in jedem anderen Chat auf Verstöße geprüft. Bereits gesendete Nachrichten bleiben unverändert.",
+      "Neue Nachrichten werden wieder unverschlüsselt gesendet, wie in jedem anderen Chat, und können gelesen werden, wenn jemand sie meldet. Bereits gesendete Nachrichten bleiben unverändert.",
     errors: {
       turnOn: "Wir konnten sie nicht einschalten. Versuche es noch einmal.",
       tooShort: "Verwende mindestens {min} Zeichen.",
@@ -345,7 +345,6 @@ export const messages: typeof messagesEn = {
       errors: {
         rate_limited: "Du leitest zu schnell weiter. Versuche es in ein paar Minuten noch einmal.",
         not_forwardable: "Diese Nachricht kann nicht weitergeleitet werden.",
-        moderation: "Diese Nachricht kann nicht weitergeleitet werden, weil sie gegen unsere Community-Richtlinien verstößt.",
         unavailable: "An diese Chats konnte nicht weitergeleitet werden.",
         load: "Deine Chats konnten nicht geladen werden.",
         other: "Es konnte nicht weitergeleitet werden. Versuche es noch einmal.",
@@ -364,7 +363,6 @@ export const messages: typeof messagesEn = {
       full: "Diese Liste ist voll.",
       errors: {
         update: "Die Liste konnte nicht aktualisiert werden. Versuche es noch einmal.",
-        moderation: "Dieser Artikel kann nicht zur Liste hinzugefügt werden.",
         rateLimited: "Zu viele Änderungen in kurzer Zeit. Warte einen Moment und versuche es noch einmal.",
         full: "Diese Liste ist voll.",
       },

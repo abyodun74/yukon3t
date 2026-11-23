@@ -35,9 +35,9 @@ export function withoutSecretChats<T extends { isGroup: boolean; members: { e2ee
  *    refused rather than allowed to put plaintext into a thread both people
  *    believe is encrypted.
  *  - In a chat that is NOT secret, ciphertext is refused. Otherwise anyone
- *    could put `e2ee:v1:` in front of a message in any chat and the server —
- *    which never scans what looks like ciphertext — would wave it through,
- *    turning the encryption feature into a way to dodge text moderation.
+ *    could put `e2ee:v1:` in front of a message in any chat and make it
+ *    unreadable to reports and admin review there, turning the encryption
+ *    feature into a way to dodge moderation.
  * Either refusal is recoverable: the client re-reads the chat's state and
  * sends again the right way. Empty text is fine (a caption-less photo).
  */
@@ -48,16 +48,6 @@ export function checkSecretSend(params: {
   if (params.content === "") return null;
   if (params.secret) return isWellFormedEncryptedContent(params.content) ? null : "plaintext_in_secret_chat";
   return isEncryptedContent(params.content) ? "not_a_secret_chat" : null;
-}
-
-/**
- * What text (if any) the server may hand to the content-moderation API. In a
- * secret chat that's nothing: the server can't read it, and ciphertext sent
- * to a third-party scanner would be both useless and a needless disclosure of
- * who is talking. Photos/videos are still scanned — media isn't encrypted.
- */
-export function textForModeration(params: { secret: boolean; content: string }): string {
-  return params.secret || isEncryptedContent(params.content) ? "" : params.content;
 }
 
 /**

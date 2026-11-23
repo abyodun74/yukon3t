@@ -1,8 +1,15 @@
 // Automated review for post videos over Hive's 60s scan limit (see
 // storage.ts's HIVE_VIDEO_MODERATION_MAX_SECONDS and createPost's
-// videoNeedsManualReview) — these publish hidden (moderationStatus FLAGGED)
-// at creation time, and this is what turns that hidden state into a real
-// verdict: PUBLISHED if clean, deleted outright if flagged.
+// videoNeedsManualReview). This turns a pending review into a verdict:
+// clean, or flagged, in which case the moderate-long-videos route holds the
+// item hidden (moderationStatus FLAGGED, media kept) for an admin on
+// /admin/moderation. Nothing flagged here is ever deleted automatically.
+//
+// What counts as flagged: the transcript and each sampled frame go through
+// moderateText / moderateImage, which only flag MODERATION_CATEGORIES
+// (src/lib/moderation.ts: explicit sexual content, sexual content involving
+// minors, violence, threats of violence, hate). Swearing on its own is not a
+// flag (owner decision 2026-11-22; the old profanity word list is gone).
 //
 // One call covers one step (in_progress) or the final verdict (clean/
 // flagged/error) — the moderate-long-videos route calls this in a loop
@@ -28,7 +35,6 @@ import {
   deleteStreamVideo,
 } from "@/lib/cloudflare-stream";
 import { moderateText, moderateImage } from "@/lib/moderation";
-import { containsProfanity } from "@/lib/profanity-wordlist";
 
 export type VideoReviewResult =
   // Still waiting on Cloudflare (copy/encode or caption generation) —
@@ -133,10 +139,6 @@ export async function advanceLongVideoReview({
       if (textResult.apiError === "unavailable") return { kind: "error" };
       if (!textResult.allowed || textResult.apiError === "rejected") {
         transcriptReasons.push(`audio: ${textResult.flaggedCategories.join(",")}`);
-      }
-      const profanity = containsProfanity(transcript);
-      if (profanity.flagged) {
-        transcriptReasons.push(`audio: profanity (${profanity.matches.join(",")})`);
       }
     }
   }
