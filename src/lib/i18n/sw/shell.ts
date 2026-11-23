@@ -130,6 +130,7 @@ export const shell: typeof shellEn = {
     posting: "Inachapisha…",
     posted: "Imechapishwa!",
     postHeld: "Chapisho lako limehifadhiwa na linasubiri ukaguzi wa timu yetu kabla wengine hawajaliona. Huhitaji kulipakia tena.",
+    museHeld: "Muse yako imechapishwa, lakini inasubiri ukaguzi kabla wengine hawajaiona.",
     toStory: "Ongeza kwenye Story yako",
     toMuse: "Chapisha kwenye Muse",
     toFeed: "Chapisha kwenye mtiririko",

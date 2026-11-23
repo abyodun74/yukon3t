@@ -131,6 +131,7 @@ export const shell: typeof shellEn = {
     posting: "Publication…",
     posted: "Publié !",
     postHeld: "Votre publication est enregistrée et attend une vérification par notre équipe avant d'être visible par les autres. Inutile de l'importer à nouveau.",
+    museHeld: "Ton Muse a été publié, mais il attend une vérification avant que les autres puissent le voir.",
     toStory: "Ajouter à votre story",
     toMuse: "Publier sur Muse",
     toFeed: "Publier dans le fil",

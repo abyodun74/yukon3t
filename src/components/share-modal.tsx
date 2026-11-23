@@ -103,6 +103,7 @@ export function ShareModal({
   const [sharedToStory, setSharedToStory] = useState(false);
   const [sharingToMuse, setSharingToMuse] = useState(false);
   const [sharedToMuse, setSharedToMuse] = useState(false);
+  const [museHeld, setMuseHeld] = useState(false);
   // Surfaces exactly why a device share didn't attach the actual photo/video
   // — this app's release build doesn't forward WebView console output to
   // logcat and has remote debugging disabled, so an on-screen message is
@@ -276,6 +277,7 @@ export function ShareModal({
       setSharingToMuse(false);
       if (!result.error) {
         setSharedToMuse(true);
+        if ("held" in result && result.held) setMuseHeld(true);
         if (result.shareCount !== undefined) onShareCountChange(result.shareCount);
       }
     });
@@ -345,7 +347,7 @@ export function ShareModal({
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-line/60 disabled:opacity-50"
               >
                 <Clapperboard size={16} />
-                {sharedToMuse ? t.share.sharedToMuse : sharingToMuse ? t.share.sharingToMuse : t.share.toMuse}
+                {sharedToMuse ? (museHeld ? t.share.sharedToMuseHeld : t.share.sharedToMuse) : sharingToMuse ? t.share.sharingToMuse : t.share.toMuse}
               </button>
             )}
             <button

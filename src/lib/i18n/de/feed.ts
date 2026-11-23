@@ -102,6 +102,7 @@ export const feed: typeof feedEn = {
     toMuse: "Auf Muse teilen",
     sharingToMuse: "Wird geteilt…",
     sharedToMuse: "Auf Muse geteilt",
+    sharedToMuseHeld: "Dein Muse wurde gepostet, wartet aber auf eine Prüfung, bevor andere ihn sehen können.",
     noConversations: "Noch keine Unterhaltungen.",
     searchFriends: "Freunde suchen",
     clearSearch: "Suche löschen",

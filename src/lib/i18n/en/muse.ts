@@ -74,6 +74,7 @@ export const museEn = {
     removeAudio: "Remove audio",
     caption: "Add a caption (optional)",
     posted: "Posted!",
+    held: "Your Muse was posted but is waiting for a review before others can see it.",
     posting: "Posting…",
     post: "Post Muse",
     unreadable: "Couldn't read this video's length — try picking a different file.",

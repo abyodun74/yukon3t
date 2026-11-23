@@ -69,6 +69,7 @@ export const muse: typeof museEn = {
     removeAudio: "Ondoa sauti",
     caption: "Ongeza maelezo (si lazima)",
     posted: "Imechapishwa!",
+    held: "Muse yako imechapishwa, lakini inasubiri ukaguzi kabla wengine hawajaiona.",
     posting: "Inachapisha…",
     post: "Chapisha Muse",
     unreadable: "Hatukuweza kusoma muda wa video hii. Jaribu faili nyingine.",

@@ -137,6 +137,7 @@ export const shellEn = {
     posting: "Posting…",
     posted: "Posted!",
     postHeld: "Your post is saved and waiting for a review by our team before others can see it. No need to upload it again.",
+    museHeld: "Your Muse was posted but is waiting for a review before others can see it.",
     toStory: "Add to your story",
     toMuse: "Post to Muse",
     toFeed: "Post to Feed",

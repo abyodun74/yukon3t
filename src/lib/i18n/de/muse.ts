@@ -69,6 +69,7 @@ export const muse: typeof museEn = {
     removeAudio: "Audio entfernen",
     caption: "Beschreibung hinzufügen (optional)",
     posted: "Gepostet!",
+    held: "Dein Muse wurde gepostet, wartet aber auf eine Prüfung, bevor andere ihn sehen können.",
     posting: "Wird gepostet…",
     post: "Muse posten",
     unreadable: "Wir konnten die Dauer dieses Videos nicht lesen. Probiere eine andere Datei.",

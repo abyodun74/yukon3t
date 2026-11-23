@@ -130,6 +130,7 @@ export const shell: typeof shellEn = {
     posting: "Wird gepostet…",
     posted: "Gepostet!",
     postHeld: "Dein Beitrag wurde gespeichert und wartet auf die Prüfung durch unser Team, bevor andere ihn sehen können. Du musst ihn nicht noch einmal hochladen.",
+    museHeld: "Dein Muse wurde gepostet, wartet aber auf eine Prüfung, bevor andere ihn sehen können.",
     toStory: "Zu deiner Story hinzufügen",
     toMuse: "Auf Muse posten",
     toFeed: "Im Feed posten",

@@ -111,6 +111,7 @@ export const feedEn = {
     toMuse: "Share to Muse",
     sharingToMuse: "Sharing…",
     sharedToMuse: "Shared to Muse",
+    sharedToMuseHeld: "Your Muse was posted but is waiting for a review before others can see it.",
     noConversations: "No conversations yet.",
     searchFriends: "Search friends",
     clearSearch: "Clear search",

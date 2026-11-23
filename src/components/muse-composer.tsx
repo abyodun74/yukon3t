@@ -58,6 +58,7 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
   const [caption, setCaption] = useState("");
   const [status, setStatus] = useState<"idle" | "busy" | "done" | "error">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [heldNotice, setHeldNotice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
@@ -170,6 +171,14 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
       return;
     }
 
+    if ("held" in result && result.held) {
+      // Stored FLAGGED, visible only to the author and admins: say so, and keep the sheet open long enough to read it.
+      setHeldNotice(true);
+      setStatus("done");
+      router.refresh();
+      setTimeout(onClose, 6000);
+      return;
+    }
     setStatus("done");
     router.push("/muse");
     router.refresh();
@@ -332,7 +341,12 @@ export function MuseComposer({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         {errorText && <p role="alert" className="mt-2 text-xs text-danger">{errorText}</p>}
-        {status === "done" && <p className="mt-2 text-xs text-accent">{t.posted}</p>}
+        {status === "done" &&
+          (heldNotice ? (
+            <p role="status" className="mt-2 text-xs text-foreground-soft">{t.held}</p>
+          ) : (
+            <p className="mt-2 text-xs text-accent">{t.posted}</p>
+          ))}
 
         <button
           type="button"

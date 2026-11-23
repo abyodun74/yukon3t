@@ -102,6 +102,7 @@ export const feed: typeof feedEn = {
     toMuse: "Muse में शेयर करें",
     sharingToMuse: "शेयर हो रहा है…",
     sharedToMuse: "Muse में शेयर हो गया",
+    sharedToMuseHeld: "आपका Muse पोस्ट हो गया है, लेकिन दूसरों को दिखने से पहले उसकी समीक्षा का इंतज़ार है।",
     noConversations: "अभी तक कोई चैट नहीं।",
     searchFriends: "दोस्त खोजें",
     clearSearch: "खोज मिटाएँ",

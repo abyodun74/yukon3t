@@ -216,7 +216,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
   const router = useRouter();
   const [share, setShare] = useState<PendingShareMedia | null>(null);
   const [caption, setCaption] = useState("");
-  const [heldNotice, setHeldNotice] = useState(false);
+  const [heldNotice, setHeldNotice] = useState<boolean | "muse">(false);
   const [view, setView] = useState<View>("root");
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [circles, setCircles] = useState<ShareCircle[] | null>(null);
@@ -616,6 +616,14 @@ export function ShareTargetGate({ userId }: { userId: string }) {
       setErrorText(publishError(result.error));
       return;
     }
+    if ("held" in result && result.held) {
+      // Stored FLAGGED, hidden until reviewed: say so, and leave it on screen long enough to read.
+      setHeldNotice("muse");
+      setStatus("done");
+      router.refresh();
+      setTimeout(close, 6000);
+      return;
+    }
     setStatus("done");
     router.push("/muse");
     router.refresh();
@@ -714,7 +722,7 @@ export function ShareTargetGate({ userId }: { userId: string }) {
         {status === "busy" && <p className="mt-3 text-xs text-foreground-soft">{t.shareTarget.posting}</p>}
         {status === "done" &&
           (heldNotice ? (
-            <p role="status" className="mt-3 text-xs text-foreground-soft">{t.shareTarget.postHeld}</p>
+            <p role="status" className="mt-3 text-xs text-foreground-soft">{heldNotice === "muse" ? t.shareTarget.museHeld : t.shareTarget.postHeld}</p>
           ) : (
             <p role="status" className="mt-3 text-xs text-success">{t.shareTarget.posted}</p>
           ))}

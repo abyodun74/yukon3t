@@ -102,6 +102,7 @@ export const feed: typeof feedEn = {
     toMuse: "Shiriki kwenye Muse",
     sharingToMuse: "Inashiriki…",
     sharedToMuse: "Imeshirikiwa kwenye Muse",
+    sharedToMuseHeld: "Muse yako imechapishwa, lakini inasubiri ukaguzi kabla wengine hawajaiona.",
     noConversations: "Bado hakuna mazungumzo.",
     searchFriends: "Tafuta marafiki",
     clearSearch: "Futa utafutaji",

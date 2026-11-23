@@ -130,6 +130,7 @@ export const shell: typeof shellEn = {
     posting: "Pubblicazione…",
     posted: "Pubblicato!",
     postHeld: "Il tuo post è stato salvato ed è in attesa di revisione da parte del nostro team prima che altri possano vederlo. Non serve ricaricarlo.",
+    museHeld: "Il tuo Muse è stato pubblicato, ma è in attesa di una revisione prima che gli altri possano vederlo.",
     toStory: "Aggiungi alla tua storia",
     toMuse: "Pubblica su Muse",
     toFeed: "Pubblica nel feed",

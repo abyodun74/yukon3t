@@ -368,5 +368,7 @@ export async function shareToMuse(postId: string) {
   revalidatePath(`/u/${user.id}`);
   revalidatePath("/home");
   revalidatePath(`/post/${rootId}`);
-  return { error: null, museId, shareCount };
+  return videoNeedsManualReview
+    ? { error: null, museId, shareCount, held: true as const }
+    : { error: null, museId, shareCount };
 }
