@@ -48,7 +48,7 @@ export const sw2 = {
   },
   "keep-using-app-during-call": {
     q: "Naweza kuendelea kutumia programu wakati wa simu au matangazo ya moja kwa moja?",
-    a: "Ndiyo. Gusa ikoni ya kupunguza (juu kulia kwenye simu, chini kulia kwenye matangazo ya moja kwa moja) ili kuipunguza hadi fremu ndogo ya video iliyobandikwa kwenye kona unapovinjari sehemu nyingine ya programu. Simu au matangazo yanaendelea muda wote; gusa ikoni ya kupanua ya fremu ili kurudi kwenye skrini nzima, au ikoni yake ya kukata simu ili kuyamaliza bila kuyapanua kwanza.",
+    a: "Ndiyo. Gusa ikoni ya kupunguza (juu kulia kwenye simu, chini kulia kwenye matangazo ya moja kwa moja) ili kuipunguza hadi fremu ndogo ya video iliyobandikwa kwenye kona unapovinjari sehemu nyingine ya programu. Simu au matangazo yanaendelea muda wote; gusa ikoni ya kupanua ya fremu ili kurudi kwenye skrini nzima, au ikoni yake ya kukata simu ili kuyamaliza bila kuyapanua kwanza.\n\nSimu inapolia au ikiendelea, chochote kinachocheza kwenye programu (video, Muse, hadithi, ujumbe wa sauti na wa video) kinasitishwa na hakuna kinachoanza chenyewe; kilichokuwa kikicheza kinaendelea simu inapoisha, inapokataliwa au inapokosekana. Vicheza video vilivyopachikwa vya YouTube, TikTok na vingine vinaweza tu kusimamishwa, kwa hiyo vinaanza upya tangu mwanzo.",
   },
 
   story: {

@@ -169,13 +169,15 @@ describe("bar visibility", () => {
 });
 
 describe("play / pause while holding and dragging", () => {
-  const base = { isVisible: true, paused: false, holding: false, scrubbing: false };
+  const base = { isVisible: true, paused: false, holding: false, scrubbing: false, callHold: false };
   it("plays on screen, unpaused, not held, not dragged", () => {
     expect(shouldVideoPlay(base)).toBe(true);
     expect(shouldVideoPlay({ ...base, isVisible: false })).toBe(false);
     expect(shouldVideoPlay({ ...base, paused: true })).toBe(false);
     expect(shouldVideoPlay({ ...base, holding: true })).toBe(false);
     expect(shouldVideoPlay({ ...base, scrubbing: true })).toBe(false);
+    // A call ringing or under way holds it; it plays on once the call ends.
+    expect(shouldVideoPlay({ ...base, callHold: true })).toBe(false);
   });
 
   it("a drag restores the state from before it: playing plays on, paused stays paused", () => {

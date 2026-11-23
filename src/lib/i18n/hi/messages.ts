@@ -269,8 +269,6 @@ export const messages: typeof messagesEn = {
       takePhoto: "फ़ोटो खींचें",
       send: "भेजें",
       recordVoice: "वॉइस नोट रिकॉर्ड करें",
-      voiceReady: "वॉइस नोट भेजने के लिए तैयार है",
-      removeVoice: "वॉइस नोट हटाएँ",
       videoReady: "वीडियो भेजने के लिए तैयार है",
       viewOnceVideo: "एक बार देखने वाला वीडियो · बिना कैप्शन के भेजा जाता है",
       removeVideo: "वीडियो हटाएँ",
@@ -319,6 +317,16 @@ export const messages: typeof messagesEn = {
       edit: "आपके बदलाव सेव नहीं हो सके।",
       editTooLong: "यह भेजने के लिए बहुत लंबा है। कृपया इसे छोटा करें।",
       correction: "वह सुझाव सेव नहीं हो सका।",
+    },
+    // A recorded voice/video message sends itself the moment recording stops; until it is stored it shows as a
+    // bubble of its own: sending, or not sent with Retry and Discard.
+    outbox: {
+      sending: { AUDIO: "वॉइस मैसेज भेजा जा रहा है…", VIDEO: "वीडियो भेजा जा रहा है…" },
+      label: { AUDIO: "वॉइस मैसेज", VIDEO: "वीडियो मैसेज" },
+      failed: "नहीं भेजा गया",
+      retry: "फिर कोशिश करें",
+      discard: "हटाएँ",
+      tooShort: "रिकॉर्डिंग बहुत छोटी थी, इसलिए नहीं भेजी गई।",
     },
     viewOnceErrors: {
       unavailable: "एक बार देखने का विकल्प अभी उपलब्ध नहीं है।",

@@ -1228,6 +1228,14 @@ const sections: Section[] = [
             stream keeps running the whole time; tap the widget&apos;s
             expand icon to bring it back full-screen, or its hang-up icon to
             end it without expanding first.
+            <br />
+            <br />
+            When a call rings or is under way, anything playing in the app
+            (videos, Muse, Stories, voice and video messages) pauses and
+            nothing starts on its own; whatever was playing carries on once
+            the call ends, is declined or is missed. Embedded YouTube, TikTok
+            and other players can only be stopped, so they start again from
+            the beginning.
           </>
         ),
       },
@@ -1774,6 +1782,14 @@ const sections: Section[] = [
             recording), a GIF button, plus a microphone icon for a recorded
             voice note. Any message you send can be deleted for yourself, or
             for everyone if you sent it.
+            <br />
+            <br />
+            A voice note or a video you record in the chat is sent as soon as
+            you stop recording, with no extra Send step. Tap Cancel (or close
+            the recorder) while recording to discard it instead; a recording
+            shorter than a second isn&apos;t sent. If it can&apos;t be sent,
+            it stays in the chat marked &ldquo;Not sent&rdquo; with Retry and
+            Discard, and retrying never sends it twice.
           </>
         ),
       },

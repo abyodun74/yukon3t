@@ -17,7 +17,7 @@ export const es3 = {
   },
   "send-photos-videos-voice-notes": {
     q: "¿Puedo enviar fotos, videos, notas de voz o GIF en un chat?",
-    a: "Sí. El cuadro de mensaje del chat tiene los botones «Agregar una foto» y «Agregar un video» (dispositivo, cámara o grabación en el momento), un botón de GIF y un ícono de micrófono para grabar una nota de voz. Cualquier mensaje que envíes se puede eliminar para ti, o para todos si lo enviaste tú.",
+    a: "Sí. El cuadro de mensaje del chat tiene los botones «Agregar una foto» y «Agregar un video» (dispositivo, cámara o grabación en el momento), un botón de GIF y un ícono de micrófono para grabar una nota de voz. Cualquier mensaje que envíes se puede eliminar para ti, o para todos si lo enviaste tú.\n\nUna nota de voz o un video que grabas en el chat se envía en cuanto dejas de grabar, sin tener que tocar «Enviar». Si mientras grabas tocas «Cancelar» (o cierras la grabadora), se descarta; una grabación de menos de un segundo no se envía. Si no se puede enviar, se queda en el chat marcada como «No enviado» con «Reintentar» y «Descartar», y reintentar nunca la envía dos veces.",
   },
   "send-shopping-list": {
     q: "¿Puedo enviar una lista de compras en un chat?",

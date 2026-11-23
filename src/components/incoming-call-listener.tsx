@@ -300,25 +300,20 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     // and restarting the loop then would glitch the audio.
   }, [ringingId, ringtone]);
 
-  // Pauses any feed/story/live video already playing the moment a call
-  // starts ringing, so it doesn't compete with the ringtone before the call
-  // is even answered — only covers this pre-answer window on the callee
-  // side (there's no equivalent "ringing" state for whoever placed the
-  // call). Once answered, CallSessionProvider's startSession/endSession
-  // take over the pause for the rest of the call's duration on *both*
-  // sides — video-playback-guard.ts's reference counting means this
-  // ringing-phase pause and that one don't stomp on each other regardless
-  // of which order they fire/clear in.
-  const isRinging = Boolean(incoming);
+  // Pauses every video and audio playing in the app (feed, Muse, Stories, chat voice/video messages, comments...) the
+  // moment a call (1:1 or group) starts ringing, so nothing competes with the ringtone, and keeps anything from
+  // starting on its own while it rings. Declined, missed or cancelled: the hold ends here and what was playing plays
+  // again. Answered: this hold carries on for as long as the answered call is this listener's (activeCall), so there is
+  // no gap between the ring ending and CallSessionProvider's own hold starting (React runs this cleanup before the
+  // effect that starts the session); both end with the call (video-playback-guard.ts counts the holds).
+  const holdsMedia = Boolean(incoming) || activeCall !== null;
   useEffect(() => {
-    if (!isRinging) return;
-    // Also holds a full-screen viewer's own video (a Story), which the plain pause can't reach while that viewer
-    // holds the page's media itself (beginCallMediaHold).
+    if (!holdsMedia) return;
     beginCallMediaHold();
     return () => {
       endCallMediaHold();
     };
-  }, [isRinging]);
+  }, [holdsMedia]);
 
   // Callable by callId directly (not just from `incoming` state) so the
   // notification-tap deep-link handler below can accept/decline a call this

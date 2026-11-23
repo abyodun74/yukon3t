@@ -48,7 +48,7 @@ export const de2 = {
   },
   "keep-using-app-during-call": {
     q: "Kann ich die App während eines Anrufs oder Livestreams weiter nutzen?",
-    a: "Ja. Tippe auf das Minimieren-Symbol (bei einem Anruf oben rechts, bei einem Livestream unten rechts), um ihn auf einen kleinen Videorahmen zu verkleinern, der in einer Ecke verankert bleibt, während du durch den Rest der App navigierst. Der Anruf oder Livestream läuft die ganze Zeit weiter; tippe auf das Vergrößern-Symbol des Rahmens, um zum Vollbild zurückzukehren, oder auf sein Auflegen-Symbol, um ihn zu beenden, ohne ihn vorher zu vergrößern.",
+    a: "Ja. Tippe auf das Minimieren-Symbol (bei einem Anruf oben rechts, bei einem Livestream unten rechts), um ihn auf einen kleinen Videorahmen zu verkleinern, der in einer Ecke verankert bleibt, während du durch den Rest der App navigierst. Der Anruf oder Livestream läuft die ganze Zeit weiter; tippe auf das Vergrößern-Symbol des Rahmens, um zum Vollbild zurückzukehren, oder auf sein Auflegen-Symbol, um ihn zu beenden, ohne ihn vorher zu vergrößern.\n\nWenn ein Anruf klingelt oder läuft, pausiert alles, was in der App gerade abgespielt wird (Videos, Muse, Storys, Sprach- und Videonachrichten), und nichts startet von selbst; was lief, spielt weiter, sobald der Anruf endet, abgelehnt oder verpasst wird. Eingebettete Player von YouTube, TikTok und anderen lassen sich nur stoppen, sie beginnen danach also wieder von vorn.",
   },
 
   story: {

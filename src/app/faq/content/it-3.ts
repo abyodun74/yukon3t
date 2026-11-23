@@ -17,7 +17,7 @@ export const it3 = {
   },
   "send-photos-videos-voice-notes": {
     q: "Posso inviare foto, video, note vocali o GIF in una chat?",
-    a: "Sì. La casella dei messaggi della chat ha i pulsanti «Aggiungi una foto» e «Aggiungi un video» (dispositivo, fotocamera o registrazione sul momento), un pulsante GIF e un'icona del microfono per registrare una nota vocale. Qualsiasi messaggio tu invii si può eliminare per te, o per tutti se l'hai inviato tu.",
+    a: "Sì. La casella dei messaggi della chat ha i pulsanti «Aggiungi una foto» e «Aggiungi un video» (dispositivo, fotocamera o registrazione sul momento), un pulsante GIF e un'icona del microfono per registrare una nota vocale. Qualsiasi messaggio tu invii si può eliminare per te, o per tutti se l'hai inviato tu.\n\nUna nota vocale o un video che registri nella chat viene inviato appena interrompi la registrazione, senza dover toccare «Invia». Tocca «Annulla» (o chiudi il registratore) mentre registri per eliminarlo; una registrazione di meno di un secondo non viene inviata. Se non si riesce a inviarla, resta nella chat segnata come «Non inviato» con «Riprova» ed «Elimina», e riprovare non la invia mai due volte.",
   },
   "send-shopping-list": {
     q: "Posso inviare una lista della spesa in una chat?",

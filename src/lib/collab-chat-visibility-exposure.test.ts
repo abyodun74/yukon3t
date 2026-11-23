@@ -91,6 +91,9 @@ const UNCHECKED_CHAT_READS = new Set([
   "lib/hidden-chats.ts#isConversationLocked",
   // "Has this person ever sent a message" for the review prompt: their own activity, no chat is read.
   "app/actions/review-prompt.ts#hasMeaningfulActivity",
+  // sendMessage's idempotency lookup: the caller's own message by their own send key, only ever called inside
+  // sendMessage after its collabChatHiddenFor check, and answered only when it is in the chat being sent to.
+  "app/actions/messages.ts#findSentMessageForRequest",
   // The collab page reads its own chat only after its own block 404 (collab-visibility-exposure.test.ts).
   "app/collab/[id]/page.tsx#CollabDetailPage",
 ]);

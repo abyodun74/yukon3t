@@ -4,6 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { useReloadHold } from "@/lib/stale-build-client";
 import { useUiText } from "@/components/ui-text";
 import { format } from "@/lib/i18n/locales";
+import { newClientRequestId } from "@/lib/client-request-id";
+
+/** What a finished recording carries besides its file. */
+export type RecordingInfo = {
+  /** How long it recorded, from start to stop. */
+  durationMs: number;
+  /** Unique per recording: a caller that sends it uses this as the send's idempotency key (clientRequestId). */
+  recordingId: string;
+};
+
+/** One start-to-stop recording: cancelled ones never reach onRecorded. */
+type RecordingSession = { id: string; startedAt: number; stoppedAt: number | null; discarded: boolean };
 
 /**
  * Shared getUserMedia/MediaRecorder lifecycle — extracted from
@@ -39,13 +51,14 @@ export function useAudioRecorder({
   active = true,
 }: {
   maxSeconds: number;
-  onRecorded: (file: File) => void;
+  onRecorded: (file: File, info: RecordingInfo) => void;
   fileNamePrefix?: string;
   autoStart?: boolean;
   active?: boolean;
 }) {
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const sessionRef = useRef<RecordingSession | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onRecordedRef = useRef(onRecorded);
@@ -66,23 +79,40 @@ export function useAudioRecorder({
     onRecordedRef.current = onRecorded;
   }, [onRecorded]);
 
+  // Ends the recording and hands it to onRecorded. Safe to call twice (the max-length tick and a tap can both stop it).
   function stop() {
-    recorderRef.current?.stop();
+    const recorder = recorderRef.current;
+    const session = sessionRef.current;
+    if (session && session.stoppedAt === null) session.stoppedAt = Date.now();
+    if (recorder && recorder.state !== "inactive") recorder.stop();
     if (tickRef.current) clearInterval(tickRef.current);
     setRecording(false);
+  }
+
+  // Ends the recording and throws it away: onRecorded is never called for it.
+  function cancel() {
+    if (sessionRef.current) sessionRef.current.discarded = true;
+    stop();
   }
 
   function beginRecording(stream: MediaStream) {
     chunksRef.current = [];
     const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    const session: RecordingSession = { id: newClientRequestId(), startedAt: Date.now(), stoppedAt: null, discarded: false };
+    sessionRef.current = session;
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
     recorder.onstop = () => {
+      // Cancelled, or cut off by closing the recorder (its tracks stopping also stops the recorder): nothing is kept.
+      if (session.discarded) return;
       // Force the plain "audio/webm" type (no codecs= parameter) so it
       // matches storage.ts's exact content-type allowlist.
       const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-      onRecordedRef.current(new File([blob], `${fileNamePrefix}-${Date.now()}.webm`, { type: "audio/webm" }));
+      onRecordedRef.current(new File([blob], `${fileNamePrefix}-${Date.now()}.webm`, { type: "audio/webm" }), {
+        durationMs: (session.stoppedAt ?? Date.now()) - session.startedAt,
+        recordingId: session.id,
+      });
     };
     recorder.start();
     recorderRef.current = recorder;
@@ -116,6 +146,11 @@ export function useAudioRecorder({
       });
     return () => {
       cancelled = true;
+      // Closing mid-recording is a cancel: stopping the tracks below would otherwise end the recorder normally and
+      // hand the partial recording to onRecorded (which, in a chat, sends it).
+      if (sessionRef.current) sessionRef.current.discarded = true;
+      if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
+      recorderRef.current = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       if (tickRef.current) clearInterval(tickRef.current);
@@ -134,5 +169,5 @@ export function useAudioRecorder({
     beginRecording(stream);
   }
 
-  return { start, stop, seconds, recording, error };
+  return { start, stop, cancel, seconds, recording, error };
 }

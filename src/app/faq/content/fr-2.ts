@@ -48,7 +48,7 @@ export const fr2 = {
   },
   "keep-using-app-during-call": {
     q: "Puis-je continuer à utiliser l'application pendant un appel ou un direct ?",
-    a: "Oui. Touchez l'icône de réduction (en haut à droite pendant un appel, en bas à droite pendant un direct) pour le réduire à une petite fenêtre vidéo ancrée dans un coin pendant que vous naviguez ailleurs dans l'application. L'appel ou le direct se poursuit pendant tout ce temps ; touchez l'icône d'agrandissement de la fenêtre pour revenir en plein écran, ou son icône pour raccrocher afin d'y mettre fin sans l'agrandir d'abord.",
+    a: "Oui. Touchez l'icône de réduction (en haut à droite pendant un appel, en bas à droite pendant un direct) pour le réduire à une petite fenêtre vidéo ancrée dans un coin pendant que vous naviguez ailleurs dans l'application. L'appel ou le direct se poursuit pendant tout ce temps ; touchez l'icône d'agrandissement de la fenêtre pour revenir en plein écran, ou son icône pour raccrocher afin d'y mettre fin sans l'agrandir d'abord.\n\nQuand un appel sonne ou est en cours, tout ce qui joue dans l'application (vidéos, Muse, stories, messages vocaux et vidéo) se met en pause et rien ne démarre tout seul ; ce qui jouait reprend quand l'appel se termine, est refusé ou manqué. Les lecteurs intégrés de YouTube, TikTok et d'autres ne peuvent qu'être arrêtés : ils repartent donc du début.",
   },
 
   story: {

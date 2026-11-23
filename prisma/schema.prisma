@@ -3038,6 +3038,10 @@ model Message {
   // through createNonE2eeMessage after the gift was delivered; one message per gift. SetNull if the send is deleted.
   giftSendId String? @unique
 
+  // A per-send key from the chat composer (sendMessage; today the auto-sent voice/video recordings): a retried or
+  // double-fired send with the same key answers with the message already stored instead of making a second one.
+  clientRequestId String?
+
   conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   story        Story?              @relation(fields: [storyId], references: [id], onDelete: SetNull)
@@ -3068,6 +3072,7 @@ model Message {
   @@index([mediaUrl])
   @@index([mediaThumbnailUrl])
   @@index([viewOnce, viewOnceOpenedAt])
+  @@unique([senderId, clientRequestId])
 }
 
 /**

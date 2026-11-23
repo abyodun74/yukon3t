@@ -47,6 +47,9 @@ export const ui: typeof uiEn = {
     videoTitle: "تسجيل فيديو",
     record: "تسجيل",
     stop: "إيقاف",
+    // The chat sends a recording the moment it stops: the Stop button, and the line saying so.
+    stopAndSend: "إرسال",
+    sendsOnStop: "يُرسَل التسجيل فور إيقافه. اضغط على إلغاء لحذفه.",
     progress: "{seconds} ث / {max} ث",
     limit: "حتى {max} ث",
     switchCamera: "تبديل الكاميرا",

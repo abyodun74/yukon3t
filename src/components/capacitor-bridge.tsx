@@ -11,7 +11,7 @@ import { markReadByTarget } from "@/app/actions/notifications";
 import { isNativePickerActive } from "@/lib/native-picker-activity";
 import { unsubscribeFromPush } from "@/app/actions/push";
 import { registerVoipToken } from "@/app/actions/voip";
-import { installVideoCoordinator } from "@/lib/video-playback-guard";
+import { installMediaGuard } from "@/lib/video-playback-guard";
 import { reloadIfStale } from "@/lib/stale-build-client";
 import { useUiText } from "@/components/ui-text";
 import { QUIET_NOTIFICATION_CHANNEL_ID, QUIET_NOTIFICATION_CHANNEL_IMPORTANCE } from "@/lib/quiet-push";
@@ -190,7 +190,7 @@ export function CapacitorBridge({ userId }: { userId: string | null }) {
   // site, so it's installed unconditionally here since CapacitorBridge is
   // already mounted once for every session regardless of platform.
   useEffect(() => {
-    installVideoCoordinator();
+    installMediaGuard();
   }, []);
 
   // One-time self-heal for accounts affected by a real bug (see

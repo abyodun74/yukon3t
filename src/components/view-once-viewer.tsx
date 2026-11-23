@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, X } from "lucide-react";
 import { getViewOnceContentType, openViewOnceMessage, finishViewOnceMessage } from "@/app/actions/view-once";
-import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
+import { holdPageMedia, releasePageMedia } from "@/lib/video-playback-guard";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { viewOnceCanPlay, type ViewOnceMediaType } from "@/lib/view-once";
@@ -82,7 +82,7 @@ export function ViewOnceViewer({
 
   useEffect(() => {
     aliveRef.current = true;
-    pauseAllPlayingVideos();
+    holdPageMedia();
     return () => {
       aliveRef.current = false;
       abortRef.current?.abort();
@@ -92,7 +92,7 @@ export function ViewOnceViewer({
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = null;
       }
-      resumePausedVideos();
+      releasePageMedia();
     };
   }, [finish]);
 

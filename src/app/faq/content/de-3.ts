@@ -17,7 +17,7 @@ export const de3 = {
   },
   "send-photos-videos-voice-notes": {
     q: "Kann ich in einem Chat Fotos, Videos, Sprachnotizen oder GIFs senden?",
-    a: "Ja. Das Nachrichtenfeld des Chats hat die Schaltflächen „Foto hinzufügen“ und „Video hinzufügen“ (Gerät, Kamera oder Aufnahme im Moment), eine GIF-Schaltfläche und ein Mikrofonsymbol zum Aufnehmen einer Sprachnotiz. Jede Nachricht, die du sendest, kann für dich gelöscht werden, oder für alle, wenn du sie gesendet hast.",
+    a: "Ja. Das Nachrichtenfeld des Chats hat die Schaltflächen „Foto hinzufügen“ und „Video hinzufügen“ (Gerät, Kamera oder Aufnahme im Moment), eine GIF-Schaltfläche und ein Mikrofonsymbol zum Aufnehmen einer Sprachnotiz. Jede Nachricht, die du sendest, kann für dich gelöscht werden, oder für alle, wenn du sie gesendet hast.\n\nEine Sprachnotiz oder ein Video, das du im Chat aufnimmst, wird gesendet, sobald du die Aufnahme stoppst, ohne dass du noch auf „Senden“ tippen musst. Tippe während der Aufnahme auf „Abbrechen“ (oder schließe die Aufnahme), um sie stattdessen zu verwerfen; eine Aufnahme unter einer Sekunde wird nicht gesendet. Kann sie nicht gesendet werden, bleibt sie mit „Nicht gesendet“ sowie „Erneut versuchen“ und „Verwerfen“ im Chat, und ein erneuter Versuch sendet sie nie doppelt.",
   },
   "send-shopping-list": {
     q: "Kann ich in einem Chat eine Einkaufsliste senden?",

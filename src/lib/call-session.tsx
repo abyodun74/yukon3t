@@ -169,8 +169,9 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     // (via CallButton, which has no "ringing" state of its own and only
     // ever reaches this point) — confirmed live that pausing only from
     // the ringing side left a playing video fighting the call's own
-    // audio for whoever placed the call. beginCallMediaHold also holds a
-    // full-screen viewer's own video (a Story) the plain pause can't reach.
+    // audio for whoever placed the call. beginCallMediaHold pauses every
+    // video and audio in the app and keeps autoplay from starting until
+    // endSession (see video-playback-guard.ts).
     if (!callMediaHeldRef.current) {
       callMediaHeldRef.current = true;
       beginCallMediaHold();

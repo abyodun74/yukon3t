@@ -246,7 +246,7 @@ export function StoryViewer({
   // decode): the story falls back to the video's own sound. Keyed by story id.
   const [soundTrackFailedForId, setSoundTrackFailedForId] = useState<string | null>(null);
   // A call ringing or under way (beginCallMediaHold): the story holds still like for any other pause, and plays on
-  // after. The call's own pause can't reach this video, the viewer's PageMediaHold already holds the page's media.
+  // after. Its video and sound track are marked data-media-hold="self", so the page-wide call hold leaves them to this.
   const callHold = useCallMediaHold();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -922,6 +922,8 @@ export function StoryViewer({
         ) : (
           <video
             ref={attachVideo}
+            // Holds itself during a call (callHold below), so the page-wide call hold leaves it alone.
+            data-media-hold="self"
             src={story.mediaUrl ?? undefined}
             poster={story.mediaThumbnailUrl ?? undefined}
             autoPlay
@@ -962,6 +964,7 @@ export function StoryViewer({
           // events above. Never shown; a track that can't play falls back to the video's own sound.
           <audio
             ref={attachAudio}
+            data-media-hold="self"
             src={soundTrackUrl}
             preload="auto"
             loop

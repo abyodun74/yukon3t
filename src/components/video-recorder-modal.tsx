@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Circle, RefreshCw, Square } from "lucide-react";
+import { Circle, RefreshCw, Send, Square } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Sheet } from "@/components/sheet";
 import { useUiText } from "@/components/ui-text";
 import { format } from "@/lib/i18n/locales";
+import { newClientRequestId } from "@/lib/client-request-id";
+import type { RecordingInfo } from "@/lib/use-audio-recorder";
 
 /**
  * In-browser camera recording (desktop webcam or mobile camera via
@@ -17,21 +19,36 @@ import { format } from "@/lib/i18n/locales";
  * `open` (acquire when it opens, release when it closes) instead of only
  * ever running once on mount/unmount, so a reopen genuinely re-acquires
  * the camera rather than silently reusing a closed stream.
+ *
+ * Cancel (shown while recording) and closing the sheet mid-recording both throw the recording away: onRecorded is
+ * only ever called for a recording stopped with Stop (or by reaching `maxSeconds`). `sendsOnStop` is for a caller that
+ * sends the recording the moment it stops (the chat): the Stop button reads "Send" and a line says so.
  */
 export function VideoRecorderModal({
   open,
   onRecorded,
   onClose,
   maxSeconds,
+  sendsOnStop = false,
 }: {
   open: boolean;
-  onRecorded: (file: File) => void;
+  onRecorded: (file: File, info: RecordingInfo) => void;
   onClose: () => void;
   maxSeconds: number;
+  sendsOnStop?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  // The latest onRecorded: a recording reports to the caller as it is when the recording stops, not when it started.
+  const onRecordedRef = useRef(onRecorded);
+  useEffect(() => {
+    onRecordedRef.current = onRecorded;
+  }, [onRecorded]);
+  // The recording under way: a cancelled one (Cancel, or the sheet closed mid-recording) never reaches onRecorded.
+  const sessionRef = useRef<{ id: string; startedAt: number; stoppedAt: number | null; discarded: boolean } | null>(
+    null,
+  );
   const chunksRef = useRef<Blob[]>([]);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recording, setRecording] = useState(false);
@@ -98,6 +115,11 @@ export function VideoRecorderModal({
     const videoEl = videoRef.current;
     return () => {
       cancelled = true;
+      // Closing mid-recording is a cancel: stopping the tracks below would otherwise end the recorder normally and
+      // hand the partial recording to onRecorded (which, in a chat, sends it).
+      if (sessionRef.current) sessionRef.current.discarded = true;
+      if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
+      recorderRef.current = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       if (videoEl) videoEl.srcObject = null;
@@ -174,10 +196,19 @@ export function VideoRecorderModal({
     }
   }
 
+  // Safe to call twice (the max-length tick and a tap can both stop it).
   function stopRecording() {
-    recorderRef.current?.stop();
+    const recorder = recorderRef.current;
+    const session = sessionRef.current;
+    if (session && session.stoppedAt === null) session.stoppedAt = Date.now();
+    if (recorder && recorder.state !== "inactive") recorder.stop();
     if (tickRef.current) clearInterval(tickRef.current);
     setRecording(false);
+  }
+
+  function cancelRecording() {
+    if (sessionRef.current) sessionRef.current.discarded = true;
+    stopRecording();
   }
 
   function startRecording() {
@@ -185,14 +216,20 @@ export function VideoRecorderModal({
     if (!stream) return;
     chunksRef.current = [];
     const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+    const session = { id: newClientRequestId(), startedAt: Date.now(), stoppedAt: null as number | null, discarded: false };
+    sessionRef.current = session;
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
     recorder.onstop = () => {
+      if (session.discarded) return;
       // Force the plain "video/webm" type (no codecs= parameter) so it
       // matches storage.ts's exact content-type allowlist for post-video.
       const blob = new Blob(chunksRef.current, { type: "video/webm" });
-      onRecorded(new File([blob], `recording-${Date.now()}.webm`, { type: "video/webm" }));
+      onRecordedRef.current(new File([blob], `recording-${Date.now()}.webm`, { type: "video/webm" }), {
+        durationMs: (session.stoppedAt ?? Date.now()) - session.startedAt,
+        recordingId: session.id,
+      });
     };
     recorder.start();
     recorderRef.current = recorder;
@@ -228,7 +265,8 @@ export function VideoRecorderModal({
                 </button>
               )}
             </div>
-            <div className="mt-3 flex items-center justify-between">
+            {sendsOnStop && <p className="mt-2 text-xs text-foreground-soft">{t.recorder.sendsOnStop}</p>}
+            <div className="mt-3 flex items-center justify-between gap-2">
               <span className="text-xs text-foreground-soft">
                 {recording
                   ? format(t.recorder.progress, { seconds, max: maxSeconds })
@@ -243,13 +281,34 @@ export function VideoRecorderModal({
                   <Circle size={14} fill="currentColor" /> {t.recorder.record}
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={stopRecording}
-                  className="flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium"
-                >
-                  <Square size={14} fill="currentColor" /> {t.recorder.stop}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={cancelRecording}
+                    className="rounded-full border border-line px-4 py-2 text-sm font-medium text-danger"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={stopRecording}
+                    className={
+                      sendsOnStop
+                        ? "flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
+                        : "flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium"
+                    }
+                  >
+                    {sendsOnStop ? (
+                      <>
+                        <Send size={14} className="rtl:-scale-x-100" /> {t.recorder.stopAndSend}
+                      </>
+                    ) : (
+                      <>
+                        <Square size={14} fill="currentColor" /> {t.recorder.stop}
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           </>

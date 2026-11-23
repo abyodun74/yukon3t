@@ -269,8 +269,6 @@ export const messages: typeof messagesEn = {
       takePhoto: "Foto aufnehmen",
       send: "Senden",
       recordVoice: "Sprachnotiz aufnehmen",
-      voiceReady: "Sprachnotiz bereit zum Senden",
-      removeVoice: "Sprachnotiz entfernen",
       videoReady: "Video bereit zum Senden",
       viewOnceVideo: "Video zum einmaligen Ansehen · wird ohne Text gesendet",
       removeVideo: "Video entfernen",
@@ -319,6 +317,16 @@ export const messages: typeof messagesEn = {
       edit: "Wir konnten die Änderungen nicht speichern.",
       editTooLong: "Das ist zu lang zum Senden. Bitte kürze es.",
       correction: "Wir konnten diesen Vorschlag nicht speichern.",
+    },
+    // A recorded voice/video message sends itself the moment recording stops; until it is stored it shows as a
+    // bubble of its own: sending, or not sent with Retry and Discard.
+    outbox: {
+      sending: { AUDIO: "Sprachnachricht wird gesendet…", VIDEO: "Video wird gesendet…" },
+      label: { AUDIO: "Sprachnachricht", VIDEO: "Videonachricht" },
+      failed: "Nicht gesendet",
+      retry: "Erneut versuchen",
+      discard: "Verwerfen",
+      tooShort: "Die Aufnahme war zu kurz und wurde nicht gesendet.",
     },
     viewOnceErrors: {
       unavailable: "Das einmalige Ansehen ist gerade nicht verfügbar.",

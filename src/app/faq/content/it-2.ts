@@ -48,7 +48,7 @@ export const it2 = {
   },
   "keep-using-app-during-call": {
     q: "Posso continuare a usare l'app durante una chiamata o una diretta?",
-    a: "Sì. Tocca l'icona per ridurre a icona (in alto a destra in una chiamata, in basso a destra in una diretta) per ridurla a un piccolo riquadro video ancorato a un angolo mentre navighi nel resto dell'app. La chiamata o la diretta resta in corso tutto il tempo; tocca l'icona di espansione del riquadro per tornare a schermo intero, oppure la sua icona di riaggancio per terminarla senza espanderla prima.",
+    a: "Sì. Tocca l'icona per ridurre a icona (in alto a destra in una chiamata, in basso a destra in una diretta) per ridurla a un piccolo riquadro video ancorato a un angolo mentre navighi nel resto dell'app. La chiamata o la diretta resta in corso tutto il tempo; tocca l'icona di espansione del riquadro per tornare a schermo intero, oppure la sua icona di riaggancio per terminarla senza espanderla prima.\n\nQuando squilla una chiamata o ce n'è una in corso, tutto ciò che è in riproduzione nell'app (video, Muse, storie, messaggi vocali e video) va in pausa e niente parte da solo; ciò che era in riproduzione riprende quando la chiamata termina, viene rifiutata o persa. I player incorporati di YouTube, TikTok e altri si possono solo fermare, quindi ripartono dall'inizio.",
   },
 
   story: {

@@ -46,6 +46,9 @@ export const ui: typeof uiEn = {
     videoTitle: "Rekodi video",
     record: "Rekodi",
     stop: "Simamisha",
+    // The chat sends a recording the moment it stops: the Stop button, and the line saying so.
+    stopAndSend: "Tuma",
+    sendsOnStop: "Rekodi inatumwa mara tu unaposimamisha. Gusa Ghairi ili kuitupa.",
     progress: "Sekunde {seconds} / {max}",
     limit: "Hadi sekunde {max}",
     switchCamera: "Badilisha kamera",

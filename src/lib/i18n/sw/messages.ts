@@ -269,8 +269,6 @@ export const messages: typeof messagesEn = {
       takePhoto: "Piga picha",
       send: "Tuma",
       recordVoice: "Rekodi ujumbe wa sauti",
-      voiceReady: "Ujumbe wa sauti uko tayari kutumwa",
-      removeVoice: "Ondoa ujumbe wa sauti",
       videoReady: "Video iko tayari kutumwa",
       viewOnceVideo: "Video ya kutazama mara moja · hutumwa bila maandishi",
       removeVideo: "Ondoa video",
@@ -319,6 +317,16 @@ export const messages: typeof messagesEn = {
       edit: "Hatukuweza kuhifadhi mabadiliko.",
       editTooLong: "Ni mrefu mno kutuma. Tafadhali ufupishe.",
       correction: "Hatukuweza kuhifadhi pendekezo hilo.",
+    },
+    // A recorded voice/video message sends itself the moment recording stops; until it is stored it shows as a
+    // bubble of its own: sending, or not sent with Retry and Discard.
+    outbox: {
+      sending: { AUDIO: "Inatuma ujumbe wa sauti…", VIDEO: "Inatuma video…" },
+      label: { AUDIO: "Ujumbe wa sauti", VIDEO: "Ujumbe wa video" },
+      failed: "Haujatumwa",
+      retry: "Jaribu tena",
+      discard: "Tupa",
+      tooShort: "Rekodi ilikuwa fupi mno, kwa hiyo haikutumwa.",
     },
     viewOnceErrors: {
       unavailable: "Chaguo la kutazama mara moja halipatikani kwa sasa.",

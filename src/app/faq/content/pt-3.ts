@@ -17,7 +17,7 @@ export const pt3 = {
   },
   "send-photos-videos-voice-notes": {
     q: "Posso enviar fotos, vídeos, mensagens de voz ou GIFs em uma conversa?",
-    a: "Sim. A caixa de mensagem da conversa tem os botões «Adicionar uma foto» e «Adicionar um vídeo» (dispositivo, câmera ou gravação na hora), um botão de GIF e um ícone de microfone para gravar uma mensagem de voz. Qualquer mensagem que você enviar pode ser excluída para você, ou para todos se foi você quem enviou.",
+    a: "Sim. A caixa de mensagem da conversa tem os botões «Adicionar uma foto» e «Adicionar um vídeo» (dispositivo, câmera ou gravação na hora), um botão de GIF e um ícone de microfone para gravar uma mensagem de voz. Qualquer mensagem que você enviar pode ser excluída para você, ou para todos se foi você quem enviou.\n\nUma mensagem de voz ou um vídeo que você grava na conversa é enviado assim que você para de gravar, sem precisar tocar em «Enviar». Toque em «Cancelar» (ou feche o gravador) durante a gravação para descartá-la; uma gravação com menos de um segundo não é enviada. Se não puder ser enviada, ela fica na conversa marcada como «Não enviada», com «Tentar de novo» e «Descartar», e tentar de novo nunca a envia duas vezes.",
   },
   "send-shopping-list": {
     q: "Posso enviar uma lista de compras em uma conversa?",

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser, requireVerifiedUser, requireVerifiedViewer, requireViewer } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { parseClientRequestId } from "@/lib/client-request-id";
 import { buildSeriesRule, type EventSeriesRule } from "@/lib/event-recurrence";
 import {
   circleSchema,
@@ -1442,11 +1443,6 @@ export async function createPost(formData: FormData) {
     return { error: null, held: true as const };
   }
   return { error: null };
-}
-
-/** The composer's per-submission key (a UUID or similar), or null when absent or malformed. */
-function parseClientRequestId(value: FormDataEntryValue | null): string | null {
-  return typeof value === "string" && /^[A-Za-z0-9-]{8,64}$/.test(value) ? value : null;
 }
 
 async function postExistsForRequest(authorId: string, clientRequestId: string) {

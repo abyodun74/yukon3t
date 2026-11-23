@@ -46,6 +46,9 @@ export const ui: typeof uiEn = {
     videoTitle: "वीडियो रिकॉर्ड करें",
     record: "रिकॉर्ड करें",
     stop: "रोकें",
+    // The chat sends a recording the moment it stops: the Stop button, and the line saying so.
+    stopAndSend: "भेजें",
+    sendsOnStop: "रोकते ही रिकॉर्डिंग भेज दी जाती है। हटाने के लिए रद्द करें पर टैप करें।",
     progress: "{seconds} सेकंड / {max} सेकंड",
     limit: "{max} सेकंड तक",
     switchCamera: "कैमरा बदलें",

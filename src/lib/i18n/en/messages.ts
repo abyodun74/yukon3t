@@ -282,8 +282,6 @@ export const messagesEn = {
       takePhoto: "Take a photo",
       send: "Send",
       recordVoice: "Record a voice note",
-      voiceReady: "Voice note ready to send",
-      removeVoice: "Remove voice note",
       videoReady: "Video ready to send",
       viewOnceVideo: "View-once video · sent without a caption",
       removeVideo: "Remove video",
@@ -333,6 +331,16 @@ export const messagesEn = {
       edit: "Couldn't save that edit.",
       editTooLong: "That's too long to send - please shorten it.",
       correction: "Couldn't save that suggestion.",
+    },
+    // A recorded voice/video message sends itself the moment recording stops; until it is stored it shows as a
+    // bubble of its own: sending, or not sent with Retry and Discard.
+    outbox: {
+      sending: { AUDIO: "Sending voice message…", VIDEO: "Sending video…" },
+      label: { AUDIO: "Voice message", VIDEO: "Video message" },
+      failed: "Not sent",
+      retry: "Retry",
+      discard: "Discard",
+      tooShort: "That recording was too short, so it wasn't sent.",
     },
     viewOnceErrors: {
       unavailable: "View once isn't available right now.",

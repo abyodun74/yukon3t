@@ -17,7 +17,7 @@ export const fr3 = {
   },
   "send-photos-videos-voice-notes": {
     q: "Puis-je envoyer des photos, des vidéos, des notes vocales ou des GIF dans une discussion ?",
-    a: "Oui. La zone de saisie de la discussion comporte les boutons « Ajouter une photo » et « Ajouter une vidéo » (appareil, appareil photo ou enregistrement sur le moment), un bouton GIF, ainsi qu'une icône de micro pour enregistrer une note vocale. Tout message que vous envoyez peut être supprimé pour vous, ou pour tout le monde si c'est vous qui l'avez envoyé.",
+    a: "Oui. La zone de saisie de la discussion comporte les boutons « Ajouter une photo » et « Ajouter une vidéo » (appareil, appareil photo ou enregistrement sur le moment), un bouton GIF, ainsi qu'une icône de micro pour enregistrer une note vocale. Tout message que vous envoyez peut être supprimé pour vous, ou pour tout le monde si c'est vous qui l'avez envoyé.\n\nUne note vocale ou une vidéo que vous enregistrez dans la discussion est envoyée dès que vous arrêtez l'enregistrement, sans avoir à toucher « Envoyer ». Touchez « Annuler » (ou fermez l'enregistreur) pendant l'enregistrement pour la supprimer ; un enregistrement de moins d'une seconde n'est pas envoyé. S'il ne peut pas être envoyé, il reste dans la discussion avec la mention « Non envoyé » et les boutons « Réessayer » et « Supprimer », et réessayer ne l'envoie jamais deux fois.",
   },
   "send-shopping-list": {
     q: "Puis-je envoyer une liste de courses dans une discussion ?",

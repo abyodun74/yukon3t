@@ -104,7 +104,7 @@ describe("the length bar", () => {
   });
 
   it("holds the video still while held or dragged, and a hold's release is not a tap", () => {
-    expect(cardSource).toMatch(/shouldVideoPlay\(\{ isVisible, paused, holding: bar\.holding, scrubbing: bar\.scrubbing \}\)/);
+    expect(cardSource).toMatch(/shouldVideoPlay\(\{ isVisible, paused, holding: bar\.holding, scrubbing: bar\.scrubbing, callHold \}\)/);
     expect(cardSource).toMatch(/onPointerCancel=\{\(e\) => endHold\(e\.pointerId, false\)\}/);
     expect(cardSource).toMatch(/if \(suppressClickRef\.current\) \{/);
     expect(feed).toMatch(/const MUSE_HOLD_EXCLUDED = "button, a, input, textarea, select, iframe, \[role='slider'\], \[data-muse-progress\]"/);

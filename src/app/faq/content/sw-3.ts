@@ -17,7 +17,7 @@ export const sw3 = {
   },
   "send-photos-videos-voice-notes": {
     q: "Naweza kutuma picha, video, ujumbe wa sauti au GIF kwenye gumzo?",
-    a: "Ndiyo. Kisanduku cha ujumbe wa gumzo kina vitufe vya «Ongeza picha» na «Ongeza video» (kifaa, kamera au kurekodi papo hapo), kitufe cha GIF na ikoni ya maikrofoni ya kurekodi ujumbe wa sauti. Ujumbe wowote unaotuma unaweza kufutwa kwako, au kwa kila mtu ikiwa ulituma wewe.",
+    a: "Ndiyo. Kisanduku cha ujumbe wa gumzo kina vitufe vya «Ongeza picha» na «Ongeza video» (kifaa, kamera au kurekodi papo hapo), kitufe cha GIF na ikoni ya maikrofoni ya kurekodi ujumbe wa sauti. Ujumbe wowote unaotuma unaweza kufutwa kwako, au kwa kila mtu ikiwa ulituma wewe.\n\nUjumbe wa sauti au video unayorekodi kwenye gumzo hutumwa mara tu unaposimamisha kurekodi, bila kugusa «Tuma». Gusa «Ghairi» (au funga kinasa sauti) unaporekodi ili kuitupa badala yake; rekodi fupi kuliko sekunde moja haitumwi. Isipoweza kutumwa, inabaki kwenye gumzo ikiwa na alama «Haujatumwa» pamoja na «Jaribu tena» na «Tupa», na kujaribu tena hakuitumi mara mbili kamwe.",
   },
   "send-shopping-list": {
     q: "Naweza kutuma orodha ya manunuzi kwenye gumzo?",

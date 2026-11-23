@@ -31,6 +31,7 @@ import { getBlockedEitherWayIds, isBlockedEitherWay, isBlockedWithAny } from "@/
 import { isSecretChat, checkSecretSend, withoutSecretChats } from "@/lib/e2ee/secret-chat";
 import { isEncryptedContent } from "@/lib/e2ee/constants";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
+import { parseClientRequestId } from "@/lib/client-request-id";
 import { updateConversationEmbedding } from "@/lib/embeddings";
 import { isGiphyUrl } from "@/lib/giphy";
 import { notifyBadgeChange, publishEvent } from "@/lib/realtime-server";
@@ -524,6 +525,28 @@ export async function deleteConversation(conversationId: string) {
   return { error: null };
 }
 
+/** What sendMessage returns with a message: the row plus what its bubble shows. */
+const SENT_MESSAGE_INCLUDE = {
+  reactions: { select: REACTION_SELECT },
+  corrections: { include: CORRECTION_INCLUDE },
+  story: STORY_SELECT,
+  replyTo: REPLY_TO_SELECT,
+  checklist: CHECKLIST_SELECT,
+} as const;
+
+/** The caller's message already stored under this send's key, if any (see Message.clientRequestId). */
+function findSentMessageForRequest(senderId: string, clientRequestId: string) {
+  return prisma.message.findUnique({
+    where: { senderId_clientRequestId: { senderId, clientRequestId } },
+    include: SENT_MESSAGE_INCLUDE,
+  });
+}
+
+/**
+ * Sends one message. With `clientRequestId` (a per-send key the composer reuses for every retry of the same send) the
+ * send is idempotent: a key that already has a message answers with that message, and nothing is created, notified or
+ * pushed a second time; files this repeat uploaded that the stored message doesn't use are deleted.
+ */
 export async function sendMessage(formData: FormData) {
   const user = await requireVerifiedUser();
 
@@ -545,6 +568,7 @@ export async function sendMessage(formData: FormData) {
   }
   const { conversationId, mediaType, mediaUrl, mediaThumbnailUrl, replyToMessageId } = parsed.data;
   let { content } = parsed.data;
+  const clientRequestId = parseClientRequestId(formData.get("clientRequestId"));
 
   // A shared checklist (the composer's "Shopping list", src/lib/shopping-list.ts): JSON { title, items }, text only.
   // Its content is set here, never taken from the client: the one-line stand-in that previews and pushes show.
@@ -578,6 +602,26 @@ export async function sendMessage(formData: FormData) {
   // client sends them to the PIN prompt and back (chat-thread.tsx), keeping what they typed.
   if (await isMembershipLocked(membership, user.id)) {
     return { error: "hidden_locked" as const };
+  }
+
+  const uploadedUrls = [
+    ...(mediaType !== "NONE" && mediaUrl ? [mediaUrl] : []),
+    ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : []),
+  ];
+  const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
+
+  // A repeat of a send that already went through (a retry after a lost answer, a double fire): that message is the
+  // answer. Checked before anything else can refuse, so the repeat can never be told "blocked" or "moderation" for a
+  // message the other person already has.
+  async function answerRepeat(existing: NonNullable<Awaited<ReturnType<typeof findSentMessageForRequest>>>) {
+    if (existing.conversationId !== conversationId) return { error: "invalid" as const };
+    const unused = uploadedUrls.filter((url) => url !== existing.mediaUrl && url !== existing.mediaThumbnailUrl);
+    if (unused.length > 0) await deleteOwnedUploads(unused, user.id);
+    return { error: null, message: existing };
+  }
+  if (clientRequestId) {
+    const existing = await findSentMessageForRequest(user.id, clientRequestId);
+    if (existing) return answerRepeat(existing);
   }
 
   // Blocking only applies to direct (1:1) conversations — a block silently
@@ -615,12 +659,6 @@ export async function sendMessage(formData: FormData) {
       return { error: "invalid" as const };
     }
   }
-
-  const uploadedUrls = [
-    ...(mediaType !== "NONE" && mediaUrl ? [mediaUrl] : []),
-    ...(mediaType === "VIDEO" && mediaThumbnailUrl ? [mediaThumbnailUrl] : []),
-  ];
-  const cleanupUploads = () => deleteOwnedUploads(uploadedUrls, user.id);
 
   // Refuse plaintext text in a secret chat rather than store it: a client that
   // forgot to encrypt, or one caught by secret mode switching on mid-send,
@@ -677,34 +715,40 @@ export async function sendMessage(formData: FormData) {
     }
   }
 
-  const message = await prisma.message.create({
-    data: {
-      conversationId,
-      senderId: user.id,
-      content,
-      mediaType,
-      mediaUrl: mediaType !== "NONE" ? mediaUrl : undefined,
-      mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
-      replyToMessageId,
-      checklist: checklist
-        ? {
-            create: {
-              title: checklist.title,
-              items: {
-                create: checklist.items.map((text, position) => ({ text, position, addedById: user.id })),
+  let message;
+  try {
+    message = await prisma.message.create({
+      data: {
+        conversationId,
+        senderId: user.id,
+        content,
+        mediaType,
+        mediaUrl: mediaType !== "NONE" ? mediaUrl : undefined,
+        mediaThumbnailUrl: mediaType === "VIDEO" ? mediaThumbnailUrl : undefined,
+        replyToMessageId,
+        clientRequestId,
+        checklist: checklist
+          ? {
+              create: {
+                title: checklist.title,
+                items: {
+                  create: checklist.items.map((text, position) => ({ text, position, addedById: user.id })),
+                },
               },
-            },
-          }
-        : undefined,
-    },
-    include: {
-      reactions: { select: REACTION_SELECT },
-      corrections: { include: CORRECTION_INCLUDE },
-      story: STORY_SELECT,
-      replyTo: REPLY_TO_SELECT,
-      checklist: CHECKLIST_SELECT,
-    },
-  });
+            }
+          : undefined,
+      },
+      include: SENT_MESSAGE_INCLUDE,
+    });
+  } catch (err) {
+    // A concurrent attempt of the same send won the (senderId, clientRequestId) unique: that one is the message, and
+    // it already notified everyone.
+    if (clientRequestId && isUniqueConstraintError(err)) {
+      const existing = await findSentMessageForRequest(user.id, clientRequestId);
+      if (existing) return answerRepeat(existing);
+    }
+    throw err;
+  }
   await afterMessageSent({
     user,
     conversationId,

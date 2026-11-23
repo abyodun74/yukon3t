@@ -48,7 +48,7 @@ export const es2 = {
   },
   "keep-using-app-during-call": {
     q: "¿Puedo seguir usando la aplicación durante una llamada o una transmisión en vivo?",
-    a: "Sí. Toca el ícono de minimizar (arriba a la derecha en una llamada, abajo a la derecha en una transmisión en vivo) para reducirla a un pequeño recuadro de video anclado en una esquina mientras navegas por el resto de la aplicación. La llamada o la transmisión sigue en marcha todo el tiempo; toca el ícono de expandir del recuadro para volver a pantalla completa, o su ícono de colgar para terminarla sin expandirla antes.",
+    a: "Sí. Toca el ícono de minimizar (arriba a la derecha en una llamada, abajo a la derecha en una transmisión en vivo) para reducirla a un pequeño recuadro de video anclado en una esquina mientras navegas por el resto de la aplicación. La llamada o la transmisión sigue en marcha todo el tiempo; toca el ícono de expandir del recuadro para volver a pantalla completa, o su ícono de colgar para terminarla sin expandirla antes.\n\nCuando suena una llamada o hay una en curso, todo lo que se esté reproduciendo en la aplicación (videos, Muse, historias, mensajes de voz y de video) se pausa y nada empieza solo; lo que se estaba reproduciendo continúa cuando la llamada termina, se rechaza o se pierde. Los reproductores incrustados de YouTube, TikTok y otros solo se pueden detener, así que vuelven a empezar desde el principio.",
   },
 
   story: {

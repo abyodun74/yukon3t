@@ -10,7 +10,7 @@ const VISIBILITY_THRESHOLD = 0.6;
 
 // Held while a full-screen viewer covers the page (the Home feed's Muse viewer, MuseViewerOverlay). The page doesn't
 // scroll underneath, but a card above can still change height and move a video across the threshold; starting it
-// then would make the one-video-at-a-time rule (installVideoCoordinator) pause the viewer's own video.
+// then would make the one-video-at-a-time rule (installMediaGuard) pause the viewer's own video.
 let suspendedCount = 0;
 
 /** Stops feed videos from starting on their own until the returned release is called. */

@@ -37,6 +37,7 @@ import { useMuseText } from "@/components/muse-text";
 import { useGuestPreview } from "@/components/guest-preview";
 import { useShellText } from "@/components/ui-text";
 import { useNetworkQuality } from "@/lib/network-quality-client";
+import { useCallMediaHold } from "@/lib/use-call-media-hold";
 import { format, intlLocale, plural, type Locale } from "@/lib/i18n/locales";
 import { appendMuseItems, museSeedItem, type MuseSeedPost } from "@/lib/muse-from-feed";
 import { backOutOfLayerThen, internalNavigationFromClick } from "@/lib/viewer-history";
@@ -681,6 +682,8 @@ function MuseCard({
   const { t: shell } = useShellText();
   const { t: controls } = useMuseControlsText();
   const [paused, setPaused] = useState(false);
+  // A call ringing or under way: the card holds still and plays on by itself after (shouldVideoPlay).
+  const callHold = useCallMediaHold();
   const [isVisible, setIsVisible] = useState(false);
   // Wider than isVisible on purpose — isVisible means "this is the active,
   // playing card" (0.6 threshold, tight); isNearby means "close enough to
@@ -775,14 +778,16 @@ function MuseCard({
   useEffect(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    const shouldPlay = shouldVideoPlay({ isVisible, paused, holding: bar.holding, scrubbing: bar.scrubbing });
+    const shouldPlay = shouldVideoPlay({ isVisible, paused, holding: bar.holding, scrubbing: bar.scrubbing, callHold });
 
     // Plays with sound. If the browser refuses (no user gesture yet), plays muted instead and tells the feed, which
-    // shows "Tap for sound" — never a silent failure, never a card that just sits there.
+    // shows "Tap for sound" — never a silent failure, never a card that just sits there. Only a refusal (NotAllowedError)
+    // means that: a play interrupted by a pause (AbortError: the card scrolled away, a call began) is not about sound.
     async function start(el: HTMLMediaElement) {
       try {
         await el.play();
-      } catch {
+      } catch (error) {
+        if (error instanceof DOMException && error.name !== "NotAllowedError") return;
         if (!el.muted) {
           onSoundBlocked();
           el.muted = true;
@@ -800,7 +805,7 @@ function MuseCard({
     }
     // item.audioUrl: a separate audio track can appear when the opening card turns into its Muse.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible, paused, bar.holding, bar.scrubbing, item.audioUrl]);
+  }, [isVisible, paused, bar.holding, bar.scrubbing, item.audioUrl, callHold]);
 
   const isEmbed = item.mediaType === "EMBED";
 
@@ -930,6 +935,8 @@ function MuseCard({
         ) : isNearby ? (
           <video
             ref={videoRef}
+            // Holds itself during a call (callHold), so the page-wide call hold leaves it alone.
+            data-media-hold="self"
             aria-label={item.author.name ? format(t.videoLabel, { name: item.author.name }) : t.videoLabelUnnamed}
             src={item.videoUrl ?? undefined}
             poster={item.videoThumbnailUrl ?? undefined}
@@ -972,6 +979,7 @@ function MuseCard({
       {item.audioUrl && isNearby && (
         <audio
           ref={audioRef}
+          data-media-hold="self"
           src={item.audioUrl}
           preload={lowData && !isVisible ? "none" : undefined}
           muted={muted || soundBlocked}

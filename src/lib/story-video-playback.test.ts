@@ -94,7 +94,12 @@ describe("moving to the next person's stories with a feed video behind the viewe
 
   class FakeVideo {
     paused = true;
+    ended = false;
+    isConnected = true;
     srcObject = null;
+    getAttribute() {
+      return null;
+    }
     play() {
       this.paused = false;
       queue.push(() => playListeners.forEach((l) => l({ target: this })));
@@ -111,8 +116,9 @@ describe("moving to the next person's stories with a feed video behind the viewe
     videos = [];
     playListeners = [];
     vi.stubGlobal("HTMLVideoElement", FakeVideo);
+    vi.stubGlobal("HTMLMediaElement", FakeVideo);
     vi.stubGlobal("document", {
-      querySelectorAll: (sel: string) => (sel === "video" ? videos : []),
+      querySelectorAll: (sel: string) => (sel === "video" || sel === "video, audio" ? videos : []),
       addEventListener: (type: string, l: Listener) => {
         if (type === "play") playListeners.push(l);
       },
@@ -126,18 +132,18 @@ describe("moving to the next person's stories with a feed video behind the viewe
 
   async function scenario(holdPerPerson: boolean) {
     const guard = await import("@/lib/video-playback-guard");
-    guard.installVideoCoordinator();
+    guard.installMediaGuard();
     const feed = new FakeVideo();
     videos.push(feed);
     feed.play();
     flush();
 
     // Open the viewer on person A (one hold either way).
-    guard.pauseAllPlayingVideos();
+    guard.holdPageMedia();
     // Move to person B: the old per-person viewer released and re-took the hold in the same commit.
     if (holdPerPerson) {
-      guard.resumePausedVideos();
-      guard.pauseAllPlayingVideos();
+      guard.releasePageMedia();
+      guard.holdPageMedia();
     }
     const story = new FakeVideo();
     videos.push(story);
@@ -163,7 +169,7 @@ describe("moving to the next person's stories with a feed video behind the viewe
 describe("a call while a Story viewer is open", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.stubGlobal("document", { querySelectorAll: () => [] });
+    vi.stubGlobal("document", { querySelectorAll: () => [], addEventListener: () => {} });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -171,7 +177,7 @@ describe("a call while a Story viewer is open", () => {
     const guard = await import("@/lib/video-playback-guard");
     const listener = vi.fn();
     const unsubscribe = guard.subscribeCallMediaHold(listener);
-    guard.pauseAllPlayingVideos(); // the Story viewer's PageMediaHold
+    guard.holdPageMedia(); // the Story viewer's PageMediaHold
     expect(guard.isCallMediaHoldActive()).toBe(false);
     guard.beginCallMediaHold(); // ringing
     guard.beginCallMediaHold(); // answered: the session
@@ -195,7 +201,7 @@ describe("Story viewer wiring", () => {
   const viewer = read("story-viewer.tsx");
 
   it("never takes the page media hold itself (it remounts per person)", () => {
-    expect(viewer).not.toMatch(/pauseAllPlayingVideos|resumePausedVideos|<PageMediaHold|video-playback-guard/);
+    expect(viewer).not.toMatch(/holdPageMedia|releasePageMedia|<PageMediaHold|video-playback-guard/);
   });
 
   it("holds the page media once, beside the viewer, wherever a StoryViewer is opened", () => {
@@ -221,7 +227,7 @@ describe("Story viewer wiring", () => {
     const calls = readFileSync(join(__dirname, "call-session.tsx"), "utf8");
     expect(calls).toContain("beginCallMediaHold();");
     expect(calls).toContain("endCallMediaHold();");
-    expect(calls).not.toMatch(/pauseAllPlayingVideos\(\)|resumePausedVideos\(\)/);
+    expect(calls).not.toMatch(/holdPageMedia\(\)|releasePageMedia\(\)/);
     const ring = read("incoming-call-listener.tsx");
     expect(ring).toContain("beginCallMediaHold();");
     expect(ring).toContain("endCallMediaHold();");

@@ -187,9 +187,16 @@ export function progressBarVisible(
   return wantsBar(state) || state.lingering;
 }
 
-/** Whether the video should be playing: the card is on screen, not paused, not held and not being scrubbed. */
-export function shouldVideoPlay(input: { isVisible: boolean; paused: boolean; holding: boolean; scrubbing: boolean }) {
-  return input.isVisible && !input.paused && !input.holding && !input.scrubbing;
+/** Whether the video should be playing: the card is on screen, not paused, not held, not being scrubbed, and no call is on. */
+export function shouldVideoPlay(input: {
+  isVisible: boolean;
+  paused: boolean;
+  holding: boolean;
+  scrubbing: boolean;
+  /** A call is ringing or under way (useCallMediaHold): held, and plays on by itself once the call ends. */
+  callHold: boolean;
+}) {
+  return input.isVisible && !input.paused && !input.holding && !input.scrubbing && !input.callHold;
 }
 
 // --- Hold gesture --------------------------------------------------------------------------------------------------

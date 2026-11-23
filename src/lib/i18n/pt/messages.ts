@@ -269,8 +269,6 @@ export const messages: typeof messagesEn = {
       takePhoto: "Tirar uma foto",
       send: "Enviar",
       recordVoice: "Gravar uma mensagem de voz",
-      voiceReady: "Mensagem de voz pronta para envio",
-      removeVoice: "Remover mensagem de voz",
       videoReady: "Vídeo pronto para envio",
       viewOnceVideo: "Vídeo de visualização única · enviado sem legenda",
       removeVideo: "Remover vídeo",
@@ -319,6 +317,16 @@ export const messages: typeof messagesEn = {
       edit: "Não foi possível salvar essa edição.",
       editTooLong: "O texto é longo demais para ser enviado. Encurte-o, por favor.",
       correction: "Não foi possível salvar essa sugestão.",
+    },
+    // A recorded voice/video message sends itself the moment recording stops; until it is stored it shows as a
+    // bubble of its own: sending, or not sent with Retry and Discard.
+    outbox: {
+      sending: { AUDIO: "Enviando mensagem de voz…", VIDEO: "Enviando vídeo…" },
+      label: { AUDIO: "Mensagem de voz", VIDEO: "Mensagem de vídeo" },
+      failed: "Não enviada",
+      retry: "Tentar de novo",
+      discard: "Descartar",
+      tooShort: "A gravação foi curta demais e não foi enviada.",
     },
     viewOnceErrors: {
       unavailable: "A visualização única não está disponível no momento.",

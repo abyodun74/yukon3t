@@ -4,7 +4,7 @@
 // The bug these exist for (owner report 2026-11-22, "this story not playing after other stories played"): the
 // viewer called video.play() once per story and swallowed every rejection. Anything that paused the video
 // afterwards (the app-wide one-video-at-a-time rule reacting to a feed video under the viewer starting, see
-// installVideoCoordinator) or a play() that never got going left the story on its first frame with an empty
+// installMediaGuard) or a play() that never got going left the story on its first frame with an empty
 // progress bar forever: no image timer, no retry, nothing to tap.
 
 /** No forward progress for this long while the story should be playing: try starting it again, once. */

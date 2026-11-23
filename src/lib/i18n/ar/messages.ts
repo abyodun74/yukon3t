@@ -267,8 +267,6 @@ export const messages: typeof messagesEn = {
       takePhoto: "التقاط صورة",
       send: "إرسال",
       recordVoice: "تسجيل رسالة صوتية",
-      voiceReady: "الرسالة الصوتية جاهزة للإرسال",
-      removeVoice: "إزالة الرسالة الصوتية",
       videoReady: "الفيديو جاهز للإرسال",
       viewOnceVideo: "فيديو يُعرض لمرة واحدة · يُرسل بلا شرح",
       removeVideo: "إزالة الفيديو",
@@ -317,6 +315,16 @@ export const messages: typeof messagesEn = {
       edit: "تعذّر حفظ التعديل.",
       editTooLong: "النص طويل جدًا ولا يمكن إرساله. يُرجى اختصاره.",
       correction: "تعذّر حفظ هذا الاقتراح.",
+    },
+    // A recorded voice/video message sends itself the moment recording stops; until it is stored it shows as a
+    // bubble of its own: sending, or not sent with Retry and Discard.
+    outbox: {
+      sending: { AUDIO: "جارٍ إرسال الرسالة الصوتية…", VIDEO: "جارٍ إرسال الفيديو…" },
+      label: { AUDIO: "رسالة صوتية", VIDEO: "رسالة فيديو" },
+      failed: "لم تُرسَل",
+      retry: "إعادة المحاولة",
+      discard: "تجاهل",
+      tooShort: "كان التسجيل قصيرًا جدًا فلم يُرسَل.",
     },
     viewOnceErrors: {
       unavailable: "العرض لمرة واحدة غير متاح حاليًا.",

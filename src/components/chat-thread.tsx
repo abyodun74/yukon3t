@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useTransition, type ClipboardEvent, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CheckCheck, Circle, Clock, Eye, Forward, ImagePlus, Mic, MoreHorizontal, Play, Reply, Send, ShoppingCart, Upload, Video, X } from "lucide-react";
+import { AlertCircle, Camera, Check, CheckCheck, Circle, Clock, Eye, Forward, ImagePlus, Mic, MoreHorizontal, Play, Reply, RotateCcw, Send, ShoppingCart, Upload, Video, X } from "lucide-react";
 import {
   sendMessage,
   getConversationMessages,
@@ -22,6 +22,7 @@ import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
 import { summarizeReactionRows } from "@/lib/reactions";
 import { AudioRecorderModal } from "@/components/audio-recorder-modal";
+import type { RecordingInfo } from "@/lib/use-audio-recorder";
 import { VideoRecorderModal } from "@/components/video-recorder-modal";
 import { MediaPickerButton } from "@/components/media-picker-button";
 import { DictationRecorder, dictationErrorMessage } from "@/components/dictation-recorder";
@@ -68,6 +69,17 @@ import { canOfferForward } from "@/lib/message-forward";
 import type { messagesEn } from "@/lib/i18n/en/messages";
 import { format, type Locale } from "@/lib/i18n/locales";
 import { clearDeliveredPushesFor } from "@/lib/delivered-push-clear";
+import {
+  formatRecordingClock,
+  isAccidentalRecording,
+  newOutboxItem,
+  outboxFailureFor,
+  outboxReducer,
+  type OutboxAction,
+  type OutboxFailure,
+  type OutboxItem,
+  type OutboxKind,
+} from "@/lib/chat-media-outbox";
 
 // Kept in sync with storage.ts's MAX_AUDIO_NOTE_SECONDS/MAX_VIDEO_NOTE_SECONDS
 // and MEDIA_LIMITS — duplicated locally rather than imported, since
@@ -1155,6 +1167,94 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
+/**
+ * A recorded voice/video message that is on its way, or failed (src/lib/chat-media-outbox.ts): the sender's own
+ * bubble, with what is happening, and Retry / Discard once it has failed. Nothing on it acts on a message id: there is
+ * no stored message yet.
+ */
+function OutboxBubble({
+  item,
+  t,
+  onRetry,
+  onDiscard,
+}: {
+  item: OutboxItem;
+  t: ThreadText;
+  onRetry: () => void;
+  onDiscard: () => void;
+}) {
+  const failed = item.phase === "failed";
+  const Icon = item.kind === "AUDIO" ? Mic : Video;
+  return (
+    <div className="mt-3 flex justify-end" data-outbox-id={item.id}>
+      <div
+        className={cn(
+          "max-w-[min(calc(100vw-7.5rem),26rem)] rounded-2xl px-3 py-2 text-sm",
+          failed ? "border border-danger bg-surface" : "bg-accent text-accent-ink opacity-80",
+        )}
+      >
+        <p className="flex items-center gap-2">
+          <Icon size={15} className="shrink-0" aria-hidden />
+          <span>
+            {t.outbox.label[item.kind]} · {formatRecordingClock(item.durationMs)}
+          </span>
+          {!failed && <Clock size={12} className="shrink-0 opacity-70" aria-hidden />}
+        </p>
+        {failed ? (
+          <div role="alert" className="mt-1">
+            <p className="flex items-center gap-1 text-xs text-danger">
+              <AlertCircle size={12} className="shrink-0" aria-hidden />
+              {t.outbox.failed} · {outboxFailureText(item.failure, t)}
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onRetry}
+                className="flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-ink"
+              >
+                <RotateCcw size={12} aria-hidden /> {t.outbox.retry}
+              </button>
+              <button
+                type="button"
+                onClick={onDiscard}
+                className="rounded-full border border-line px-3 py-1 text-xs font-medium text-danger"
+              >
+                {t.outbox.discard}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p role="status" className="mt-0.5 text-xs opacity-80">
+            {t.outbox.sending[item.kind]}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Why an outbox item wasn't sent, in the thread's existing error wording. */
+function outboxFailureText(failure: OutboxFailure | null, t: ThreadText): string {
+  switch (failure) {
+    case "network":
+      return t.errors.network;
+    case "rate_limited":
+      return t.errors.rateLimited;
+    case "blocked":
+      return t.errors.blocked;
+    case "hidden_locked":
+      return t.errors.hiddenLocked;
+    case "frame_required":
+      return t.errors.videoFrameRequired;
+    case "moderation":
+      return t.viewOnceErrors.moderation;
+    case "mode_changed":
+      return t.errors.modeChanged;
+    default:
+      return t.errors.send;
+  }
+}
+
 export function ChatThread({
   conversationId,
   initialMessages,
@@ -1188,7 +1288,16 @@ export function ChatThread({
   // harmless for a controlled <textarea>, which React reconciles against
   // the client value on hydration without warning.
   const [content, setContent] = useState(() => getDraft(currentUserId, conversationId));
-  const [pendingAudio, setPendingAudio] = useState<File | null>(null);
+  // Recorded voice/video messages on their way (src/lib/chat-media-outbox.ts): each sends itself the moment its
+  // recording stops and is drawn as its own bubble until stored. Not reset on a conversation switch: an item keeps
+  // sending to the chat it was recorded in and is only drawn there.
+  const [outbox, dispatchOutbox] = useReducer(
+    outboxReducer as (items: OutboxItem[], action: OutboxAction) => OutboxItem[],
+    [],
+  );
+  // Ids with an upload/send under way right now: a second start for the same recording (a double fire, a double tap
+  // on Retry) is refused in the same tick, before any state update could land.
+  const outboxInFlightRef = useRef<Set<string>>(new Set());
   const [pendingVideo, setPendingVideo] = useState<File | null>(null);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
   // A picked Giphy GIF URL, not a File — never uploaded, so it skips
@@ -1452,7 +1561,6 @@ export function ChatThread({
     setMembers(initialMembers);
     skipNextDraftPersistRef.current = true;
     setContent(getDraft(currentUserId, conversationId));
-    setPendingAudio(null);
     setPendingVideo(null);
     setPendingImage(null);
     setPendingGif(null);
@@ -1529,7 +1637,6 @@ export function ChatThread({
   async function uploadPendingMedia(): Promise<
     | { error: string }
     | { mediaType: "NONE" }
-    | { mediaType: "AUDIO"; mediaUrl: string }
     | { mediaType: "VIDEO"; mediaUrl: string; mediaThumbnailUrl?: string }
     | { mediaType: "IMAGE"; mediaUrl: string }
     | { mediaType: "GIF"; mediaUrl: string }
@@ -1537,34 +1644,123 @@ export function ChatThread({
     if (pendingGif) {
       return { mediaType: "GIF", mediaUrl: pendingGif };
     }
-    if (pendingAudio) {
-      const result = await uploadFileDirect(pendingAudio, "message-audio");
-      if (!result.ok) return { error: result.error };
-      return { mediaType: "AUDIO", mediaUrl: result.publicUrl };
-    }
     if (pendingImage) {
       const result = await uploadFileDirect(pendingImage, "message-image");
       if (!result.ok) return { error: result.error };
       return { mediaType: "IMAGE", mediaUrl: result.publicUrl };
     }
     if (pendingVideo) {
-      // Same reasoning as the post composer: frame capture reads the local
-      // file directly, so it can run concurrently with the video upload
-      // instead of waiting on it first.
-      const [videoResult, thumbnailResult] = await Promise.all([
-        uploadFileDirect(pendingVideo, "message-video"),
-        captureVideoFrameFromFile(pendingVideo).then((frame) =>
-          frame ? uploadFileDirect(frame, "video-thumb") : null,
-        ),
-      ]);
-      if (!videoResult.ok) return { error: videoResult.error };
-      return {
-        mediaType: "VIDEO",
-        mediaUrl: videoResult.publicUrl,
-        mediaThumbnailUrl: thumbnailResult?.ok ? thumbnailResult.publicUrl : undefined,
-      };
+      const result = await uploadMessageVideo(pendingVideo);
+      if (!result.ok) return { error: result.error };
+      return { mediaType: "VIDEO", mediaUrl: result.mediaUrl, mediaThumbnailUrl: result.mediaThumbnailUrl };
     }
     return { mediaType: "NONE" };
+  }
+
+  /** A chat video and its still frame (which sendMessage requires, for the chat image check). */
+  async function uploadMessageVideo(
+    file: File,
+  ): Promise<{ ok: true; mediaUrl: string; mediaThumbnailUrl?: string } | { ok: false; error: string }> {
+    // Same reasoning as the post composer: frame capture reads the local
+    // file directly, so it can run concurrently with the video upload
+    // instead of waiting on it first.
+    const [videoResult, thumbnailResult] = await Promise.all([
+      uploadFileDirect(file, "message-video"),
+      captureVideoFrameFromFile(file).then((frame) => (frame ? uploadFileDirect(frame, "video-thumb") : null)),
+    ]);
+    if (!videoResult.ok) return { ok: false, error: videoResult.error };
+    return {
+      ok: true,
+      mediaUrl: videoResult.publicUrl,
+      mediaThumbnailUrl: thumbnailResult?.ok ? thumbnailResult.publicUrl : undefined,
+    };
+  }
+
+  /**
+   * A recording stopped (AudioRecorderModal / VideoRecorderModal with sendsOnStop): it is sent right away, with no
+   * preview or extra Send. Under MIN_RECORDING_MS it is an accidental tap and is dropped. It takes the reply target
+   * (if one is set) but never the typed text or a pending photo/video, which stay in the composer.
+   */
+  function sendRecording(kind: OutboxKind, file: File, info: RecordingInfo) {
+    if (isAccidentalRecording(info.durationMs)) {
+      setError(t.outbox.tooShort);
+      return;
+    }
+    const replyTo = replyTarget;
+    setReplyTarget(null);
+    setError(null);
+    const item = newOutboxItem({
+      id: info.recordingId,
+      conversationId,
+      kind,
+      file,
+      durationMs: info.durationMs,
+      replyToMessageId: replyTo?.id ?? null,
+    });
+    dispatchOutbox({ type: "add", item });
+    void runOutboxItem(item);
+  }
+
+  /**
+   * Uploads (unless an earlier attempt's upload is still usable) and sends one outbox item. Its id is sendMessage's
+   * clientRequestId, so however many times this runs for one recording, it is stored once. Failures leave the item
+   * on screen as "Not sent" with Retry and Discard; success puts the real message in the thread and removes it.
+   */
+  async function runOutboxItem(item: OutboxItem) {
+    if (outboxInFlightRef.current.has(item.id)) return;
+    outboxInFlightRef.current.add(item.id);
+    const fail = (failure: OutboxFailure) => dispatchOutbox({ type: "failed", id: item.id, failure });
+    try {
+      let uploaded = item.uploaded;
+      if (!uploaded) {
+        try {
+          if (item.kind === "AUDIO") {
+            const result = await uploadFileDirect(item.file, "message-audio");
+            uploaded = result.ok ? { mediaUrl: result.publicUrl } : null;
+          } else {
+            const result = await uploadMessageVideo(item.file);
+            uploaded = result.ok ? { mediaUrl: result.mediaUrl, mediaThumbnailUrl: result.mediaThumbnailUrl } : null;
+          }
+        } catch {
+          uploaded = null;
+        }
+        if (!uploaded) return fail("upload");
+        dispatchOutbox({ type: "uploaded", id: item.id, uploaded });
+      }
+      const fd = new FormData();
+      fd.set("conversationId", item.conversationId);
+      fd.set("content", "");
+      fd.set("mediaType", item.kind);
+      fd.set("mediaUrl", uploaded.mediaUrl);
+      if (uploaded.mediaThumbnailUrl) fd.set("mediaThumbnailUrl", uploaded.mediaThumbnailUrl);
+      if (item.replyToMessageId) fd.set("replyToMessageId", item.replyToMessageId);
+      fd.set("clientRequestId", item.id);
+      let result;
+      try {
+        result = await sendMessage(fd);
+      } catch {
+        return fail("network");
+      }
+      if (result.error) {
+        const failure = outboxFailureFor(result.error);
+        if (failure === "mode_changed") void secret.refresh();
+        fail(failure);
+        if (failure === "hidden_locked") promptHiddenUnlock();
+        return;
+      }
+      const message = result.message as MessageData | undefined;
+      if (message) setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+      dispatchOutbox({ type: "remove", id: item.id });
+      announce(t.sent);
+    } finally {
+      outboxInFlightRef.current.delete(item.id);
+    }
+  }
+
+  function retryOutboxItem(item: OutboxItem) {
+    if (item.phase !== "failed" || outboxInFlightRef.current.has(item.id)) return;
+    dispatchOutbox({ type: "retry", id: item.id });
+    void runOutboxItem({ ...item, phase: item.uploaded ? "sending" : "uploading", failure: null });
   }
 
   /** A full-shaped MessageData for the not-yet-confirmed bubble appended by handleSend below — see OPTIMISTIC_ID_PREFIX/isSendingMessage for how it's told apart from a real one. */
@@ -1721,11 +1917,10 @@ export function ChatThread({
     const listPlainText = list ? formatShoppingList(listTitle, list.items, t.composer.shoppingList.defaultTitle) : "";
     if (fromList && !listPlainText) return t.composer.shoppingList.empty;
     const text = checklist ? checklistFallbackText(checklist.title) : fromList ? listPlainText : content.trim();
-    const audio = fromList ? null : pendingAudio;
     const video = fromList ? null : pendingVideo;
     const image = fromList ? null : pendingImage;
     const gif = fromList ? null : pendingGif;
-    if (!text && !audio && !video && !image && !gif) return null;
+    if (!text && !video && !image && !gif) return null;
     // In a secret chat the text is encrypted before it leaves this device. If that can't happen, say so and stop -
     // never send it as readable text.
     if (text && secret.active) {
@@ -1739,7 +1934,6 @@ export function ChatThread({
     const replyTo = fromList ? null : replyTarget;
     if (!fromList) {
       setContent("");
-      setPendingAudio(null);
       setPendingVideo(null);
       setPendingImage(null);
       setPendingGif(null);
@@ -1753,7 +1947,6 @@ export function ChatThread({
     function restoreDraft() {
       if (fromList) return;
       setContent(text);
-      setPendingAudio(audio);
       setPendingVideo(video);
       setPendingImage(image);
       setPendingGif(gif);
@@ -1765,7 +1958,7 @@ export function ChatThread({
     // memo, which gets revoked the instant pendingImage is cleared above
     // (see that memo's paired cleanup effect); this one's lifecycle
     // belongs to this send attempt alone, revoked once the optimistic
-    // bubble below is replaced or removed. Audio/video/GIF don't get an
+    // bubble below is replaced or removed. Video/GIF don't get an
     // instant preview the same way (no cheap blob URL already at hand for
     // those) — that bubble briefly shows as text-only (or a bare "sending"
     // bubble for a caption-less attachment) until the real message swaps
@@ -1896,7 +2089,6 @@ export function ChatThread({
       setError(t.errors.imageTooLarge);
       return;
     }
-    setPendingAudio(null);
     setPendingVideo(null);
     setPendingGif(null);
     setError(null);
@@ -1913,7 +2105,6 @@ export function ChatThread({
       setError(ui.media.videoTooLarge);
       return;
     }
-    setPendingAudio(null);
     setPendingImage(null);
     setPendingGif(null);
     setError(null);
@@ -2134,7 +2325,18 @@ export function ChatThread({
             </div>
           );
         })}
-        {messages.length === 0 && (
+        {outbox
+          .filter((item) => item.conversationId === conversationId)
+          .map((item) => (
+            <OutboxBubble
+              key={item.id}
+              item={item}
+              t={t}
+              onRetry={() => retryOutboxItem(item)}
+              onDiscard={() => dispatchOutbox({ type: "remove", id: item.id })}
+            />
+          ))}
+        {messages.length === 0 && outbox.length === 0 && (
           <p className="text-sm text-foreground-soft">
             {isGroup ? t.emptyGroup : t.empty}
           </p>
@@ -2171,20 +2373,6 @@ export function ChatThread({
         </div>
       )}
 
-      {pendingAudio && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
-          <Mic size={14} className="shrink-0 text-foreground-soft" />
-          <span className="flex-1 truncate">{t.composer.voiceReady}</span>
-          <button
-            type="button"
-            onClick={() => setPendingAudio(null)}
-            aria-label={t.composer.removeVoice}
-            className="p-2 -m-2 text-danger"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
       {pendingVideo && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs">
           <Video size={14} className="shrink-0 text-foreground-soft" />
@@ -2321,12 +2509,12 @@ export function ChatThread({
           placeholder={
             viewOnceOn
               ? t.composer.viewOncePlaceholder
-              : pendingAudio || pendingVideo || pendingImage || pendingGif
+              : pendingVideo || pendingImage || pendingGif
               ? t.composer.captionPlaceholder
               : format(t.composer.placeholder, { name: conversationLabel })
           }
           aria-label={
-            pendingAudio || pendingVideo || pendingImage || pendingGif
+            pendingVideo || pendingImage || pendingGif
               ? t.composer.captionLabel
               : format(t.composer.label, { name: conversationLabel })
           }
@@ -2376,8 +2564,6 @@ export function ChatThread({
                   label: ui.media.recordLive,
                   icon: <Circle size={14} className="text-danger" fill="currentColor" />,
                   onSelect: () => {
-                    setPendingAudio(null);
-                    setPendingImage(null);
                     setShowVideoRecorder(true);
                   },
                 },
@@ -2386,7 +2572,6 @@ export function ChatThread({
             <EmojiPickerButton onSelect={insertEmoji} />
             <GifPickerButton
               onSelect={(gifUrl) => {
-                setPendingAudio(null);
                 setPendingVideo(null);
                 setPendingImage(null);
                 setPendingGif(gifUrl);
@@ -2428,7 +2613,7 @@ export function ChatThread({
               <Mic size={16} />
             </button>
           </div>
-          {content.trim() || pendingAudio || pendingVideo || pendingImage || pendingGif ? (
+          {content.trim() || pendingVideo || pendingImage || pendingGif ? (
             <button
               type="button"
               disabled={isPending}
@@ -2471,28 +2656,25 @@ export function ChatThread({
         />
       )}
 
+      {/* A recording sends itself when it stops (sendRecording); Cancel or closing the sheet discards it. */}
       <AudioRecorderModal
         open={showAudioRecorder}
         maxSeconds={MAX_AUDIO_NOTE_SECONDS}
+        sendsOnStop
         onClose={() => setShowAudioRecorder(false)}
-        onRecorded={(file) => {
+        onRecorded={(file, info) => {
           setShowAudioRecorder(false);
-          setPendingVideo(null);
-          setPendingImage(null);
-          setPendingGif(null);
-          setPendingAudio(file);
+          sendRecording("AUDIO", file, info);
         }}
       />
       <VideoRecorderModal
         open={showVideoRecorder}
         maxSeconds={MAX_VIDEO_NOTE_SECONDS}
+        sendsOnStop
         onClose={() => setShowVideoRecorder(false)}
-        onRecorded={(file) => {
+        onRecorded={(file, info) => {
           setShowVideoRecorder(false);
-          setPendingAudio(null);
-          setPendingImage(null);
-          setPendingGif(null);
-          setPendingVideo(file);
+          sendRecording("VIDEO", file, info);
         }}
       />
     </div>

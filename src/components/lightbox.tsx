@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { ZoomableImage } from "@/components/zoomable-image";
 import { saveMediaToGallery } from "@/lib/save-to-gallery";
-import { pauseAllPlayingVideos, resumePausedVideos } from "@/lib/video-playback-guard";
+import { holdPageMedia, releasePageMedia } from "@/lib/video-playback-guard";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { cn } from "@/lib/utils";
@@ -104,13 +104,11 @@ export function Lightbox({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isGallery, images, index, onIndexChange, onClose]);
 
-  // Pauses whatever else was playing behind this overlay (a feed video, a
-  // story) and resumes it on close — same reference-counted guard the call
-  // frames use, so a lightbox opened while something else was mid-call is
-  // also handled correctly (activeCount just goes to 2, then back to 1).
+  // Pauses whatever else was playing behind this overlay (a feed video, a voice message) and resumes it on close: the
+  // page hold of video-playback-guard.ts, which also hands over correctly with a call ringing or under way.
   useEffect(() => {
-    pauseAllPlayingVideos();
-    return () => resumePausedVideos();
+    holdPageMedia();
+    return () => releasePageMedia();
   }, []);
 
   // Escape goes through the hook rather than the arrow-key listener above:
