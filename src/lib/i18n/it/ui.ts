@@ -478,4 +478,13 @@ export const ui: typeof uiEn = {
       other: "Impossibile inviare. Riprova.",
     },
   },
+  pushPrompt: {
+    title: "Attivare le notifiche?",
+    body:
+      "Ricevi nuovi messaggi, chiamate, richieste di contatto, commenti e Mi piace appena arrivano, anche quando YuKon3t è chiuso, come con qualsiasi altra app.",
+    allow: "Attiva le notifiche",
+    later: "Non ora",
+    channelName: "Messaggi e attività",
+    channelDescription: "Messaggi, chiamate, commenti, Mi piace e altre attività",
+  },
 };

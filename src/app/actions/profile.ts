@@ -125,12 +125,9 @@ export async function completeOnboarding(formData: FormData) {
 
   await recomputeTrustScore(user.id);
   revalidatePath("/home");
-  // The ?onboarded=1 marker is read once by CapacitorBridge
-  // (src/components/capacitor-bridge.tsx) — the native app's one and only
-  // trigger for actually showing the notification-permission prompt,
-  // instead of firing it unconditionally at every cold start before the
-  // user has any context for why. Stripped from the URL as soon as it's
-  // consumed.
+  // Landing on Home is where the "Turn on notifications?" sheet opens for a
+  // new account (PushPermissionPrompt, src/components/push-permission-prompt.tsx),
+  // which also strips this ?onboarded=1 marker from the address bar.
   redirect("/home?onboarded=1");
 }
 

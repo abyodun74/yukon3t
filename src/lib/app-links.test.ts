@@ -284,10 +284,14 @@ describe("native app wiring (source guards)", () => {
   });
 
   it("the app never shows web-only sign-in prompts", () => {
-    // Web push permission: the settings toggle stands down in the app (FCM/APNs is asked by capacitor-bridge).
-    expect(read("src/components/push-notifications-toggle.tsx")).toMatch(
-      /if \(Capacitor\.isNativePlatform\(\)\) \{\s*if \(!cancelled\) setStatus\("native"\)/,
-    );
+    // Web push permission: in the app the settings toggle and the "Turn on notifications?" sheet use the phone's own
+    // permission (FCM/APNs) and never subscribe the WebView to Web Push (that made every call ring twice).
+    const toggle = read("src/components/push-notifications-toggle.tsx");
+    expect(toggle).toMatch(/if \(native\) \{\s*const permission = await checkNativePushPermission\(\)/);
+    expect(toggle).toMatch(/if \(native\) \{\s*const permission = await requestNativePushPermission\(\)[\s\S]*?return;\s*\}\s*const permission = await enableWebPush\(\)/);
+    const prompt = read("src/components/push-permission-prompt.tsx");
+    expect(prompt).toMatch(/if \(Capacitor\.isNativePlatform\(\)\) return;\s*void syncWebPushSubscription\(\)/);
+    expect(prompt).toMatch(/if \(Capacitor\.isNativePlatform\(\)\) await requestNativePushPermission\(\);\s*else await enableWebPush\(\)/);
     // "You can close this tab" is the website's wording only.
     const checkEmail = read("src/app/sign-in/check-email/page.tsx");
     expect(checkEmail).toMatch(/<NativeAppSwitch[\s\S]*app=\{[\s\S]*checkEmailInApp[\s\S]*web=\{[\s\S]*closeTab/);

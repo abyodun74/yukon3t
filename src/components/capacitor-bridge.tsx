@@ -15,6 +15,12 @@ import { installVideoCoordinator } from "@/lib/video-playback-guard";
 import { reloadIfStale } from "@/lib/stale-build-client";
 import { useUiText } from "@/components/ui-text";
 import { QUIET_NOTIFICATION_CHANNEL_ID, QUIET_NOTIFICATION_CHANNEL_IMPORTANCE } from "@/lib/quiet-push";
+import {
+  ALERT_NOTIFICATION_CHANNEL_ID,
+  ALERT_NOTIFICATION_CHANNEL_IMPORTANCE,
+  ALERT_NOTIFICATION_CHANNEL_VISIBILITY,
+} from "@/lib/alert-push";
+import { PUSH_PERMISSION_CHANGED_EVENT } from "@/lib/push-permission";
 import { launchUrlKey, openedUrlTarget, type OpenedUrlTarget } from "@/lib/app-links";
 import { isRepeatOpen } from "@/lib/opened-url-dedupe";
 import { isLandingPath, planAppReturn, shouldRefreshOnReturn } from "@/lib/app-resume";
@@ -26,6 +32,13 @@ import {
   rememberPushTap,
   safeInAppPath,
 } from "@/lib/push-target";
+
+function channelTexts(t: ReturnType<typeof useUiText>["t"]) {
+  return {
+    quiet: { name: t.birthdays.quietChannelName, description: t.birthdays.quietChannelDescription },
+    alert: { name: t.pushPrompt.channelName, description: t.pushPrompt.channelDescription },
+  };
+}
 
 /**
  * Native-app-only wiring for the Capacitor iOS/Android build (see
@@ -41,27 +54,30 @@ import {
  * token can be registered by calling the server action directly instead of
  * needing a query-param handoff between two separate processes. Renders
  * unconditionally (not gated by session, unlike FcmTokenBridge) since the
- * status bar/splash handoff below should happen regardless of auth state —
- * registerFcmToken itself already requires a session and no-ops otherwise.
+ * status bar/splash handoff below should happen regardless of auth state.
+ * The FCM token is registered only while someone is signed in (`userId`),
+ * and again whenever that account changes.
+ *
+ * This component never shows the system notification prompt itself: that is
+ * PushPermissionPrompt's "Turn on notifications?" sheet (and Settings ->
+ * Notifications), which fire PUSH_PERMISSION_CHANGED_EVENT afterwards so the
+ * phone is registered here straight away.
  */
-export function CapacitorBridge() {
+export function CapacitorBridge({ userId }: { userId: string | null }) {
   const router = useRouter();
   const pathname = usePathname();
-  // Set by the stable effect below to a function that (re-)runs the
-  // permission-check-and-maybe-request flow. The pathname effect further
-  // down calls it a second time, later in the session, once it detects the
-  // app just landed on /home?onboarded=1 — the actual native listeners
-  // this creates live in the stable effect's own closure (not here), so
-  // this ref exists purely to let that reactive trigger reach in without
-  // owning any native-listener lifecycle itself.
-  const requestPermissionNowRef = useRef<(() => void) | null>(null);
-  const promptedRef = useRef(false);
-  // The quiet channel's name in the reader's language, read by the stable effect below when it creates the channel.
-  const birthdayText = useUiText().t.birthdays;
-  const quietChannelTextRef = useRef({ name: birthdayText.quietChannelName, description: birthdayText.quietChannelDescription });
+  // Set by the stable effect below to its notification setup (re-read the
+  // permission, create the channels, register the token). The userId effect
+  // further down calls it when an account signs in or switches; the native
+  // listeners it creates live in the stable effect's own closure.
+  const setupNotificationsRef = useRef<(() => void) | null>(null);
+  const userIdRef = useRef(userId);
+  // The channels' names in the reader's language, read by the stable effect below when it creates them.
+  const uiText = useUiText().t;
+  const channelTextRef = useRef(channelTexts(uiText));
   useEffect(() => {
-    quietChannelTextRef.current = { name: birthdayText.quietChannelName, description: birthdayText.quietChannelDescription };
-  }, [birthdayText]);
+    channelTextRef.current = channelTexts(uiText);
+  }, [uiText]);
   // A tapped push notification or an opened link (lib/push-target.ts): once
   // the app is on its page the tap is done with. If it isn't there and the
   // app is on a landing page (Home or "/": a cold start from the tap, or a
@@ -248,46 +264,64 @@ export function CapacitorBridge() {
     let pausedAt: number | null = null;
     let cancelled = false;
 
-    async function setupNotifications(promptNow: boolean) {
+    // The token registered last, and for which account: a launch, a resume, a
+    // sign-in and the permission sheet all run setupNotifications, but the
+    // server is only told when the token or the account changed.
+    let registeredKey: string | null = null;
+    let setupRunning = false;
+    let setupAgain = false;
+
+    async function register(token: string) {
+      const owner = userIdRef.current;
+      if (!owner) return;
+      const key = `${owner}:${token}`;
+      if (registeredKey === key) return;
+      // Platform/build ride along for the update-notice breakdown on /admin/system (see FcmToken.build).
+      const app = await getNativeAppInfo();
+      const result = await registerFcmToken(token, app ?? undefined).catch(() => null);
+      // Persisted so sign-out (lib/sign-out-client.ts) unregisters this device.
+      if (result && !result.error) {
+        registeredKey = key;
+        localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
+      }
+    }
+
+    async function setupNotificationsOnce() {
       const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
       if (cancelled) return;
 
-      async function register(token: string) {
-        // Platform/build ride along for the update-notice breakdown on /admin/system (see FcmToken.build).
-        const app = await getNativeAppInfo();
-        const result = await registerFcmToken(token, app ?? undefined).catch(() => null);
-        // Persisted so nav.tsx's existing sign-out handler — already
-        // shared with the Android TWA's token — unregisters this device
-        // too, with no changes needed there.
-        if (result && !result.error) {
-          localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
-        }
-      }
-
+      // Never asks: the "Turn on notifications?" sheet (PushPermissionPrompt)
+      // and Settings -> Notifications show the system prompt, with an
+      // explanation first. A phone whose notifications are allowed (granted,
+      // or Android 12 and older, which allow them without asking) is set up.
       const current = await FirebaseMessaging.checkPermissions().catch(() => null);
-      let granted = current?.receive === "granted";
-      // Only actually shows the OS prompt when promptNow is true — i.e.
-      // right after onboarding completes (see the pathname effect below),
-      // never unconditionally at plain app launch/cold start, which used
-      // to be the very first thing a brand-new user saw with zero context
-      // for why. A returning user whose permission is already decided
-      // (granted or denied) is unaffected either way: checkPermissions()
-      // already tells us there's nothing to ask.
-      if (!granted && current?.receive !== "denied" && promptNow) {
-        const requested = await FirebaseMessaging.requestPermissions().catch(() => null);
-        granted = requested?.receive === "granted";
-      }
-      if (!granted || cancelled) return;
+      if (current?.receive !== "granted" || cancelled) return;
 
-      // Android: the low-importance channel quiet notices (the midnight birthday reminder, src/lib/quiet-push.ts) are
-      // posted to, so they arrive without sound or vibration. Creating an existing channel again only refreshes its
-      // name and description. Older Android (< 8) has no channels and the plugin rejects; nothing to do then. Until
-      // this has run once, such a notice falls back to the app's default channel.
+      // Android notification channels. Creating an existing channel again only
+      // refreshes its name and description (Android keeps the importance and
+      // sound it was created with). Older Android (< 8) has no channels and
+      // the plugin rejects; nothing to do then. Until a channel exists, a
+      // notification sent to it falls back to Firebase's default channel.
       if (Capacitor.getPlatform() === "android") {
+        // Ordinary notifications (alert-push.ts): IMPORTANCE_HIGH, so they pop
+        // up as a banner with the phone's sound and vibration, like any
+        // messaging app's. The plugin's Android side reads "vibrate" (its
+        // TypeScript type doesn't list it), hence the cast.
+        await FirebaseMessaging.createChannel({
+          id: ALERT_NOTIFICATION_CHANNEL_ID,
+          name: channelTextRef.current.alert.name,
+          description: channelTextRef.current.alert.description,
+          importance: ALERT_NOTIFICATION_CHANNEL_IMPORTANCE,
+          visibility: ALERT_NOTIFICATION_CHANNEL_VISIBILITY,
+          lights: true,
+          vibrate: true,
+        } as Parameters<typeof FirebaseMessaging.createChannel>[0]).catch(() => {});
+        // The low-importance channel quiet notices (the midnight birthday
+        // reminder, src/lib/quiet-push.ts) are posted to: no sound, no vibration.
         await FirebaseMessaging.createChannel({
           id: QUIET_NOTIFICATION_CHANNEL_ID,
-          name: quietChannelTextRef.current.name,
-          description: quietChannelTextRef.current.description,
+          name: channelTextRef.current.quiet.name,
+          description: channelTextRef.current.quiet.description,
           importance: QUIET_NOTIFICATION_CHANNEL_IMPORTANCE,
           vibration: false, // the Android side reads "vibrate" and defaults to false, so it is off either way
           lights: false,
@@ -295,21 +329,43 @@ export function CapacitorBridge() {
       }
 
       const result = await FirebaseMessaging.getToken().catch(() => null);
-      if (result?.token) await register(result.token);
+      if (result?.token && !cancelled) await register(result.token);
 
       // Firebase can reissue a token later (app restore, security rotation,
       // etc.) — without this, a device would silently stop receiving pushes
-      // until its next fresh install. Guarded against a stale prior
-      // listener (setupNotifications can run twice in the rare case the
-      // app cold-starts already on the onboarded URL — see the pathname
-      // effect below) rather than assuming this is the only time it runs.
-      tokenListener?.remove();
-      tokenListener = await FirebaseMessaging.addListener("tokenReceived", (event) => {
-        register(event.token);
-      });
+      // until its next fresh install. Attached once per mount.
+      if (!tokenListener && !cancelled) {
+        const handle = await FirebaseMessaging.addListener("tokenReceived", (event) => {
+          void register(event.token);
+        });
+        if (cancelled || tokenListener) handle.remove();
+        else tokenListener = handle;
+      }
       // The notification-tap listener is its own effect above, attached
       // without waiting for any of this.
     }
+
+    // One run at a time; a request that arrives during a run gets one more
+    // run after it (a sign-in landing while the launch's run is in flight).
+    async function setupNotifications() {
+      if (setupRunning) {
+        setupAgain = true;
+        return;
+      }
+      setupRunning = true;
+      try {
+        do {
+          setupAgain = false;
+          await setupNotificationsOnce().catch(() => {});
+        } while (setupAgain && !cancelled);
+      } finally {
+        setupRunning = false;
+      }
+    }
+
+    // The sheet / Settings asked for permission, so the answer may be "yes" now.
+    const onPermissionChanged = () => void setupNotifications();
+    window.addEventListener(PUSH_PERMISSION_CHANGED_EVENT, onPermissionChanged);
 
     // Coming back to the app (launcher icon, Recents, returning from another
     // app; Capacitor's WebView isn't torn down by backgrounding) keeps the
@@ -339,6 +395,10 @@ export function CapacitorBridge() {
         else pauseListener = h;
       });
       App.addListener("resume", () => {
+        // Notifications may have been allowed in the phone's settings while
+        // away: set them up now rather than at the next launch (cheap when
+        // nothing changed: no server call unless the token or account did).
+        void setupNotifications();
         const awayMs = pausedAt === null ? null : Date.now() - pausedAt;
         pausedAt = null;
         // Read now: by the time the build check answers, a picker that just
@@ -395,56 +455,35 @@ export function CapacitorBridge() {
         })
         .catch(() => {});
 
-      await setupNotifications(false);
+      await setupNotifications();
     })();
 
-    requestPermissionNowRef.current = () => {
-      setupNotifications(true);
+    setupNotificationsRef.current = () => {
+      void setupNotifications();
     };
 
     return () => {
       cancelled = true;
-      requestPermissionNowRef.current = null;
+      setupNotificationsRef.current = null;
+      window.removeEventListener(PUSH_PERMISSION_CHANGED_EVENT, onPermissionChanged);
       tokenListener?.remove();
       resumeListener?.remove();
       pauseListener?.remove();
     };
   }, [router]);
 
-  // Reacts to the in-session client-side navigation that lands on /home —
-  // /home?onboarded=1 specifically is completeOnboarding's redirect (see
-  // src/app/actions/profile.ts), the intended moment to show the
-  // notification prompt for a brand-new user right after signup. But that
-  // query param only ever appears once in an account's entire lifetime —
-  // an EXISTING, already-onboarded account signing in on a new device or
-  // reinstall never revisits it, and the mount effect above deliberately
-  // never prompts on a bare cold start (to avoid ambushing a brand-new
-  // user before they have any context). Confirmed live: an existing
-  // account's fresh iOS install had no "Notifications" section at all in
-  // Settings, meaning it had never been asked. Fixed by also firing on a
-  // plain arrival at /home (any account reaching it is necessarily already
-  // signed in and onboarded), gated the same one-time-per-session way —
-  // requestPermissionNowRef's own setupNotifications(true) call is always
-  // safe to invoke speculatively regardless of reason, since it silently
-  // no-ops the actual OS prompt for anyone who's already granted or denied.
-  // usePathname() (not useSearchParams(), which needs a Suspense boundary)
-  // is the reactive trigger; the query string itself is still read via
-  // plain window APIs to avoid that requirement, same as FcmTokenBridge.
-  // Deliberately NOT folded into the effect above — that effect's
-  // dependency array must stay stable ([router] only) so its token-
-  // refresh/notification-tap listeners live for the whole app session;
-  // tying it to `pathname` instead would tear those listeners down and
-  // fail to recreate them on every ordinary navigation.
+  // The account can change without this component remounting (sign-in,
+  // sign-out and switching accounts are client-side navigations), so the
+  // phone's token is registered for whoever is signed in now. Before this a
+  // phone signed into a second account in the same app session sent that
+  // account's notifications nowhere until the app was restarted. On the
+  // first render the ref is still null and the stable effect's own launch
+  // run registers instead.
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || promptedRef.current || pathname !== "/home") return;
-    promptedRef.current = true;
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("onboarded") === "1") {
-      url.searchParams.delete("onboarded");
-      window.history.replaceState({}, "", url.toString());
-    }
-    requestPermissionNowRef.current?.();
-  }, [pathname]);
+    userIdRef.current = userId;
+    if (!Capacitor.isNativePlatform() || !userId) return;
+    setupNotificationsRef.current?.();
+  }, [userId]);
 
   return null;
 }

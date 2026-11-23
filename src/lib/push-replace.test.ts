@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PUSH_REPLACE_KEY_MAX_BYTES, replaceableFcmConfig, safeReplaceKey } from "@/lib/push-replace";
 import { liveInvitePushKey } from "@/lib/live-stage";
 import { QUIET_NOTIFICATION_CHANNEL_ID } from "@/lib/quiet-push";
+import { ALERT_NOTIFICATION_CHANNEL_ID } from "@/lib/alert-push";
 
 describe("safeReplaceKey", () => {
   it("accepts short printable ASCII keys only", () => {
@@ -22,8 +23,20 @@ describe("safeReplaceKey", () => {
 describe("replaceableFcmConfig", () => {
   it("sets the Android drawer tag and the APNs collapse id to the same key", () => {
     const config = replaceableFcmConfig("live-invite:s1");
-    expect(config.android).toEqual({ priority: "high", notification: { tag: "live-invite:s1" } });
-    expect(config.apns).toEqual({ headers: { "apns-collapse-id": "live-invite:s1" } });
+    expect(config.android).toEqual({
+      priority: "high",
+      notification: {
+        channelId: ALERT_NOTIFICATION_CHANNEL_ID,
+        priority: "high",
+        defaultSound: true,
+        defaultVibrateTimings: true,
+        tag: "live-invite:s1",
+      },
+    });
+    expect(config.apns).toEqual({
+      headers: { "apns-priority": "10", "apns-collapse-id": "live-invite:s1" },
+      payload: { aps: { sound: "default" } },
+    });
   });
 
   it("a quiet replacement keeps the key and adds the quiet channel and passive interruption level", () => {

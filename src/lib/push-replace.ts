@@ -9,6 +9,7 @@
 // as a new (quiet) notification. Pure and client-safe; fcm.ts and push.ts send with it.
 
 import { quietAndroidConfig, quietApnsConfig } from "@/lib/quiet-push";
+import { alertAndroidConfig, alertApnsConfig } from "@/lib/alert-push";
 
 /** APNs refuses an `apns-collapse-id` longer than 64 bytes; tags are kept to that everywhere. */
 export const PUSH_REPLACE_KEY_MAX_BYTES = 64;
@@ -28,16 +29,28 @@ export function safeReplaceKey(raw: unknown): string | null {
 export function replaceableFcmConfig(key: string, options: { quiet?: boolean } = {}) {
   const tag = safeReplaceKey(key);
   if (!tag) throw new Error("invalid replacement key");
-  const quietAndroid = options.quiet ? quietAndroidConfig() : null;
-  const quietApns = options.quiet ? quietApnsConfig() : null;
+  if (options.quiet) {
+    return {
+      android: {
+        priority: "high" as const,
+        notification: { ...quietAndroidConfig().notification, tag },
+      },
+      apns: {
+        headers: { "apns-collapse-id": tag },
+        ...quietApnsConfig(),
+      },
+    };
+  }
+  // A normal one: the heads-up channel and a sound (alert-push.ts), plus the key.
+  const alertApns = alertApnsConfig();
   return {
     android: {
       priority: "high" as const,
-      notification: { ...(quietAndroid?.notification ?? {}), tag },
+      notification: { ...alertAndroidConfig().notification, tag },
     },
     apns: {
-      headers: { "apns-collapse-id": tag },
-      ...(quietApns ?? {}),
+      headers: { ...alertApns.headers, "apns-collapse-id": tag },
+      payload: alertApns.payload,
     },
   };
 }

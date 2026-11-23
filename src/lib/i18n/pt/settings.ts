@@ -100,10 +100,17 @@ export const settings: typeof settingsEn = {
   },
   notifications: {
     heading: "Notificações",
-    intro:
-      "Receba avisos de chamadas e de novas mensagens mesmo quando o YuKon3t não estiver aberto em uma aba.",
-    native: "As notificações já estão ativadas no aplicativo. Não é preciso ativá-las separadamente aqui.",
-    unsupported: "Ainda não disponível neste dispositivo ou navegador.",
+    intro: "Receba avisos de chamadas, mensagens, solicitações de conexão, comentários e curtidas mesmo com o YuKon3t fechado.",
+    // Native app (push-notifications-toggle.tsx): the phone's own permission.
+    nativeOn: "As notificações estão ativadas neste celular. Para mudar o som ou o que aparece na tela de bloqueio, use os ajustes do celular.",
+    nativeOff: "As notificações estão desativadas neste celular, então você só as vê dentro do aplicativo.",
+    nativeDeniedAndroid:
+      "As notificações do YuKon3t estão bloqueadas neste celular, então você só as vê dentro do aplicativo. Para ativá-las, abra Configurações → Apps → YuKon3t → Notificações no celular e permita.",
+    nativeDeniedIos:
+      "As notificações do YuKon3t estão bloqueadas neste iPhone, então você só as vê dentro do aplicativo. Toque em Abrir Ajustes, depois em Notificações, e ative Permitir Notificações.",
+    openSettings: "Abrir Ajustes",
+    unsupported:
+      "Não disponível neste navegador. No iPhone, use o aplicativo YuKon3t ou adicione o YuKon3t à Tela de Início (Compartilhar → Adicionar à Tela de Início) e abra-o por lá.",
     denied:
       "As notificações deste site estão bloqueadas nas configurações do seu navegador. Libere-as por lá para ativar esta opção.",
     turnOff: "Desativar notificações",

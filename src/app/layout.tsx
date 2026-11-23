@@ -21,6 +21,7 @@ import { ScreenshotGuard } from "@/components/screenshot-guard";
 import { FeedVideoVolumeSync } from "@/components/feed-video-volume-sync";
 import { ShareTargetGate } from "@/components/share-target-gate";
 import { ReviewPromptGate } from "@/components/review-prompt-gate";
+import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { AppUpdateGate } from "@/components/app-update-gate";
 import { AnalyticsScripts, GtmNoScript } from "@/components/analytics-scripts";
 import { PostHogProvider } from "@/components/posthog-provider";
@@ -270,7 +271,7 @@ export default async function RootLayout({
           <CallSessionProvider>
           <ContentTranslationProvider available={translationAvailable} autoTranslate={autoTranslate}>
             <AppSplash />
-            <CapacitorBridge />
+            <CapacitorBridge userId={session?.user?.id ?? null} />
             {/* Native app only: a tapped link to a YuKon3t page stays in the app (src/lib/app-links.ts). */}
             <InAppLinkGuard />
             <RegisterServiceWorker />
@@ -292,6 +293,9 @@ export default async function RootLayout({
             {session?.user && <FeedVideoVolumeSync />}
             {member && <ShareTargetGate userId={member.id} />}
             {member && <ReviewPromptGate />}
+            {/* "Turn on notifications?" on Home (native app and browsers), and keeps this browser's Web Push
+                subscription attached to the signed-in account (src/lib/push-permission.ts). */}
+            {member && <PushPermissionPrompt userId={member.id} />}
             <GuestPreviewProvider isGuest={isGuest} feedbackUrl={guestFeedbackUrl()}>
               <main className="flex-1">{children}</main>
             </GuestPreviewProvider>

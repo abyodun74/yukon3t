@@ -54,6 +54,7 @@ export const FAQ_IDS = [
   "app-opens-chrome-instead-full",
   "still-get-calls-phone-asleep",
   "shows-up-notification-phone",
+  "phone-notifications-only-in-app",
   "turning-up-phones-volume-unmutes",
   // Posts and media
   "post",

@@ -478,4 +478,13 @@ export const ui: typeof uiEn = {
       other: "Imeshindwa kutuma. Jaribu tena.",
     },
   },
+  pushPrompt: {
+    title: "Washa arifa?",
+    body:
+      "Pata ujumbe mpya, simu, maombi ya kuwasiliana, maoni na kupendwa papo hapo, hata YuKon3t ikiwa imefungwa, kama programu nyingine yoyote.",
+    allow: "Washa arifa",
+    later: "Si sasa",
+    channelName: "Ujumbe na shughuli",
+    channelDescription: "Ujumbe, simu, maoni, kupendwa na shughuli nyingine",
+  },
 };

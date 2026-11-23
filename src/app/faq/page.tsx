@@ -521,7 +521,8 @@ const sections: Section[] = [
             battery-saving/Doze state, the same as a regular phone call.
             Accept or decline right from that screen, or tap it to open the
             app. This needs notification permission for YuKon3t to be turned
-            on (Android asks for this the first time you sign in) — if calls
+            on (YuKon3t asks for it on Home, and Settings → Notifications in
+            YuKon3t shows whether it&apos;s on) — if calls
             aren&apos;t waking your phone, check Settings → Apps → YuKon3t →
             Notifications. If you&apos;re signed in on more than one phone,
             answering or declining on one stops the ringing on the others,
@@ -566,6 +567,40 @@ const sections: Section[] = [
             (the likes, comments and screenshot notices on it clear). The rest stay
             unread, and the red badge on the bell keeps counting them, until
             then or until you tap &ldquo;Mark all as read&rdquo;.
+          </>
+        ),
+      },
+      {
+        id: "phone-notifications-only-in-app",
+        q: "Why do I only see notifications inside the app, not on my phone?",
+        a: (
+          <>
+            YuKon3t can only show notifications on your lock screen and as
+            banners if you allow them. When you open Home, YuKon3t asks once
+            with a short explanation: tap Turn on notifications, then Allow
+            on your phone&apos;s prompt. If you chose Not now, it asks again a
+            few days later, and you can always turn them on yourself in
+            Settings → Notifications, which also shows whether this phone or
+            browser gets notifications.
+            <br />
+            <br />
+            If you refused your phone&apos;s prompt, the phone blocks
+            notifications for YuKon3t until you allow them in its settings:
+            on iPhone, Settings → Notifications → YuKon3t → Allow
+            Notifications (in YuKon3t, Settings → Notifications has a button
+            that opens it); on Android, Settings → Apps → YuKon3t →
+            Notifications. On Android, messages, calls, comments, likes and
+            other activity pop up as a banner with sound, in the
+            &ldquo;Messages and activity&rdquo; category, which you can
+            change there too.
+            <br />
+            <br />
+            Notifications reach your phone when YuKon3t is closed or in the
+            background. While you&apos;re using the app, new activity shows
+            in the app itself (on Android it doesn&apos;t drop down as a
+            banner then). In a browser, turn them on in Settings →
+            Notifications; on iPhone that works only from the YuKon3t app or
+            once YuKon3t is added to your Home Screen.
           </>
         ),
       },

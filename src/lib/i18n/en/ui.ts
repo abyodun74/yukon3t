@@ -507,4 +507,15 @@ export const uiEn = {
       other: "Couldn't send that. Try again.",
     },
   },
+  // The "Turn on notifications?" sheet (push-permission-prompt.tsx), and the Android notification channel ordinary
+  // notifications are posted to (alert-push.ts), as Android's app settings list it.
+  pushPrompt: {
+    title: "Turn on notifications?",
+    body:
+      "Get new messages, calls, connection requests, comments and likes the moment they happen, even when YuKon3t is closed, like any other app.",
+    allow: "Turn on notifications",
+    later: "Not now",
+    channelName: "Messages and activity",
+    channelDescription: "Messages, calls, comments, likes and other activity",
+  },
 };

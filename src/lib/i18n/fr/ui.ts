@@ -479,4 +479,13 @@ export const ui: typeof uiEn = {
       other: "Impossible d'envoyer. Réessayez.",
     },
   },
+  pushPrompt: {
+    title: "Activer les notifications ?",
+    body:
+      "Recevez les nouveaux messages, appels, demandes de mise en relation, commentaires et mentions J'aime dès qu'ils arrivent, même lorsque YuKon3t est fermé, comme avec n'importe quelle autre application.",
+    allow: "Activer les notifications",
+    later: "Plus tard",
+    channelName: "Messages et activité",
+    channelDescription: "Messages, appels, commentaires, mentions J'aime et autre activité",
+  },
 };

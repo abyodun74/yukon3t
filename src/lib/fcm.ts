@@ -7,6 +7,7 @@ import { groupByLocale, perLocale, storedLocale, type Localized } from "@/lib/pu
 import { SILENT_CALL_APNS, incomingCallData, missedCallApns, missedCallData } from "@/lib/call-push-data";
 import { quietAndroidConfig, quietApnsConfig } from "@/lib/quiet-push";
 import { replaceableFcmConfig } from "@/lib/push-replace";
+import { alertAndroidConfig, alertApnsConfig } from "@/lib/alert-push";
 
 // The recipient's language comes back with their tokens (one query, see push-text.ts).
 const TOKEN_SELECT = { id: true, token: true, user: { select: { locale: true } } } as const;
@@ -181,7 +182,7 @@ export async function sendFcmActivityToUser(
         ? replaceableFcmConfig(options.replaceKey, { quiet: options.quiet })
         : options.quiet
           ? { android: quietAndroidConfig(), apns: quietApnsConfig() }
-          : { android: { priority: "high" as const } }),
+          : { android: alertAndroidConfig(), apns: alertApnsConfig() }),
     });
   } catch {
     // Best-effort — a push failure should never break the action that triggered it.
@@ -312,7 +313,7 @@ async function sendFcmNotificationToTokens(
   message: {
     notification: { title: string; body: string };
     data: Record<string, string>;
-    // Defaults to a normal high-priority notification; quiet-push.ts's blocks for a quiet one.
+    // Default to a normal notification (heads-up channel + sound, alert-push.ts); quiet-push.ts's blocks for a quiet one.
     android?: AndroidConfig;
     apns?: ApnsConfig;
   },
@@ -324,8 +325,8 @@ async function sendFcmNotificationToTokens(
         tokens: chunk.map((t) => t.token),
         notification: message.notification,
         data: message.data,
-        android: message.android ?? { priority: "high" },
-        ...(message.apns ? { apns: message.apns } : {}),
+        android: message.android ?? alertAndroidConfig(),
+        apns: message.apns ?? alertApnsConfig(),
       });
       const staleTokenIds: string[] = [];
       response.responses.forEach((r, idx) => {

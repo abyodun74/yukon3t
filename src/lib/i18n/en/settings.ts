@@ -109,9 +109,17 @@ export const settingsEn = {
   },
   notifications: {
     heading: "Notifications",
-    intro: "Get notified about incoming calls and new messages even when YuKon3t isn't open in a tab.",
-    native: "Notifications are already on for the app — no need to enable them separately here.",
-    unsupported: "Not available on this device or browser yet.",
+    intro: "Get notified about calls, messages, connection requests, comments and likes even when YuKon3t is closed.",
+    // Native app (push-notifications-toggle.tsx): the phone's own permission.
+    nativeOn: "Notifications are on for this phone. To change their sound, or what shows on the lock screen, use your phone's settings.",
+    nativeOff: "Notifications are off for this phone, so you only see them inside the app.",
+    nativeDeniedAndroid:
+      "Notifications are blocked for YuKon3t on this phone, so you only see them inside the app. To turn them on, open your phone's Settings → Apps → YuKon3t → Notifications and allow them.",
+    nativeDeniedIos:
+      "Notifications are blocked for YuKon3t on this iPhone, so you only see them inside the app. Tap Open Settings, then Notifications, and turn on Allow Notifications.",
+    openSettings: "Open Settings",
+    unsupported:
+      "Not available in this browser. On iPhone, use the YuKon3t app, or add YuKon3t to your Home Screen (Share → Add to Home Screen) and open it from there.",
     denied: "Notifications are blocked for this site in your browser settings — enable them there to turn this on.",
     turnOff: "Turn off notifications",
     enable: "Enable notifications",

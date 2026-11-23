@@ -1,131 +1,159 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BellRing } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { BellRing, Settings as SettingsIcon } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
-import { subscribeToPush, unsubscribeFromPush } from "@/app/actions/push";
 import { hapticSelection } from "@/lib/haptics";
 import { useSettingsText } from "@/components/settings-text";
+import { blockedPushHelp } from "@/lib/push-permission";
+import {
+  checkNativePushPermission,
+  openNativeAppSettings,
+  requestNativePushPermission,
+} from "@/lib/native-push-client";
+import {
+  currentWebPushPermission,
+  disableWebPush,
+  enableWebPush,
+  hasWebPushSubscription,
+} from "@/lib/web-push-client";
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+type Status =
+  | "loading"
+  | "unsupported"
+  // Native app (Capacitor): the phone's own permission.
+  | "native-on"
+  | "native-off"
+  | "native-denied"
+  // Browser: Web Push.
+  | "off"
+  | "on"
+  | "denied";
 
-// Web Push wants the VAPID key as a raw Uint8Array, but only hands it out
-// as a URL-safe base64 string.
-function urlBase64ToUint8Array(base64: string) {
-  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  const base64Safe = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64Safe);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
-}
-
-type Status = "unsupported" | "native" | "loading" | "off" | "on" | "denied";
+const BUTTON =
+  "flex items-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50";
 
 /**
- * Settings toggle for browser Web Push (incoming calls, new messages) —
- * inert if VAPID keys aren't configured, and hidden entirely on the native
- * Android/iOS app. The native app already gets push automatically via FCM
- * (capacitor-bridge.tsx registers a token on launch, no toggle needed) —
- * confirmed live that tapping this same toggle *inside* the native app's
- * own WebView (which does support the Web Push API) created a second,
- * independent PushSubscription row for the same account. startCall then
- * sends to both that row (sendPushToUser) and the native FCM token
- * (sendFcmCallToUser) for every call, producing two separate "Incoming
- * call" notifications for one ring, on both Android and iOS. Hiding this
- * here stops it happening again; capacitor-bridge.tsx separately cleans up
- * any subscription this already created before the fix shipped.
+ * Settings -> Notifications: whether this phone or browser actually gets notifications, and the way to turn them on.
+ *
+ * Native app: the phone's own permission, read live (and again whenever the app comes back to the foreground, so a
+ * change made in the phone's settings shows at once). Off -> a button that shows the system prompt; blocked -> how to
+ * allow them in the phone's settings (iPhone: a button that opens YuKon3t's page in Settings). This used to say
+ * "Notifications are already on for the app" whatever the phone's permission was, so someone who had refused (or was
+ * never asked) had no idea why they only ever saw the in-app bell.
+ *
+ * Browser: Web Push on/off. Never inside the native app: a Web Push subscription made in the app's WebView duplicated
+ * the FCM token, so every call rang twice (capacitor-bridge.tsx removes any such leftover subscription at launch).
  */
 export function PushNotificationsToggle() {
   const [status, setStatus] = useState<Status>("loading");
   const t = useSettingsText().t.notifications;
+  const native = Capacitor.isNativePlatform();
+
+  const refresh = useCallback(async () => {
+    if (native) {
+      const permission = await checkNativePushPermission();
+      setStatus(
+        permission === "granted"
+          ? "native-on"
+          : permission === "denied"
+            ? "native-denied"
+            : permission === "prompt"
+              ? "native-off"
+              : "unsupported",
+      );
+      return;
+    }
+    const permission = currentWebPushPermission();
+    if (permission === "unsupported") setStatus("unsupported");
+    else if (permission === "denied") setStatus("denied");
+    else if (permission === "prompt") setStatus("off");
+    else setStatus((await hasWebPushSubscription()) ? "on" : "off");
+  }, [native]);
 
   useEffect(() => {
     let cancelled = false;
-    async function check() {
-      if (Capacitor.isNativePlatform()) {
-        if (!cancelled) setStatus("native");
-        return;
-      }
-      if (!VAPID_PUBLIC_KEY || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    const run = () => {
+      refresh().catch(() => {
         if (!cancelled) setStatus("unsupported");
-        return;
-      }
-      if (Notification.permission === "denied") {
-        if (!cancelled) setStatus("denied");
-        return;
-      }
-      const registration = await navigator.serviceWorker.ready;
-      const existing = await registration.pushManager.getSubscription();
-      if (!cancelled) setStatus(existing ? "on" : "off");
-    }
-    check().catch(() => setStatus("unsupported"));
+      });
+    };
+    run();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") run();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [refresh]);
 
   async function enable() {
-    if (!VAPID_PUBLIC_KEY) return;
     setStatus("loading");
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setStatus(permission === "denied" ? "denied" : "off");
-        return;
-      }
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-      await subscribeToPush(subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } });
-      hapticSelection();
-      setStatus("on");
-    } catch {
-      setStatus("off");
+    if (native) {
+      const permission = await requestNativePushPermission();
+      setStatus(permission === "granted" ? "native-on" : permission === "denied" ? "native-denied" : "native-off");
+      if (permission === "granted") hapticSelection();
+      return;
     }
+    const permission = await enableWebPush();
+    setStatus(permission === "granted" ? "on" : permission === "denied" ? "denied" : permission === "unsupported" ? "unsupported" : "off");
+    if (permission === "granted") hapticSelection();
   }
 
   async function disable() {
     setStatus("loading");
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await unsubscribeFromPush(subscription.endpoint);
-        await subscription.unsubscribe();
-      }
-      hapticSelection();
-      setStatus("off");
-    } catch {
-      setStatus("on");
-    }
+    const removed = await disableWebPush();
+    if (removed) hapticSelection();
+    setStatus(removed ? "off" : "on");
   }
 
-  if (status === "native") {
+  if (status === "loading") {
+    return <div className="h-10" aria-busy="true" />;
+  }
+
+  if (status === "native-on") {
+    return <p className="text-sm text-foreground-soft">{t.nativeOn}</p>;
+  }
+
+  if (status === "native-off") {
     return (
-      <p className="text-sm text-foreground-soft">{t.native}</p>
+      <div className="space-y-2">
+        <p className="text-sm text-foreground-soft">{t.nativeOff}</p>
+        <button type="button" onClick={enable} className={BUTTON}>
+          <BellRing size={15} />
+          {t.enable}
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "native-denied") {
+    const ios = blockedPushHelp(Capacitor.getPlatform()) === "open-settings";
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-foreground-soft">{ios ? t.nativeDeniedIos : t.nativeDeniedAndroid}</p>
+        {ios && (
+          <button type="button" onClick={() => openNativeAppSettings()} className={BUTTON}>
+            <SettingsIcon size={15} />
+            {t.openSettings}
+          </button>
+        )}
+      </div>
     );
   }
 
   if (status === "unsupported") {
-    return (
-      <p className="text-sm text-foreground-soft">{t.unsupported}</p>
-    );
+    return <p className="text-sm text-foreground-soft">{t.unsupported}</p>;
   }
 
   if (status === "denied") {
-    return (
-      <p className="text-sm text-foreground-soft">{t.denied}</p>
-    );
+    return <p className="text-sm text-foreground-soft">{t.denied}</p>;
   }
 
   return (
-    <button
-      type="button"
-      disabled={status === "loading"}
-      onClick={status === "on" ? disable : enable}
-      className="flex items-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-medium hover:border-accent hover:text-accent disabled:opacity-50"
-    >
+    <button type="button" onClick={status === "on" ? disable : enable} className={BUTTON}>
       <BellRing size={15} />
       {status === "on" ? t.turnOff : t.enable}
     </button>

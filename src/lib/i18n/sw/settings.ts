@@ -100,9 +100,17 @@ export const settings: typeof settingsEn = {
   },
   notifications: {
     heading: "Arifa",
-    intro: "Pata taarifa za simu zinazoingia na ujumbe mpya hata YuKon3t ikiwa haijafunguliwa kwenye kichupo.",
-    native: "Arifa tayari zimewashwa kwenye programu. Huhitaji kuziwasha tena hapa.",
-    unsupported: "Bado haipatikani kwenye kifaa au kivinjari hiki.",
+    intro: "Pata arifa za simu, ujumbe, maombi ya kuwasiliana, maoni na kupendwa hata YuKon3t ikiwa imefungwa.",
+    // Native app (push-notifications-toggle.tsx): the phone's own permission.
+    nativeOn: "Arifa zimewashwa kwenye simu hii. Ili kubadilisha sauti yake au kinachoonekana kwenye skrini iliyofungwa, tumia mipangilio ya simu yako.",
+    nativeOff: "Arifa zimezimwa kwenye simu hii, kwa hiyo unaziona ndani ya programu tu.",
+    nativeDeniedAndroid:
+      "Arifa za YuKon3t zimezuiwa kwenye simu hii, kwa hiyo unaziona ndani ya programu tu. Ili kuziwasha, fungua Mipangilio → Programu → YuKon3t → Arifa kwenye simu yako na uziruhusu.",
+    nativeDeniedIos:
+      "Arifa za YuKon3t zimezuiwa kwenye iPhone hii, kwa hiyo unaziona ndani ya programu tu. Gusa Fungua Mipangilio, kisha Arifa, na uwashe Ruhusu Arifa.",
+    openSettings: "Fungua Mipangilio",
+    unsupported:
+      "Haipatikani kwenye kivinjari hiki. Kwenye iPhone, tumia programu ya YuKon3t, au ongeza YuKon3t kwenye Skrini ya Mwanzo (Shiriki → Ongeza kwenye Skrini ya Mwanzo) na uifungue kutoka hapo.",
     denied:
       "Arifa za tovuti hii zimezuiwa kwenye mipangilio ya kivinjari chako. Ziwashe huko ili uweze kutumia chaguo hili.",
     turnOff: "Zima arifa",

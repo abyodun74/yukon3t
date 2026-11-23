@@ -100,9 +100,17 @@ export const settings: typeof settingsEn = {
   },
   notifications: {
     heading: "Benachrichtigungen",
-    intro: "Erhalte Hinweise auf eingehende Anrufe und neue Nachrichten, auch wenn YuKon3t in keinem Tab geöffnet ist.",
-    native: "Benachrichtigungen sind in der App bereits aktiviert. Du musst sie hier nicht separat aktivieren.",
-    unsupported: "Auf diesem Gerät oder in diesem Browser noch nicht verfügbar.",
+    intro: "Erhalte Hinweise auf Anrufe, Nachrichten, Kontaktanfragen, Kommentare und Likes, auch wenn YuKon3t geschlossen ist.",
+    // Native app (push-notifications-toggle.tsx): the phone's own permission.
+    nativeOn: "Benachrichtigungen sind auf diesem Telefon aktiviert. Ton oder Anzeige auf dem Sperrbildschirm änderst du in den Einstellungen deines Telefons.",
+    nativeOff: "Benachrichtigungen sind auf diesem Telefon deaktiviert, deshalb siehst du sie nur in der App.",
+    nativeDeniedAndroid:
+      "Benachrichtigungen von YuKon3t sind auf diesem Telefon blockiert, deshalb siehst du sie nur in der App. Öffne zum Aktivieren Einstellungen → Apps → YuKon3t → Benachrichtigungen und erlaube sie.",
+    nativeDeniedIos:
+      "Benachrichtigungen von YuKon3t sind auf diesem iPhone blockiert, deshalb siehst du sie nur in der App. Tippe auf „Einstellungen öffnen“, dann auf „Mitteilungen“, und aktiviere „Mitteilungen erlauben“.",
+    openSettings: "Einstellungen öffnen",
+    unsupported:
+      "In diesem Browser nicht verfügbar. Nutze auf dem iPhone die YuKon3t-App oder füge YuKon3t zum Home-Bildschirm hinzu (Teilen → Zum Home-Bildschirm) und öffne es von dort.",
     denied:
       "Benachrichtigungen für diese Website sind in den Einstellungen deines Browsers blockiert. Aktiviere sie dort, um diese Option zu nutzen.",
     turnOff: "Benachrichtigungen ausschalten",
