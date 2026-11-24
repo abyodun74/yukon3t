@@ -11,7 +11,7 @@ const APP = join("src", "app");
 const AVATAR_IDENTIFIERS = /\b(avatarUrl|UserAvatar|UserLink|ProfileStoryRing|StoryTray|authorAvatarUrl)\b/;
 // requireViewer/requireVerifiedViewer need a session too: a member's, or a guest preview session (src/lib/guest-preview.ts),
 // which sees avatars exactly as a signed-in member does.
-const SESSION_GUARDS = /\b(getOnboardedUserOrRedirect|getSessionUserOrRedirect|requireUser|requireVerifiedUser|requireViewer|requireVerifiedViewer)\b/;
+const SESSION_GUARDS = /\b(getOnboardedUserOrRedirect|getSessionUserOrRedirect|requireUser|requireVerifiedUser|requireViewer|requireVerifiedViewer|requireGiftsUser)\b/;
 
 // Every page.tsx that may render for a signed-out visitor. Keep it in step with sitemap.ts / robots.ts.
 const PUBLIC_PAGES = [
