@@ -21,6 +21,9 @@ import {
 import { toggleStoryLike } from "@/app/actions/story-likes";
 import { optimisticStoryLike, settleStoryLike } from "@/lib/story-likes";
 import { hapticImpact } from "@/lib/haptics";
+import { HeartBurstLayer } from "@/components/heart-burst-layer";
+import { useHeartBurst } from "@/lib/use-heart-burst";
+import { likeRolledBack } from "@/lib/heart-burst";
 import { StoryShareButton } from "@/components/story-share-button";
 import { StoryCaption } from "@/components/story-caption";
 import { formatDateTime, formatShortAge } from "@/lib/format-date";
@@ -231,8 +234,6 @@ export function StoryViewer({
   const [likeState, setLikeState] = useState<{ storyId: string; liked: boolean; likeCount: number | null } | null>(
     null,
   );
-  // The heart that blooms over the story on a like: keyed so each like replays it; never under reduced motion.
-  const [likeBurst, setLikeBurst] = useState<{ storyId: string; n: number } | null>(null);
   // A tap on the heart while the previous one is still on its way is ignored, so two quick taps can't race.
   const likePendingRef = useRef(false);
   const [commentsOpenForId, setCommentsOpenForId] = useState<string | null>(null);
@@ -287,6 +288,10 @@ export function StoryViewer({
 
   const story = stories[index];
   useScreenshotContext(story ? { type: "story", id: story.id } : null);
+  // The rising heart of a like (src/lib/heart-burst.ts, the same one Home and Muse use): purely local feedback to the
+  // person who liked, never sent anywhere. Keyed to the story on screen, so moving to another story (a tap, a swipe,
+  // the timer) takes it away at once and clears its timer; unmount (another person, close) disposes it.
+  const heart = useHeartBurst(story?.id);
   const showViewers = story ? viewersOpenForId === story.id : false;
   const showComments = story ? commentsOpenForId === story.id : false;
   const confirmingDelete = story ? deleteConfirmForId === story.id : false;
@@ -791,9 +796,10 @@ export function StoryViewer({
   }
 
   /**
-   * The heart: like or unlike, shown at once (with a light haptic and the bloom on a like), then set to the server's
-   * answer, or put back on any failure. Never on the author's own story (they get the count instead). Sends the
-   * state it wants, so a retry or a doubled request can't flip it twice (toggleStoryLike).
+   * The heart: like or unlike, shown at once (with a light haptic and the rising heart on a like), then set to the
+   * server's answer, or put back on any failure (the rising heart goes with it). Never on the author's own story (they
+   * get the count instead). Sends the state it wants, so a retry or a doubled request can't flip it twice
+   * (toggleStoryLike). No double tap to like: the tap zones navigate on the first tap.
    */
   async function handleToggleLike() {
     if (!story || isOwner) return;
@@ -809,7 +815,7 @@ export function StoryViewer({
     setLikeState({ storyId, liked: wanted.liked, likeCount: null });
     if (wanted.liked) {
       hapticImpact("light");
-      if (!prefersReducedMotion()) setLikeBurst((b) => ({ storyId, n: (b?.n ?? 0) + 1 }));
+      heart.show(dialogRef.current?.clientHeight);
     }
     let result: Awaited<ReturnType<typeof toggleStoryLike>> | { error: "failed" };
     try {
@@ -821,6 +827,8 @@ export function StoryViewer({
     }
     const settled = settleStoryLike(before, result);
     setLikeState((prev) => (prev?.storyId === storyId ? { storyId, liked: settled.liked, likeCount: null } : prev));
+    // Only this story's heart: one still rising over a later story is left alone.
+    if (likeRolledBack(wanted.liked, settled.liked)) heart.cancel(storyId);
   }
 
   async function loadViewers() {
@@ -1040,18 +1048,10 @@ export function StoryViewer({
         </div>
       )}
 
-      {/* The bloom on a like: decorative, never catches a tap (the tap zones under it keep working), and skipped
-          entirely under reduced motion (handleToggleLike never sets it then; the CSS hides it as well). */}
-      {likeBurst?.storyId === story.id && (
-        <div
-          key={likeBurst.n}
-          aria-hidden
-          className="story-like-burst pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
-          onAnimationEnd={() => setLikeBurst(null)}
-        >
-          <Heart size={96} className="fill-danger text-danger drop-shadow-lg" />
-        </div>
-      )}
+      {/* The rising hearts of a like: over the media, under the header and the reply bar (z-20), clipped to the
+          viewer, never hit-testable (the tap zones under them keep working) and hidden from assistive tech. A single
+          fading heart under reduced motion, fewer hearts on a low-end phone (useHeartBurst / globals.css). */}
+      <HeartBurstLayer burst={heart} className="z-10" />
 
       {/* Clear of the notch / Dynamic Island / status bar: the header (and its Close button) starts below it. */}
       <div className="absolute inset-x-0 top-0 z-20 px-3 pb-3" style={{ paddingTop: `calc(${SAFE_AREA_TOP} + 0.75rem)` }}>

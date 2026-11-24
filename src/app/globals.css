@@ -728,38 +728,6 @@ button:not(:disabled):active {
   animation: story-media-in 220ms ease-out backwards;
 }
 
-/* The heart that blooms over a Story when it's liked (story-viewer.tsx): grows to full size while fading in, holds,
-   then fades out. Never past scale(1) (no pop, no bounce: see "Motion" in CLAUDE.md), and not shown at all under
-   reduced motion. Ends invisible (`forwards`); the viewer removes it on animationend. */
-@keyframes story-like-burst {
-  0% {
-    opacity: 0;
-    transform: scale(0.7);
-  }
-  25% {
-    opacity: 0.95;
-    transform: scale(1);
-  }
-  70% {
-    opacity: 0.95;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1);
-  }
-}
-
-.story-like-burst {
-  animation: story-like-burst 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .story-like-burst {
-    display: none;
-  }
-}
-
 /* Live stream reactions — Daily's own built-in reaction picker is
    cross-origin and can't be centered/restyled (see live-stream-room.tsx),
    so this app renders its own: a tapped emoji rises from the reaction
@@ -1065,10 +1033,11 @@ img[data-press-highlight] {
   letter-spacing: normal !important;
 }
 
-/* The hearts that float up a post when it is liked (PostCard, src/lib/heart-burst.ts + like-heart-art.tsx). The layer
+/* The hearts that float up a post, a Muse or a Story when it is liked (heart-burst-layer.tsx in PostCard, MuseCard and
+   StoryViewer; src/lib/heart-burst.ts + like-heart-art.tsx). The layer
    is absolute, clipped to the media container (overflow hidden), pointer-events none and takes no layout space; each
    heart moves with transform + opacity only. Rise distance is a percentage (--hb-rise) of the layer's height, which
-   PostCard measures in JS once per burst and sets as --hb-h in px (no container query units: cqh needs iOS 16+);
+   the caller measures in JS once per burst and sets as --hb-h in px (no container query units: cqh needs iOS 16+);
    sway, rotation, scale, size and delays are per-heart custom properties set by planHearts. `contain: layout paint`
    keeps the hearts' repaints inside the layer; no CSS filter (the glow is baked into the SVG). The hearts exist only
    while the burst runs (unmounted after HEART_BURST_MS), so their will-change lasts only for the animation.

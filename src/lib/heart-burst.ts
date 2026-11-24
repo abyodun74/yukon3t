@@ -1,6 +1,8 @@
-// The big purple heart that pops over a post when it is liked (PostCard), and the double-tap detection behind
-// "double-tap the post to like". Pure and timer-injectable so the restart / cleanup / gesture rules are unit tested
-// (heart-burst.test.ts); src/lib/use-heart-burst.ts is the thin React wrapper.
+// The big purple heart that pops over a post, a Muse or a Story when it is liked (PostCard, MuseCard, StoryViewer),
+// and the double-tap detection behind "double-tap the post / Muse to like" (Stories have none: their tap zones act
+// on the first tap). Pure and timer-injectable so the restart / cleanup / gesture rules are unit tested
+// (heart-burst.test.ts); src/lib/use-heart-burst.ts is the thin React wrapper and
+// src/components/heart-burst-layer.tsx the overlay.
 
 /** How long the hearts stay mounted. At least the longest delay + duration planHearts can produce (2150ms). */
 export const HEART_BURST_MS = 2200;
@@ -33,18 +35,24 @@ const realTimers: HeartBurstTimers = {
 };
 
 /**
- * `onChange(key)` gets a new number each time the heart (re)starts, so the view can remount it and replay the
+ * `onChange(key, item)` gets a new number each time the heart (re)starts, so the view can remount it and replay the
  * animation, and `null` when it is gone. `show()` while one is showing restarts it cleanly: the old timer is
  * cleared first, so there is never more than one timer. `dispose()` (unmount) clears it and never calls back.
+ *
+ * `item` is what the heart was shown for, in a viewer that swaps items in place (the Story viewer: one component, the
+ * story changes under it). `itemChanged(next)` hides a heart that belongs to another item at once, and `cancel(item)`
+ * only hides the heart when it is that item's (a rolled-back like must not take away a later item's heart). A view
+ * with one item for its whole life (a post card, a Muse card) never passes one.
  */
 export function createHeartBurst(opts: {
-  onChange: (key: number | null) => void;
+  onChange: (key: number | null, item?: unknown) => void;
   reducedMotion?: () => boolean;
   timers?: HeartBurstTimers;
 }) {
   const timers = opts.timers ?? realTimers;
   let handle: unknown = null;
   let key = 0;
+  let shownFor: unknown = undefined;
   let disposed = false;
 
   function clearTimer() {
@@ -52,23 +60,36 @@ export function createHeartBurst(opts: {
     handle = null;
   }
 
+  function hide() {
+    clearTimer();
+    shownFor = undefined;
+    opts.onChange(null);
+  }
+
   return {
-    show() {
+    show(item?: unknown) {
       if (disposed) return;
       clearTimer();
       key += 1;
-      opts.onChange(key);
+      shownFor = item;
+      opts.onChange(key, item);
       const ms = opts.reducedMotion?.() ? HEART_BURST_REDUCED_MS : HEART_BURST_MS;
       handle = timers.set(() => {
         handle = null;
+        shownFor = undefined;
         if (!disposed) opts.onChange(null);
       }, ms);
     },
-    /** Hide now (a like that was rolled back). */
-    cancel() {
+    /** Hide now (a like that was rolled back). With `item`, only when the heart showing is that item's. */
+    cancel(item?: unknown) {
       if (disposed) return;
-      clearTimer();
-      opts.onChange(null);
+      if (item !== undefined && (handle === null || shownFor !== item)) return;
+      hide();
+    },
+    /** The item on screen is now `item`: a heart still showing for another one goes at once, timer and all. */
+    itemChanged(item: unknown) {
+      if (disposed || handle === null || shownFor === item) return;
+      hide();
     },
     dispose() {
       disposed = true;
@@ -172,6 +193,23 @@ export function doubleTapNeedsLike(liked: boolean): boolean {
   return !liked;
 }
 
+export type LikeGesture = "button" | "double-tap";
+
+/**
+ * What one like gesture does (the Muse viewer): "like" sends a like and shows the heart, "unlike" sends an unlike and
+ * shows nothing (only the button can unlike), "heart" sends nothing and shows the heart again (a double tap on
+ * something already liked).
+ */
+export function likeGestureAction(liked: boolean, gesture: LikeGesture): "like" | "unlike" | "heart" {
+  if (gesture === "double-tap") return doubleTapNeedsLike(liked) ? "like" : "heart";
+  return liked ? "unlike" : "like";
+}
+
+/** A like that was shown at once and then refused by the server takes its heart away again. */
+export function likeRolledBack(liking: boolean, likedAfterServer: boolean): boolean {
+  return liking && !likedAfterServer;
+}
+
 /** True when the second tap is within the window and close enough to the first one. */
 export function isSecondTap(
   first: { t: number; x: number; y: number },
@@ -253,7 +291,26 @@ export function hasActiveTextSelection(selection: unknown): boolean {
   }
 }
 
-type PlaybackLike = { readonly paused: boolean; play(): unknown; pause(): unknown };
+export type PlaybackLike = { readonly paused: boolean; play(): unknown; pause(): unknown };
+
+/**
+ * A player whose play / pause is a piece of state rather than the <video> itself (the Muse card: `paused` drives
+ * shouldVideoPlay, which also weighs the hold, a scrub and a call), so createVideoTapToggle can drive it the same way.
+ * `paused` reads the state; play() / pause() set it.
+ */
+export function pausedStatePlayback(getPaused: () => boolean, setPaused: (paused: boolean) => void): PlaybackLike {
+  return {
+    get paused() {
+      return getPaused();
+    },
+    play() {
+      setPaused(false);
+    },
+    pause() {
+      setPaused(true);
+    },
+  };
+}
 
 function startPlayback(video: PlaybackLike) {
   const result = video.play();

@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   useTransition,
-  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type UIEvent,
 } from "react";
@@ -17,7 +16,7 @@ import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
 import { toggleLike, togglePostReaction } from "@/app/actions/likes";
 import { announceLikeGroup, useLikeGroupSync } from "@/lib/like-group-sync";
-import { LikeHeartArt } from "@/components/like-heart-art";
+import { HeartBurstLayer } from "@/components/heart-burst-layer";
 import { useHeartBurst } from "@/lib/use-heart-burst";
 import {
   armSecondTapGuard,
@@ -27,7 +26,6 @@ import {
   DOUBLE_TAP_MS,
   hasActiveTextSelection,
   isDoubleTapIgnoredTarget,
-  type HeartSpec,
 } from "@/lib/heart-burst";
 import { useGuestPreview } from "@/components/guest-preview";
 import { editPost } from "@/app/actions/posts";
@@ -1385,7 +1383,7 @@ export function PostCard({
             : undefined
         }
       />
-      {heartOnMedia && <HeartLayer burstKey={heart.key} hearts={heart.hearts} heightPx={heart.heightPx} />}
+      {heartOnMedia && <HeartBurstLayer burst={heart} />}
       </div>
 
       <div
@@ -1567,7 +1565,7 @@ export function PostCard({
         onShareCountChange={setShareCount}
       />
       {!heartOnMedia && (
-        <HeartLayer burstKey={heart.key} hearts={heart.hearts} heightPx={heart.heightPx} className="rounded-[inherit]" />
+        <HeartBurstLayer burst={heart} className="rounded-[inherit]" />
       )}
     </div>
   );
@@ -1575,50 +1573,3 @@ export function PostCard({
 
 /** Post types whose hearts rise over the media; every other post's hearts rise over the whole card. */
 const HEART_ON_MEDIA_TYPES: ReadonlySet<MediaType> = new Set<MediaType>(["IMAGE", "GIF", "VIDEO", "EMBED"]);
-
-/**
- * The floating hearts (useHeartBurst + globals.css `.post-heart-*`). Absolute over its positioned parent, clipped to
- * it, never hit-testable. `heightPx` (measured once per burst) sets --hb-h, the rise distance in px; the layer is
- * remounted per burst (keyed) so a restart replays every heart.
- */
-function HeartLayer({
-  burstKey,
-  hearts,
-  heightPx,
-  className,
-}: {
-  burstKey: number | null;
-  hearts: HeartSpec[];
-  heightPx: number | null;
-  className?: string;
-}) {
-  if (burstKey === null) return null;
-  return (
-    <span
-      key={burstKey}
-      aria-hidden="true"
-      className={cn("post-heart-layer pointer-events-none absolute inset-0 z-[1] overflow-hidden", className)}
-      style={heightPx ? ({ "--hb-h": `${heightPx}px` } as CSSProperties) : undefined}
-    >
-      {hearts.map((h) => (
-        <span
-          key={h.id}
-          className="post-heart-float"
-          data-trail={h.lead ? undefined : ""}
-          style={
-            {
-              left: `calc(50% + ${h.offsetPct}%)`,
-              "--hb-sway": `${h.sway}px`,
-              "--hb-rot": `${h.rotate}deg`,
-              "--hb-rise": h.rise,
-              "--hb-dur": `${h.durationMs}ms`,
-              "--hb-delay": `${h.delayMs}ms`,
-            } as CSSProperties
-          }
-        >
-          <LikeHeartArt size={h.size} />
-        </span>
-      ))}
-    </span>
-  );
-}

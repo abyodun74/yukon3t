@@ -1600,7 +1600,10 @@ const sections: Section[] = [
           <>
             Yes. Tap the heart on the right to like a Muse (it turns red; tap
             it again to unlike), and the number under it is how many people
-            liked it. An emoji reaction you left on a Muse before the heart
+            liked it. You can also double-tap the video to like it: a double
+            tap only ever likes (on a Muse you&apos;ve already liked it just
+            shows the heart again), and the video carries on playing, or
+            stays paused, just as it was. An emoji reaction you left on a Muse before the heart
             arrived still counts as your like. Emoji and GIFs live in the
             comments: the comment box has a quick-emoji row, a full emoji
             picker and a GIF search.

@@ -61,6 +61,18 @@ import {
   settleLike,
   shouldVideoPlay,
 } from "@/lib/muse-controls";
+import { HeartBurstLayer } from "@/components/heart-burst-layer";
+import { useHeartBurst } from "@/lib/use-heart-burst";
+import {
+  createVideoTapToggle,
+  likeGestureAction,
+  likeRolledBack,
+  pausedStatePlayback,
+  type LikeGesture,
+} from "@/lib/heart-burst";
+
+/** The rising heart of a like (src/lib/heart-burst.ts), shown and taken back by the feed's like path. */
+type LikeHeart = { show: () => void; cancel: () => void };
 
 // How far before the actual end of the loaded list to start fetching more —
 // expressed as a fraction of one full-screen card's height (rootMargin),
@@ -267,17 +279,26 @@ export function MuseFeed({
    * The heart: like (adds the heart reaction) or unlike (removes whatever reaction the viewer has: any emoji counts as
    * their like, src/lib/like-groups.ts). Shown at once, then set to the server's answer: its liked state and its count
    * (a like group's count for a Muse that shares one with its author's feed copy), or put back as it was on failure.
+   * A double tap on the video only ever likes: on a Muse already liked it just shows the rising heart again
+   * (likeGestureAction). The heart rises on a like only, never an unlike, and goes again if the like is rolled back.
    */
-  async function toggleLike(museId: string) {
+  async function toggleLike(museId: string, gesture: LikeGesture, heart: LikeHeart) {
     if (isGuest) {
       promptSignUp();
       return;
     }
     const current = items.find((it) => it.id === museId);
-    if (!current || likePendingRef.current.has(museId)) return;
+    if (!current) return;
+    const action = likeGestureAction(current.myReaction !== null, gesture);
+    if (action === "heart") {
+      heart.show();
+      return;
+    }
+    if (likePendingRef.current.has(museId)) return;
     likePendingRef.current.add(museId);
     const before = { myReaction: current.myReaction, likeCount: current.likeCount };
     setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, ...optimisticLike(before) } : it)));
+    if (action === "like") heart.show();
     let result: Awaited<ReturnType<typeof toggleMuseReaction>> | { error: "failed" };
     try {
       result = await toggleMuseReaction(museId, likeToggleEmoji(before.myReaction));
@@ -288,6 +309,7 @@ export function MuseFeed({
     }
     const settled = settleLike(before, result);
     setItems((prev) => prev.map((it) => (it.id === museId ? { ...it, ...settled } : it)));
+    if (likeRolledBack(action === "like", settled.myReaction !== null)) heart.cancel();
     if (result.error === null && current.likeGroupId) {
       const change = { likeGroupId: current.likeGroupId, liked: settled.myReaction !== null, likeCount: settled.likeCount };
       applyGroupLike(change, museId);
@@ -541,7 +563,7 @@ export function MuseFeed({
             consumeUnblockTap={consumeUnblockTap}
             currentUserId={currentUserId}
             onToggleMute={() => setMuted((m) => !m)}
-            onToggleLike={() => toggleLike(item.id)}
+            onLike={(gesture, heart) => toggleLike(item.id, gesture, heart)}
             onOpenComments={() => openComments(item.id)}
             onDelete={() => removeMuse(item.id)}
             onToggleRepost={() => toggleRepost(item.id)}
@@ -646,7 +668,7 @@ function MuseCard({
   consumeUnblockTap,
   currentUserId,
   onToggleMute,
-  onToggleLike,
+  onLike,
   onOpenComments,
   onDelete,
   onToggleRepost,
@@ -670,7 +692,8 @@ function MuseCard({
   consumeUnblockTap: () => boolean;
   currentUserId: string;
   onToggleMute: () => void;
-  onToggleLike: () => void;
+  /** The heart button ("button": like / unlike) or a double tap on the video ("double-tap": like only). */
+  onLike: (gesture: LikeGesture, heart: LikeHeart) => void;
   onOpenComments: () => void;
   onDelete: () => void;
   onToggleRepost: () => void;
@@ -713,6 +736,35 @@ function MuseCard({
   const liked = item.myReaction !== null;
   // The feed post the viewer opened on (not a Muse): only its video, author and caption are shown.
   const isSeedPost = Boolean(item.seedPostId);
+
+  // The rising heart of a like (src/lib/heart-burst.ts), over the media frame: it shows on a like (the heart button or
+  // a double tap on the video), never on an unlike, and goes again if the like is rolled back (toggleLike in MuseFeed).
+  const heart = useHeartBurst();
+  const mediaFrameRef = useRef<HTMLDivElement>(null);
+  const [likeHeart] = useState<LikeHeart>(() => ({
+    show: () => heart.show(mediaFrameRef.current?.clientHeight),
+    cancel: () => heart.cancel(),
+  }));
+  function onToggleLike() {
+    onLike("button", likeHeart);
+  }
+  // Tap the video to pause / play at once; a double tap likes and leaves playback as it was before its first tap
+  // (createVideoTapToggle, the same rule Home's videos use), driving the `paused` state rather than the <video>.
+  // pausedRef follows `paused` and is set at once by a tap, so a second tap before the re-render reads the right state.
+  const pausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+  });
+  const videoTap = useRef(createVideoTapToggle());
+  const [pausedPlayback] = useState(() =>
+    pausedStatePlayback(
+      () => pausedRef.current,
+      (next) => {
+        pausedRef.current = next;
+        setPaused(next);
+      },
+    ),
+  );
 
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -885,14 +937,16 @@ function MuseCard({
       onContextMenu={(e) => {
         if (holdRef.current) e.preventDefault();
       }}
-      onClick={() => {
+      onClick={(e) => {
         // The release of a hold (above) is not a tap.
         if (suppressClickRef.current) {
           suppressClickRef.current = false;
+          videoTap.current.reset();
           return;
         }
         // With comments open, a tap on the video (or around it) closes them, like the handle does.
         if (commentsOpen) {
+          videoTap.current.reset();
           onCloseComments();
           return;
         }
@@ -900,15 +954,31 @@ function MuseCard({
         // iframe player, entirely outside this app's control (no shared JS
         // control API across Instagram/TikTok/etc.) — this tap-to-pause
         // gesture only makes sense for a real <video> this app drives.
+        // Its taps land in the iframe, so there is no double tap to like on an embed either (the heart button works).
         if (isEmbed) return;
-        // While sound is blocked the first tap is the "turn sound on" gesture (the feed handles it) — it shouldn't also pause.
-        if (soundBlocked || consumeUnblockTap()) return;
-        setPaused((p) => !p);
+        // While sound is blocked the first tap is the "turn sound on" gesture (the feed handles it) — it shouldn't also
+        // pause, nor count as the first tap of a double tap.
+        if (soundBlocked || consumeUnblockTap()) {
+          videoTap.current.reset();
+          return;
+        }
+        // Keyboard / assistive activation (detail 0) is never a tap of a double tap: it just toggles.
+        if (e.detail === 0) {
+          videoTap.current.reset();
+          setPaused((p) => !p);
+          return;
+        }
+        // Pauses / plays at once; the second tap of a double tap puts playback back and likes (never unlikes). The
+        // card a Home video opened the viewer on is a post, not a Muse: no like there, playback still restored.
+        if (videoTap.current.tap(Date.now(), e.clientX, e.clientY, pausedPlayback) === "double" && !isSeedPost) {
+          onLike("double-tap", likeHeart);
+        }
       }}
     >
       {/* The media frame: always rendered, around whichever of iframe / video / poster this card shows, so opening
           or closing comments moves this wrapper and never the media element itself (muse-feed-video.test.ts). */}
       <m.div
+        ref={mediaFrameRef}
         className="absolute inset-0 overflow-hidden bg-black"
         style={{ originX: 0.5, originY: 0.5, willChange: frameMoving ? "transform, clip-path" : undefined }}
         initial={false}
@@ -975,6 +1045,9 @@ function MuseCard({
             </div>
           </div>
         )}
+        {/* The rising hearts of a like: inside the media frame, so they are clipped to the video and follow it into
+            the comments card; never hit-testable, so the tap, the hold and the swipe under them work as before. */}
+        <HeartBurstLayer burst={heart} />
       </m.div>
       {item.audioUrl && isNearby && (
         <audio
