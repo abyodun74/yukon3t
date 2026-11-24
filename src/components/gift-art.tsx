@@ -393,6 +393,113 @@ export function GiftArt({ assetKey, name, size = 48, className, eager = false }:
           <circle cx="32" cy="38" r="7" fill="none" stroke="#FFF3D6" strokeWidth="2" />
         </svg>
       );
+    // Gift marketplace (2026-11): hand-authored placeholders in the same flat style; commissioned art is pending.
+    case "birthday-balloons":
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#FFEFF4" />
+          <path d="M22 34c0 6-2 12 6 20M34 30c0 8 2 14-4 24M44 34c0 6 0 12-12 20" stroke="#8A7F86" strokeWidth="1.2" fill="none" />
+          <ellipse cx="22" cy="24" rx="8" ry="10" fill="#E8335A" />
+          <ellipse cx="34" cy="20" rx="8" ry="10" fill="#F6B73C" />
+          <ellipse cx="44" cy="26" rx="8" ry="10" fill="#3B7DC9" />
+          <path d="M19 19c1-2 3-3 4-3M31 15c1-2 3-3 4-3M41 21c1-2 3-3 4-3" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity=".7" />
+          <path d="M21 34l1-2 1 2zM33 30l1-2 1 2zM43 36l1-2 1 2z" fill="#5A4A52" />
+        </svg>
+      );
+    case "teddy-bear":
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#FFF1E3" />
+          <circle cx="21" cy="18" r="6" fill="#A86B3C" />
+          <circle cx="43" cy="18" r="6" fill="#A86B3C" />
+          <circle cx="21" cy="18" r="3" fill="#E8B48A" />
+          <circle cx="43" cy="18" r="3" fill="#E8B48A" />
+          <ellipse cx="32" cy="44" rx="13" ry="12" fill="#A86B3C" />
+          <circle cx="32" cy="27" r="12" fill="#B97A47" />
+          <ellipse cx="32" cy="31" rx="5.5" ry="4.5" fill="#E8B48A" />
+          <circle cx="27.5" cy="25" r="1.6" fill="#3A2416" />
+          <circle cx="36.5" cy="25" r="1.6" fill="#3A2416" />
+          <path d="M30.5 29.5h3l-1.5 1.8z" fill="#3A2416" />
+          <path d="M28 44c0-3 2-5 4-3 2-2 4 0 4 3 0 3-4 5-4 5s-4-2-4-5z" fill="#E8335A" />
+        </svg>
+      );
+    case "playful-kitten":
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#EEF3FF" />
+          <path d="M18 22l4-10 6 7M46 22l-4-10-6 7" fill="#F2A65A" />
+          <ellipse cx="32" cy="30" rx="14" ry="12" fill="#F2A65A" />
+          <ellipse cx="32" cy="48" rx="11" ry="8" fill="#F2A65A" />
+          <circle cx="27" cy="28" r="2" fill="#2E2A3A" />
+          <circle cx="37" cy="28" r="2" fill="#2E2A3A" />
+          <path d="M31 32h2l-1 1.5zM32 33.5c-1 2-3 2-4 1M32 33.5c1 2 3 2 4 1" stroke="#2E2A3A" strokeWidth="1" fill="#2E2A3A" />
+          <path d="M20 31h-6M20 34h-6M44 31h6M44 34h6" stroke="#B9753A" strokeWidth="1" />
+          <circle cx="49" cy="49" r="6" fill="#B26BFF" />
+          <path d="M44 47c3 1 7 1 10-1M45 51c3 1 6 1 9-1" stroke="#FFFFFF" strokeWidth="1" fill="none" opacity=".7" />
+        </svg>
+      );
+    case "houseplant":
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#EAF6EC" />
+          <path d="M32 40V22" stroke="#3E8E50" strokeWidth="2" />
+          <path d="M32 30c-8-1-12-6-12-12 7 0 12 5 12 12zM32 26c6-1 10-6 10-11-6 0-10 4-10 11zM32 36c7 0 11-4 12-9-7 0-11 3-12 9z" fill="#57A86A" />
+          <path d="M22 40h20l-3 14H25z" fill="#C9744A" />
+          <rect x="20" y="38" width="24" height="5" rx="2" fill="#A85A34" />
+        </svg>
+      );
+    case "sunset-postcard":
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#FFF4E6" />
+          <rect x="12" y="18" width="40" height="28" rx="3" fill="#FFFFFF" stroke="#E1C9A8" strokeWidth="1.5" />
+          <rect x="15" y="21" width="22" height="22" rx="1.5" fill="#FF9F5A" />
+          <rect x="15" y="34" width="22" height="9" fill="#3B6FB6" />
+          <circle cx="26" cy="34" r="6" fill="#FFD35C" />
+          <path d="M15 34h22" stroke="#FFE7B0" strokeWidth="1" />
+          <path d="M40 26h9M40 30h9M40 34h7" stroke="#C9B7A0" strokeWidth="1.5" strokeLinecap="round" />
+          <rect x="43" y="38" width="6" height="5" fill="#E8335A" />
+        </svg>
+      );
+    case "fireworks":
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#1E1F3A" />
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
+            <path key={angle} d="M26 24v-9" stroke="#FFD35C" strokeWidth="2" strokeLinecap="round" transform={`rotate(${angle} 26 24)`} />
+          ))}
+          {[22, 82, 142, 202, 262, 322].map((angle) => (
+            <path key={angle} d="M43 38v-7" stroke="#FF5C8A" strokeWidth="2" strokeLinecap="round" transform={`rotate(${angle} 43 38)`} />
+          ))}
+          <circle cx="26" cy="24" r="2.5" fill="#FFF1C4" />
+          <circle cx="43" cy="38" r="2" fill="#FFD1DE" />
+          <circle cx="18" cy="46" r="1.5" fill="#7FD3FF" />
+          <circle cx="48" cy="16" r="1.5" fill="#7FD3FF" />
+        </svg>
+      );
+    case "shooting-star":
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#24204A" />
+          <path d="M10 50l22-18" stroke="#B26BFF" strokeWidth="5" strokeLinecap="round" opacity=".45" />
+          <path d="M14 48l18-15" stroke="#FFE39A" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M40 14l3.5 7.5 8 1-6 5.5 1.5 8-7-4-7 4 1.5-8-6-5.5 8-1z" fill="#FFD35C" />
+          <circle cx="16" cy="18" r="1.2" fill="#FFFFFF" />
+          <circle cx="50" cy="44" r="1.2" fill="#FFFFFF" />
+          <circle cx="24" cy="12" r="0.9" fill="#FFFFFF" />
+        </svg>
+      );
+    case "keepsake-locket":
+      return (
+        <svg {...common}>
+          <circle cx="32" cy="32" r="30" fill="#141414" />
+          <path d="M18 10c2 10 8 15 14 17 6-2 12-7 14-17" stroke="#E1A928" strokeWidth="1.5" fill="none" strokeDasharray="2 2" />
+          <circle cx="32" cy="27" r="3" fill="none" stroke="#E1A928" strokeWidth="2" />
+          <path d="M32 54s-15-8-15-19a8.5 8.5 0 0 1 15-5.5A8.5 8.5 0 0 1 47 35c0 11-15 19-15 19z" fill="#D9A62E" stroke="#FFF1C4" strokeWidth="1.5" />
+          <path d="M32 49s-10-6-10-13a5 5 0 0 1 10-3 5 5 0 0 1 10 3c0 7-10 13-10 13z" fill="none" stroke="#8A6212" strokeWidth="1.2" />
+          <path d="M25 33c1-2 3-3 5-3" stroke="#FFF1C4" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+        </svg>
+      );
     case "sparkle":
     default:
       return (

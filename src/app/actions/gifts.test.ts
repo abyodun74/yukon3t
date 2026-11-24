@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // app/actions/gifts.ts against a mocked database: the gate refuses non-admins in every action, every rule is checked
-// (and the note moderated) before anything is written, the limiters are wired, opening is idempotent and equipping
-// needs ownership.
+// (and the note moderated) before any coin moves, the limiters are wired, a paid gift is paid with Y3T Coins at the
+// server's own price (never the browser's), a retry of the same request spends nothing more, opening is idempotent and
+// equipping needs ownership.
 
 const ME = "cme00000000001";
 const BOB = "cbob0000000001";
@@ -13,7 +14,7 @@ const SEND = "csend000000001";
 const adult = new Date("1990-01-01T00:00:00Z");
 let user: Record<string, unknown>;
 let recipient: Record<string, unknown> | null;
-let product: { id: string; currency: string } | null;
+let product: Record<string, unknown> | null;
 let conversation: { isGroup: boolean; members: { userId: string; e2eeEnabledAt: Date | null; hiddenAt: Date | null }[] } | null;
 let stream: Record<string, unknown> | null;
 let viewing: { role: string; joinedAt: Date } | null;
@@ -28,6 +29,9 @@ const checkRateLimit = vi.fn(async (...args: [name: string, id: string]) => limi
 const moderateText = vi.fn();
 const deliverGiftPurchase = vi.fn();
 const purchaseCreate = vi.fn();
+const spendCoinsOnGift = vi.fn();
+const findCoinPurchase = vi.fn();
+let purchaseState: { status: string; send: { status: string } } | null;
 const sendUpdateMany = vi.fn();
 const userUpdate = vi.fn();
 const redirect = vi.fn((url: string) => {
@@ -46,6 +50,11 @@ vi.mock("@/lib/blocks", () => ({ isBlockedEitherWay: async () => blocked }));
 vi.mock("@/lib/hidden-chats", () => ({ isMembershipLocked: async (m: { hiddenAt: Date | null }) => m.hiddenAt !== null }));
 vi.mock("@/lib/live-stream-access", () => ({ canAccessLiveStream: async () => true }));
 vi.mock("@/lib/gift-delivery", () => ({ deliverGiftPurchase: (id: string) => deliverGiftPurchase(id) }));
+vi.mock("@/lib/coin-wallet", () => ({
+  getCoinBalance: async () => 175,
+  findCoinPurchase: (...a: unknown[]) => findCoinPurchase(...a),
+  spendCoinsOnGift: (...a: unknown[]) => spendCoinsOnGift(...a),
+}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
@@ -57,7 +66,7 @@ vi.mock("@/lib/prisma", () => ({
     liveStream: { findUnique: async () => stream },
     liveStreamViewer: { findUnique: async () => viewing },
     connection: { findFirst: async () => (connected ? { id: "conn" } : null) },
-    giftPurchase: { create: (...a: unknown[]) => purchaseCreate(...a) },
+    giftPurchase: { create: (...a: unknown[]) => purchaseCreate(...a), findUnique: async () => purchaseState },
     giftSend: {
       findFirst: async () => send,
       findUnique: async () => send,
@@ -72,6 +81,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import {
+  checkGiftRecipient,
   createGiftIntent,
   equipGift,
   getGiftCatalog,
@@ -108,7 +118,10 @@ beforeEach(() => {
   for (const k of Object.keys(limits)) delete limits[k];
   user = { id: ME, name: "Me", isAdmin: true, isGuestPreview: false, status: "ACTIVE", birthDate: adult, lastSeenAt: new Date() };
   recipient = { id: BOB, status: "ACTIVE", isAdmin: true, isGuestPreview: false, birthDate: adult, giftsFrom: "CONNECTIONS" };
-  product = { id: "gift_product_sticker.wave", currency: "USD" };
+  product = { id: "gift_product_sticker.wave", webPriceMinor: 99, coinPrice: 25, universe: "CELEBRATE", availableFrom: null, availableUntil: null };
+  purchaseState = { status: "PAID", send: { status: "DELIVERED" } };
+  findCoinPurchase.mockResolvedValue(null);
+  spendCoinsOnGift.mockResolvedValue({ outcome: "created", purchaseId: "purchase1", sendId: SEND, balance: 175 });
   conversation = {
     isGroup: false,
     members: [
@@ -136,7 +149,9 @@ describe("the gate (giftsEnabledFor): non-admins get nothing from any action", (
   });
   it("refuses every gift action", async () => {
     expect(await getGiftCatalog(BOB)).toEqual({ error: "disabled" });
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "disabled" });
+    expect(await createGiftIntent("sticker.wave", BOB, null, { context: "DIRECT" }, { clientRequestId: "req-0000000001" })).toEqual({
+      error: "disabled",
+    });
     expect(await openGift(SEND)).toEqual({ error: "disabled" });
     expect(await hideGift(SEND)).toEqual({ error: "disabled" });
     expect(await equipGift("aurora-frame")).toEqual({ error: "disabled" });
@@ -147,6 +162,7 @@ describe("the gate (giftsEnabledFor): non-admins get nothing from any action", (
     fd.set("giftsFrom", "EVERYONE");
     await expect(updateGiftsFrom(fd)).rejects.toThrow("REDIRECT:/settings?error=other");
     expect(purchaseCreate).not.toHaveBeenCalled();
+    expect(spendCoinsOnGift).not.toHaveBeenCalled();
     expect(deliverGiftPurchase).not.toHaveBeenCalled();
     expect(sendUpdateMany).not.toHaveBeenCalled();
     expect(userUpdate).not.toHaveBeenCalled();
@@ -158,115 +174,181 @@ describe("the gate (giftsEnabledFor): non-admins get nothing from any action", (
   });
 });
 
-describe("createGiftIntent", () => {
-  it("creates one PENDING admin-grant purchase with its send, then delivers it", async () => {
-    expect(await createGiftIntent("sticker.wave", BOB, "  Hello there  ")).toEqual({
+const REQ = { clientRequestId: "req-0000000001" };
+const DIRECT = { context: "DIRECT" as const };
+
+describe("createGiftIntent (paid with Y3T Coins)", () => {
+  it("spends the server's own price x quantity once, then delivers through the one delivery path", async () => {
+    expect(await createGiftIntent("sticker.wave", BOB, "  Hello there  ", DIRECT, { ...REQ, quantity: 3 })).toEqual({
       error: null,
       sendId: SEND,
       delivered: true,
+      refunded: false,
+      pending: false,
+      coinBalance: 175,
     });
-    expect(purchaseCreate).toHaveBeenCalledTimes(1);
-    const { data } = purchaseCreate.mock.calls[0][0] as { data: Record<string, unknown> & { send: { create: Record<string, unknown> } } };
-    expect(data).toMatchObject({ buyerId: ME, provider: "ADMIN_GRANT", status: "PENDING", amountMinor: 0 });
-    expect(data.send.create).toMatchObject({
-      senderId: ME,
-      recipientId: BOB,
-      message: "Hello there",
-      context: "DIRECT",
-      status: "AWAITING_PAYMENT",
+    expect(spendCoinsOnGift).toHaveBeenCalledTimes(1);
+    expect(spendCoinsOnGift.mock.calls[0][0]).toMatchObject({
+      buyerId: ME,
+      productId: "gift_product_sticker.wave",
+      unitPrice: 25,
+      quantity: 3,
+      total: 75,
+      clientRequestId: REQ.clientRequestId,
+      send: { recipientId: BOB, message: "Hello there", context: "DIRECT", conversationId: null, liveStreamId: null },
     });
     expect(deliverGiftPurchase).toHaveBeenCalledWith("purchase1");
-  });
-
-  it("checks both limiters, the second per sender and recipient", async () => {
-    await createGiftIntent("sticker.wave", BOB, null);
-    expect(checkRateLimit).toHaveBeenCalledWith("giftIntent", ME);
-    expect(checkRateLimit).toHaveBeenCalledWith("giftToSameRecipient", `${ME}:${BOB}`);
-    limits.giftIntent = false;
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "rate_limited" });
-    limits.giftIntent = true;
-    limits.giftToSameRecipient = false;
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "rate_limited" });
-    expect(purchaseCreate).toHaveBeenCalledTimes(1);
-  });
-
-  it("refuses a note over 140 characters before moderation or any write", async () => {
-    expect(await createGiftIntent("sticker.wave", BOB, "x".repeat(141))).toEqual({ error: "too_long" });
-    expect(moderateText).not.toHaveBeenCalled();
+    // Nothing is created outside the coin spend's own transaction.
     expect(purchaseCreate).not.toHaveBeenCalled();
   });
 
-  it("moderates the note before anything is created, and refuses a flagged one", async () => {
-    moderateText.mockResolvedValue({ allowed: false, flaggedCategories: ["harassment"] });
-    expect(await createGiftIntent("sticker.wave", BOB, "something nasty")).toEqual({ error: "moderation" });
-    expect(moderateText).toHaveBeenCalledWith("something nasty");
-    expect(purchaseCreate).not.toHaveBeenCalled();
+  it("needs a request id and a quantity of 1..10; never trusts anything else from the browser", async () => {
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT)).toEqual({ error: "invalid" });
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, { clientRequestId: "x" })).toEqual({ error: "invalid" });
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, { ...REQ, quantity: 0 })).toEqual({ error: "invalid" });
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, { ...REQ, quantity: 11 })).toEqual({ error: "invalid" });
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, { ...REQ, quantity: 1.5 })).toEqual({ error: "invalid" });
+    // A total or price the browser might add is simply not part of the request.
+    await createGiftIntent("sticker.wave", BOB, null, DIRECT, { ...REQ, quantity: 2, total: 1, coinPrice: 1 } as never);
+    expect(spendCoinsOnGift.mock.calls[0][0]).toMatchObject({ unitPrice: 25, total: 50 });
+  });
+
+  it("answers insufficient coins with the balance, writing nothing", async () => {
+    spendCoinsOnGift.mockResolvedValue({ outcome: "insufficient", balance: 10 });
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "insufficient_coins", coinBalance: 10, total: 25 });
     expect(deliverGiftPurchase).not.toHaveBeenCalled();
   });
 
-  it("applies blocks, age and the recipient's rules before anything is written", async () => {
-    blocked = true;
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "unavailable" });
-    blocked = false;
-    user = { ...user, birthDate: null };
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "adult_only" });
-    user = { ...user, birthDate: adult };
-    connected = false;
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "not_accepting" });
-    recipient = { ...recipient!, giftsFrom: "EVERYONE", birthDate: new Date("2011-01-01T00:00:00Z") };
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "not_accepting" });
-    recipient = { ...recipient!, isAdmin: false, birthDate: adult };
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "unavailable" });
-    expect(purchaseCreate).not.toHaveBeenCalled();
+  it("a retry of the same request spends nothing more: it answers (and finishes) the first one, before the limiters", async () => {
+    findCoinPurchase.mockResolvedValue({
+      id: "purchase1",
+      buyerId: ME,
+      productId: "gift_product_sticker.wave",
+      quantity: 1,
+      status: "PENDING",
+      send: { id: SEND, recipientId: BOB, status: "AWAITING_PAYMENT" },
+    });
+    limits.giftIntent = false;
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toMatchObject({ error: null, sendId: SEND, delivered: true });
+    expect(spendCoinsOnGift).not.toHaveBeenCalled();
+    expect(deliverGiftPurchase).toHaveBeenCalledWith("purchase1");
+    // The same id for a different gift, person or quantity is refused, never sent.
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, { ...REQ, quantity: 2 })).toEqual({ error: "invalid" });
+    expect(spendCoinsOnGift).not.toHaveBeenCalled();
   });
 
-  it("refuses an unknown product, a missing recipient and yourself", async () => {
+  it("a delivery that fails after the spend leaves it pending (the same request finishes it), and never throws", async () => {
+    deliverGiftPurchase.mockRejectedValue(new Error("db blip"));
+    purchaseState = { status: "PENDING", send: { status: "AWAITING_PAYMENT" } };
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toMatchObject({ error: null, pending: true, delivered: false });
+  });
+
+  it("says when an undeliverable gift's coins came back", async () => {
+    deliverGiftPurchase.mockResolvedValue("undeliverable");
+    purchaseState = { status: "REFUNDED", send: { status: "UNDELIVERABLE" } };
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toMatchObject({ error: null, refunded: true, delivered: false, pending: false });
+  });
+
+  it("checks both limiters, the second per sender and recipient", async () => {
+    await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ);
+    expect(checkRateLimit).toHaveBeenCalledWith("giftIntent", ME);
+    expect(checkRateLimit).toHaveBeenCalledWith("giftToSameRecipient", `${ME}:${BOB}`);
+    limits.giftIntent = false;
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "rate_limited" });
+    limits.giftIntent = true;
+    limits.giftToSameRecipient = false;
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "rate_limited" });
+    expect(spendCoinsOnGift).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a note over 140 characters before moderation or any coin moves", async () => {
+    expect(await createGiftIntent("sticker.wave", BOB, "x".repeat(141), DIRECT, REQ)).toEqual({ error: "too_long" });
+    expect(moderateText).not.toHaveBeenCalled();
+    expect(spendCoinsOnGift).not.toHaveBeenCalled();
+  });
+
+  it("moderates the note before any coin moves, and refuses a flagged one", async () => {
+    moderateText.mockResolvedValue({ allowed: false, flaggedCategories: ["harassment"] });
+    expect(await createGiftIntent("sticker.wave", BOB, "something nasty", DIRECT, REQ)).toEqual({ error: "moderation" });
+    expect(moderateText).toHaveBeenCalledWith("something nasty");
+    expect(spendCoinsOnGift).not.toHaveBeenCalled();
+    expect(deliverGiftPurchase).not.toHaveBeenCalled();
+  });
+
+  it("applies blocks, age and the recipient's rules before any coin moves", async () => {
+    blocked = true;
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "unavailable" });
+    blocked = false;
+    user = { ...user, birthDate: null };
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "adult_only" });
+    user = { ...user, birthDate: adult };
+    connected = false;
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "not_accepting" });
+    recipient = { ...recipient!, giftsFrom: "EVERYONE", birthDate: new Date("2011-01-01T00:00:00Z") };
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "not_accepting" });
+    recipient = { ...recipient!, isAdmin: false, birthDate: adult };
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "unavailable" });
+    expect(spendCoinsOnGift).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unknown or removed product, one without a coin price, a missing recipient and yourself", async () => {
     product = null;
-    expect(await createGiftIntent("sticker.nope", BOB, null)).toEqual({ error: "invalid" });
-    product = { id: "p", currency: "USD" };
+    expect(await createGiftIntent("sticker.nope", BOB, null, DIRECT, REQ)).toEqual({ error: "gift_unavailable" });
+    product = { id: "p", webPriceMinor: 99, coinPrice: null, universe: "CELEBRATE", availableFrom: null, availableUntil: null };
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "gift_unavailable" });
+    product = { id: "p", webPriceMinor: 99, coinPrice: 25, universe: "CELEBRATE", availableFrom: null, availableUntil: null };
     recipient = null;
-    expect(await createGiftIntent("sticker.wave", BOB, null)).toEqual({ error: "unavailable" });
-    expect(await createGiftIntent("sticker.wave", ME, null)).toEqual({ error: "invalid" });
-    expect(await createGiftIntent("NOT A SKU", BOB, null)).toEqual({ error: "invalid" });
-    expect(purchaseCreate).not.toHaveBeenCalled();
+    expect(await createGiftIntent("sticker.wave", BOB, null, DIRECT, REQ)).toEqual({ error: "unavailable" });
+    expect(await createGiftIntent("sticker.wave", ME, null, DIRECT, REQ)).toEqual({ error: "invalid" });
+    expect(await createGiftIntent("NOT A SKU", BOB, null, DIRECT, REQ)).toEqual({ error: "invalid" });
+    expect(spendCoinsOnGift).not.toHaveBeenCalled();
   });
 
   it("from a chat: only a 1:1 with the recipient that isn't secret, and unlocked", async () => {
     const place = { context: "CHAT" as const, conversationId: CHAT };
-    expect(await createGiftIntent("sticker.wave", BOB, null, place)).toMatchObject({ error: null });
-    expect((purchaseCreate.mock.calls[0][0] as { data: { send: { create: Record<string, unknown> } } }).data.send.create).toMatchObject({
-      context: "CHAT",
-      conversationId: CHAT,
-    });
+    expect(await createGiftIntent("sticker.wave", BOB, null, place, REQ)).toMatchObject({ error: null });
+    expect(spendCoinsOnGift.mock.calls[0][0]).toMatchObject({ send: { context: "CHAT", conversationId: CHAT } });
     conversation!.members[1].e2eeEnabledAt = new Date();
     conversation!.members[0].e2eeEnabledAt = new Date();
-    expect(await createGiftIntent("sticker.wave", BOB, null, place)).toEqual({ error: "unavailable" });
+    expect(await createGiftIntent("sticker.wave", BOB, null, place, REQ)).toEqual({ error: "unavailable" });
     conversation!.members.forEach((m) => (m.e2eeEnabledAt = null));
     conversation!.isGroup = true;
-    expect(await createGiftIntent("sticker.wave", BOB, null, place)).toEqual({ error: "unavailable" });
+    expect(await createGiftIntent("sticker.wave", BOB, null, place, REQ)).toEqual({ error: "unavailable" });
     conversation!.isGroup = false;
     conversation!.members[0].hiddenAt = new Date();
-    expect(await createGiftIntent("sticker.wave", BOB, null, place)).toEqual({ error: "hidden_locked" });
-    expect(purchaseCreate).toHaveBeenCalledTimes(1);
+    expect(await createGiftIntent("sticker.wave", BOB, null, place, REQ)).toEqual({ error: "hidden_locked" });
+    expect(spendCoinsOnGift).toHaveBeenCalledTimes(1);
   });
 
   it("in a live stream: to its host, from someone in it, never to an under-18 host", async () => {
     const place = { context: "LIVE" as const, liveStreamId: STREAM };
-    expect(await createGiftIntent("live.confetti", BOB, null, place)).toMatchObject({ error: null });
+    expect(await createGiftIntent("live.confetti", BOB, null, place, REQ)).toMatchObject({ error: null });
     viewing = null;
-    expect(await createGiftIntent("live.confetti", BOB, null, place)).toEqual({ error: "not_in_stream" });
+    expect(await createGiftIntent("live.confetti", BOB, null, place, REQ)).toEqual({ error: "not_in_stream" });
     viewing = { role: "VIEWER", joinedAt: new Date(0) };
     user = { ...user, lastSeenAt: new Date(0) };
-    expect(await createGiftIntent("live.confetti", BOB, null, place)).toEqual({ error: "not_in_stream" });
+    expect(await createGiftIntent("live.confetti", BOB, null, place, REQ)).toEqual({ error: "not_in_stream" });
     viewing = { role: "VIEWER", joinedAt: new Date() };
     stream = { ...stream!, hostId: "someoneelse00" };
-    expect(await createGiftIntent("live.confetti", BOB, null, place)).toEqual({ error: "unavailable" });
+    expect(await createGiftIntent("live.confetti", BOB, null, place, REQ)).toEqual({ error: "unavailable" });
     stream = { ...stream!, hostId: BOB, status: "ENDED" };
-    expect(await createGiftIntent("live.confetti", BOB, null, place)).toEqual({ error: "unavailable" });
+    expect(await createGiftIntent("live.confetti", BOB, null, place, REQ)).toEqual({ error: "unavailable" });
     stream = { ...stream!, status: "LIVE" };
     recipient = { ...recipient!, birthDate: new Date("2011-01-01T00:00:00Z") };
-    expect(await createGiftIntent("live.confetti", BOB, null, place)).toEqual({ error: "not_accepting" });
-    expect(purchaseCreate).toHaveBeenCalledTimes(1);
+    expect(await createGiftIntent("live.confetti", BOB, null, place, REQ)).toEqual({ error: "not_accepting" });
+    expect(spendCoinsOnGift).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("checkGiftRecipient", () => {
+  it("says whether a gift could be sent, with one answer for a block", async () => {
+    expect(await checkGiftRecipient(BOB)).toEqual({ error: null });
+    blocked = true;
+    expect(await checkGiftRecipient(BOB)).toEqual({ error: "unavailable" });
+    blocked = false;
+    expect(await checkGiftRecipient(ME)).toEqual({ error: "invalid" });
+    user = { ...user, isAdmin: false };
+    expect(await checkGiftRecipient(BOB)).toEqual({ error: "disabled" });
   });
 });
 

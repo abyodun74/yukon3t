@@ -372,6 +372,9 @@ export default async function SettingsPage({
         {giftsEnabledFor(user) && (
           <CollapsibleSection id="gifts" page="settings" title={t.gifts.heading}>
             <p className="text-sm text-foreground-soft">{t.gifts.intro}</p>
+            <Link href="/gift-marketplace" className="mt-2 inline-block text-sm font-medium text-accent hover:underline">
+              {t.gifts.marketplaceLink}
+            </Link>
             <form action={updateGiftsFrom} className="mt-4 space-y-3">
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">{t.gifts.label}</legend>

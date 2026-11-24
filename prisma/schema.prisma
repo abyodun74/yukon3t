@@ -503,6 +503,10 @@ model User {
   equippedBadgeItem GiftItem?      @relation("EquippedBadge", fields: [equippedBadgeItemId], references: [id], onDelete: SetNull)
   giftSelfOccasions GiftSelfOccasion[]
   giftShowcasePins  GiftShowcasePin[]
+  // Gift marketplace (src/lib/gift-market.ts): Y3T Coins, granted by YuKon3t only (never bought), and favorites.
+  coinWallet        CoinWallet?
+  coinLedger        CoinLedgerEntry[]
+  giftFavorites     GiftFavorite[]
 
   // Gift Universe Phase B: Challenges (src/lib/challenges.ts).
   challengesHosted       Challenge[]            @relation("ChallengeHost")
@@ -3252,6 +3256,9 @@ enum AuditAction {
   CHALLENGE_DECIDED
   CHALLENGE_RESULT_EDITED
   CHALLENGE_CANCELLED
+  // Gift marketplace: an admin granted Y3T Coins (src/app/actions/coins.ts). The target is the person who received them;
+  // the reason holds the amount, the ledger entry id and the admin's reason.
+  COINS_GRANTED
 }
 
 model AuditLog {
@@ -3817,8 +3824,9 @@ model ContentTranslation {
 
 // ---------- Digital gifts (src/lib/gifts.ts) ----------
 //
-// Phase 1 (2026-11-12): free and admin-only behind giftsEnabledFor (src/lib/gifts.ts); no payments yet. A gift is
-// bought and sent in one step (no coins, no wallet), has no cash value, can't be cashed out and can't be passed on.
+// Phase 1 (2026-11-12): admin-only behind giftsEnabledFor (src/lib/gifts.ts); no payments. Gift marketplace (2026-11):
+// a paid gift is sent with Y3T Coins (CoinWallet, granted by YuKon3t only, never bought), in one step. A gift has no
+// cash value, can't be cashed out and can't be passed on.
 // GiftItem is one thing a person can own (a sticker, a profile frame, a badge, a live-stream effect); GiftProduct is
 // what is sold (one item, or a box of several); a GiftPurchase is one buy of one product, and its GiftSend says who it
 // went to. deliverGiftPurchase (src/lib/gift-delivery.ts) is the only path from a PENDING purchase to OwnedGift rows.
@@ -3851,6 +3859,41 @@ enum GiftPurchaseProvider {
   // Phase B: an award the app itself gives (the free Champion badge for a challenge winner, src/lib/challenge-awards.ts).
   // No buyer and no sender (GiftSend.senderId null): it is not from a person, so it can't be thanked or reported as one.
   SYSTEM_AWARD
+  // Gift marketplace: paid with Y3T Coins (src/lib/coin-wallet.ts). Coins are granted by YuKon3t and can't be bought, so
+  // this is never a sale: amountMinor is the coins spent and currency is "Y3T_COIN". providerTxnId is
+  // "coins:<buyerId>:<clientRequestId>", the idempotency key, so a double submit can't spend twice.
+  COINS
+}
+
+// Gift marketplace (2026-11): the nine categories the marketplace is browsed by. A product with a category is one of the
+// marketplace's launch gifts (src/lib/gifts-data.ts GIFT_MARKET); boxes, free gifts and awards have none.
+enum GiftCategory {
+  LOVE_ROMANCE
+  BIRTHDAY
+  CONGRATULATIONS
+  LUXURY
+  CUTE_FUN
+  GAMING
+  LIFESTYLE
+  CELEBRATION
+  SPECIAL_MOMENTS
+}
+
+// Gift marketplace rarity: drives the visual treatment only (glow, halo, particles), never what a gift gives. Separate
+// from GiftRarity, whose EDITION value numbers copies at delivery.
+enum GiftTier {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+// One movement of Y3T Coins (CoinLedgerEntry). GRANT: YuKon3t (an admin) added coins. SPEND: a gift was paid for.
+// REFUND: a coin-paid gift could not be delivered, so its coins went back.
+enum CoinLedgerKind {
+  GRANT
+  SPEND
+  REFUND
 }
 
 // Phase A ("occasion-aware gifting"): which of the five gift universes an item or product belongs to (the picker's
@@ -3948,9 +3991,17 @@ model GiftProduct {
   rarity          GiftRarity   @default(STANDARD)
   availableFrom   String?
   availableUntil  String?
+  // Gift marketplace (migration 20261201120200_gift_marketplace_coins). coinPrice: what one costs in Y3T Coins, null
+  // for anything not sold for coins (free gifts, awards). category / tier: set on the marketplace's launch gifts only.
+  // featured: shown in the marketplace's featured row. CHECK: coinPrice between 1 and 100000 when set.
+  coinPrice       Int?
+  category        GiftCategory?
+  tier            GiftTier?
+  featured        Boolean      @default(false)
 
   items     GiftProductItem[]
   purchases GiftPurchase[]
+  favorites GiftFavorite[]
 }
 
 model GiftProductItem {
@@ -3982,6 +4033,9 @@ model GiftPurchase {
   createdAt     DateTime             @default(now())
   paidAt        DateTime?
   refundedAt    DateTime?
+  // Gift marketplace: how many of the product this one purchase gives its recipient (1..10, CHECK). Delivery gives
+  // every contained item x its box quantity x this.
+  quantity      Int                  @default(1)
 
   buyer   User?       @relation(fields: [buyerId], references: [id], onDelete: SetNull)
   product GiftProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
@@ -4084,6 +4138,60 @@ model GiftShowcasePin {
   ownedGift OwnedGift @relation(fields: [ownedGiftId], references: [id], onDelete: Cascade)
 
   @@unique([userId, position])
+}
+
+// ---------- Gift marketplace: Y3T Coins (src/lib/coins.ts rules, src/lib/coin-wallet.ts server half) ----------
+//
+// Coins are granted by YuKon3t only (an admin, /admin/coins, audited). Nobody can buy them: no Stripe, no Apple or
+// Google billing, no price in money anywhere. They have no cash value, can't be transferred or cashed out, and are only
+// spent on gifts. A wallet's balance only ever changes in the same transaction that writes its CoinLedgerEntry row, and
+// a spend is a guarded decrement (balance >= total), so the balance can't go below zero (CHECK backs it up).
+
+model CoinWallet {
+  userId    String   @id
+  // CHECK: never below 0. Grants refuse to go above COIN_BALANCE_MAX (src/lib/coins.ts).
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Append-only (a database trigger refuses UPDATE; rows go only with their account). amount is signed: + for GRANT and
+// REFUND, - for SPEND; balanceAfter is the wallet's balance right after it. idempotencyKey is unique per person, so a
+// retried grant, spend or refund is written once. purchaseId / grantedById are plain ids (no foreign key), so the record
+// stays as it was written.
+model CoinLedgerEntry {
+  id             String         @id @default(cuid())
+  userId         String
+  kind           CoinLedgerKind
+  amount         Int
+  balanceAfter   Int
+  idempotencyKey String
+  purchaseId     String?
+  grantedById    String?
+  // GRANT only: the admin's reason (<= 200 characters). Shown to admins only.
+  reason         String?
+  createdAt      DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([purchaseId])
+}
+
+// A gift product someone marked as a favorite in the marketplace. Private to them.
+model GiftFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product GiftProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
 }
 
 // ---------- Challenges (Gift Universe Phase B, src/lib/challenges.ts) ----------

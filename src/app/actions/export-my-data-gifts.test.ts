@@ -51,6 +51,14 @@ vi.mock("@/lib/prisma", () => ({
       },
     },
     block: { findMany: async () => blocks },
+    coinWallet: { findUnique: async () => ({ balance: 150 }) },
+    coinLedgerEntry: {
+      findMany: async () => [
+        { kind: "SPEND", amount: -50, balanceAfter: 150, purchaseId: "phidden", createdAt: new Date("2026-11-20T00:00:00Z") },
+        { kind: "GRANT", amount: 200, balanceAfter: 200, purchaseId: null, createdAt: new Date("2026-11-19T00:00:00Z") },
+      ],
+    },
+    giftPurchase: { findMany: async () => [{ id: "phidden" }] },
     giftShowcasePin: { findMany: async () => pinRows },
     giftSelfOccasion: { findMany: async (a: { take: number }) => (record("giftSelfOccasion.findMany", a), occasionRows.slice(0, a.take)) },
     giftSend: {
@@ -168,8 +176,14 @@ describe("exportMyData: gifts and challenges", () => {
     occasionRows = [{ kind: "GRADUATION", declaredAt: T, removedAt: null }];
     const { gifts } = await exportGifts();
     expect(Object.keys(gifts).sort()).toEqual(
-      ["challengesHosted", "challengesJoined", "equipped", "giftsReceived", "giftsSent", "selfOccasions", "settings", "showcase"].sort(),
+      ["challengesHosted", "challengesJoined", "coins", "equipped", "giftsReceived", "giftsSent", "selfOccasions", "settings", "showcase"].sort(),
     );
+    // Y3T Coins: the balance and the person's own ledger, kinds, amounts and dates only.
+    expect(gifts.coins.balance).toBe(150);
+    expect(gifts.coins.ledger.items).toEqual([
+      { kind: "SPEND", amount: -50, balanceAfter: 150, at: "2026-11-20T00:00:00.000Z" },
+      { kind: "GRANT", amount: 200, balanceAfter: 200, at: "2026-11-19T00:00:00.000Z" },
+    ]);
     expect(gifts.settings).toEqual({ giftsFrom: "CONNECTIONS", anniversaryOptIn: true, cultureOccasionPrompts: false });
     expect(gifts.equipped.frame).toMatchObject({ slug: "frame-gold", kind: "STICKER", universe: "LOVE" });
     expect(gifts.equipped.badge).toBeNull();
@@ -257,6 +271,8 @@ describe("exportMyData: gifts and challenges", () => {
     expect(receivedWhere.AND).toEqual([chatFilter, { OR: [{ senderId: null }, { senderId: { notIn: [HIDDEN_PEER] } }] }]);
     // A hidden peer is never named either.
     expect(gifts.challengesHosted.items[0].winners).toEqual(["not_shown"]);
+    // The coin spend on a hidden gift is left out of the coin ledger too.
+    expect(gifts.coins.ledger.items.map((row: { kind: string }) => row.kind)).toEqual(["GRANT"]);
     expect(raw).not.toContain("Secret");
 
     // With the unlock live, nothing is filtered (the caller passes an empty hidden state).

@@ -174,6 +174,7 @@ export const FAQ_IDS = [
   "event-organizer-tools",
   // Gifts and challenges
   "what-are-gifts-can-i-use",
+  "y3t-coins",
   "who-can-send-receive-gifts",
   "who-sees-who-sent-gift",
   "kind-words-free-thank-you",

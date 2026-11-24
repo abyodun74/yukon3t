@@ -13,7 +13,16 @@ type Party = {
   birthDate: Date | null;
   giftsFrom: "EVERYONE" | "CONNECTIONS" | "NOBODY";
 };
-type Purchase = { id: string; status: string; paidAt: Date | null; productId: string; provider?: string };
+type Purchase = {
+  id: string;
+  status: string;
+  paidAt: Date | null;
+  productId: string;
+  provider?: string;
+  buyerId?: string | null;
+  amountMinor?: number;
+  quantity?: number;
+};
 type Send = {
   id: string;
   purchaseId: string;
@@ -44,6 +53,7 @@ const sendFcmActivityToUser = vi.fn();
 const publishEvent = vi.fn();
 const notifyBadgeChange = vi.fn();
 const captureError = vi.fn();
+const refundCoinPurchaseInTx = vi.fn();
 
 vi.mock("@/lib/blocks", () => ({ isBlockedEitherWay: async () => blocked }));
 vi.mock("@/lib/non-e2ee-message", () => ({ createNonE2eeMessage: (d: unknown) => createNonE2eeMessage(d) }));
@@ -59,6 +69,7 @@ vi.mock("@/lib/realtime-server", () => ({
   notifyBadgeChange: (...a: unknown[]) => notifyBadgeChange(...a),
 }));
 vi.mock("@/lib/error-tracking", () => ({ captureError: (...a: unknown[]) => captureError(...a) }));
+vi.mock("@/lib/coin-wallet", () => ({ refundCoinPurchaseInTx: (...a: unknown[]) => refundCoinPurchaseInTx(...a) }));
 vi.mock("@/lib/prisma", () => {
   const prisma = {
     giftPurchase: {
@@ -70,6 +81,9 @@ vi.mock("@/lib/prisma", () => {
           id: p.id,
           status: p.status,
           provider: p.provider ?? "ADMIN_GRANT",
+          buyerId: p.buyerId ?? null,
+          amountMinor: p.amountMinor ?? 0,
+          quantity: p.quantity ?? 1,
           product: { items: products[p.productId] },
           send: send
             ? {
@@ -163,6 +177,37 @@ beforeEach(() => {
 });
 
 describe("deliverGiftPurchase", () => {
+  it("gives a purchase of several (the marketplace's quantity) its contents that many times", async () => {
+    setup();
+    purchases.p1.quantity = 3;
+    expect(await deliverGiftPurchase("p1")).toBe("delivered");
+    expect(owned.map((o) => o.itemId)).toEqual(["gift_item_wave", "gift_item_wave", "gift_item_wave"]);
+    // Still one notice for the one gift.
+    expect(notifications).toHaveLength(1);
+  });
+
+  it("refunds a coin-paid gift that turned undeliverable, in the delivery's own transaction, once", async () => {
+    setup();
+    Object.assign(purchases.p1, { provider: "COINS", buyerId: "alice", amountMinor: 75 });
+    blocked = true;
+    expect(await deliverGiftPurchase("p1")).toBe("undeliverable");
+    expect(refundCoinPurchaseInTx).toHaveBeenCalledTimes(1);
+    expect(refundCoinPurchaseInTx.mock.calls[0][1]).toEqual({ id: "p1", buyerId: "alice", amountMinor: 75 });
+    expect(await deliverGiftPurchase("p1")).toBe("already_done");
+    expect(refundCoinPurchaseInTx).toHaveBeenCalledTimes(1);
+    expect(owned).toEqual([]);
+  });
+
+  it("never refunds a delivered coin-paid gift, nor a refused gift that wasn't paid with coins", async () => {
+    setup();
+    Object.assign(purchases.p1, { provider: "COINS", buyerId: "alice", amountMinor: 25 });
+    expect(await deliverGiftPurchase("p1")).toBe("delivered");
+    setup();
+    blocked = true;
+    expect(await deliverGiftPurchase("p1")).toBe("undeliverable");
+    expect(refundCoinPurchaseInTx).not.toHaveBeenCalled();
+  });
+
   it("delivers once however many times it is called: one set of owned gifts, one notification", async () => {
     expect(await deliverGiftPurchase("p1")).toBe("delivered");
     expect(await deliverGiftPurchase("p1")).toBe("already_done");

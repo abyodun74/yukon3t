@@ -8,7 +8,9 @@ import { GiftArt } from "@/components/gift-art";
 import { useGiftsText } from "@/components/gifts-text";
 import { createGiftIntent, getGiftCatalog, sendFreeGift, type GiftCatalogProduct } from "@/app/actions/gifts";
 import { giftItemName, giftProductDescription, giftProductName } from "@/lib/gift-names";
-import { GIFT_MESSAGE_MAX, giftPriceLabel } from "@/lib/gifts";
+import { GIFT_MESSAGE_MAX } from "@/lib/gifts";
+import { CoinAmount } from "@/components/coin-amount";
+import { useCheckoutRequestId } from "@/lib/use-checkout-request-id";
 import { GIFT_UNIVERSE_STYLES, type GiftUniverseStyle } from "@/lib/gift-universes";
 import type { GiftShelves } from "@/lib/gift-occasions";
 import {
@@ -34,7 +36,9 @@ export type GiftPickerPlace =
  * shelves: "Right now" when an occasion applies (with its reason, e.g. "It's their birthday today"), the free kind
  * words, then the five universes, each with its own look (src/lib/gift-universes.ts, globals.css). Then an optional
  * note of up to GIFT_MESSAGE_MAX characters, and Send: a free gift goes through sendFreeGift, anything else through
- * createGiftIntent, which both enforce every rule again. `place` says where it is sent from. In a live stream the
+ * createGiftIntent (paid with Y3T Coins: the server reads the price and computes the total; the request carries its own
+ * id, reused on a retry of the same choice, so a double tap or a retry never spends twice), which both enforce every
+ * rule again. `place` says where it is sent from. In a live stream the
  * server only offers gifts with a live effect, never Love & Emotion, never free ones.
  *
  * Layout: the panel is never taller than the visible screen (`.gift-picker-panel`: dvh, the notch, and the iOS
@@ -59,11 +63,13 @@ export function GiftPickerSheet({
   onSent?: () => void;
 }) {
   const { locale, dir, t } = useGiftsText();
-  const [catalog, setCatalog] = useState<{ products: GiftCatalogProduct[]; shelves: GiftShelves } | null>(null);
+  const [catalog, setCatalog] = useState<{ products: GiftCatalogProduct[]; shelves: GiftShelves; coinBalance: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const [status, setStatus] = useState<{ kind: "idle" } | { kind: "sent" | "undeliverable" } | { kind: "error"; code: string }>({
+  const [status, setStatus] = useState<
+    { kind: "idle" } | { kind: "sent" | "undeliverable" | "refunded" | "pending" } | { kind: "error"; code: string }
+  >({
     kind: "idle",
   });
   const [isPending, startTransition] = useTransition();
@@ -96,7 +102,7 @@ export function GiftPickerSheet({
       .then((result) => {
         if (cancelled) return;
         if (result.error) setLoadError(result.error);
-        else setCatalog({ products: result.products, shelves: result.shelves });
+        else setCatalog({ products: result.products, shelves: result.shelves, coinBalance: result.coinBalance });
       })
       .catch(() => {
         if (!cancelled) setLoadError("other");
@@ -179,24 +185,51 @@ export function GiftPickerSheet({
   const noteLength = [...note.trim()].length;
   const noteTooLong = noteLength > GIFT_MESSAGE_MAX;
   const selectedProduct = selected ? (bySku.get(selected) ?? null) : null;
+  // One request id per choice (gift + recipient + note): a retry of the same choice reuses it, so the server answers
+  // the first attempt instead of spending coins again; any change, or a definitive answer, starts a new one.
+  const checkout = useCheckoutRequestId([selected ?? "", recipientId, note.trim()].join("|"));
 
   function send() {
     if (!selectedProduct || noteTooLong || isPending) return;
     startTransition(async () => {
       try {
         const text = note.trim() || null;
-        const result =
-          selectedProduct.free && place.context !== "LIVE"
-            ? await sendFreeGift(selectedProduct.sku, recipientId, text, place)
-            : await createGiftIntent(selectedProduct.sku, recipientId, text, place);
+        if (selectedProduct.free && place.context !== "LIVE") {
+          const result = await sendFreeGift(selectedProduct.sku, recipientId, text, place);
+          if (result.error) {
+            setStatus({ kind: "error", code: result.error });
+            return;
+          }
+          setStatus({ kind: result.delivered ? "sent" : "undeliverable" });
+          if (result.delivered) onSent?.();
+          return;
+        }
+        const result = await createGiftIntent(selectedProduct.sku, recipientId, text, place, {
+          clientRequestId: checkout.id(),
+          quantity: 1,
+        });
         if (result.error) {
+          if (result.error === "insufficient_coins") {
+            const balance = result.coinBalance;
+            setCatalog((c) => (c ? { ...c, coinBalance: balance } : c));
+          }
+          checkout.settle();
           setStatus({ kind: "error", code: result.error });
           return;
         }
-        setStatus({ kind: result.delivered ? "sent" : "undeliverable" });
+        const balance = result.coinBalance;
+        setCatalog((c) => (c ? { ...c, coinBalance: balance } : c));
+        if (result.pending) {
+          // Coins spent, delivery not finished: keep the same id so Send again finishes it without spending more.
+          setStatus({ kind: "pending" });
+          return;
+        }
+        checkout.settle();
+        setStatus({ kind: result.delivered ? "sent" : result.refunded ? "refunded" : "undeliverable" });
         if (result.delivered) onSent?.();
       } catch {
-        setStatus({ kind: "error", code: "other" });
+        // The answer was lost (network): the same id goes with the retry, so it can't spend twice.
+        setStatus({ kind: "error", code: "network" });
       }
     });
   }
@@ -232,7 +265,9 @@ export function GiftPickerSheet({
           </span>
           <span className="font-medium">{name}</span>
           {piece ? <span className="text-[10px] uppercase tracking-wide opacity-80">{format(t.pieceLabel, { number: piece })}</span> : null}
-          <span className="text-foreground-soft">{product.free ? t.free : giftPriceLabel(product.priceMinor, product.currency, locale)}</span>
+          <span className="text-foreground-soft">
+            {product.free || product.coinPrice === null ? t.free : <CoinAmount amount={product.coinPrice} />}
+          </span>
         </button>
       </li>
     );
@@ -426,7 +461,11 @@ export function GiftPickerSheet({
                       </span>
                     </span>
                     <span className="shrink-0 text-sm font-semibold">
-                      {selectedProduct.free ? t.free : giftPriceLabel(selectedProduct.priceMinor, selectedProduct.currency, locale)}
+                      {selectedProduct.free || selectedProduct.coinPrice === null ? (
+                        t.free
+                      ) : (
+                        <CoinAmount amount={selectedProduct.coinPrice} />
+                      )}
                     </span>
                   </>
                 ) : (
@@ -454,14 +493,27 @@ export function GiftPickerSheet({
                   className="mt-1 w-full resize-none rounded-lg border border-line bg-background px-3 py-2 text-base sm:text-sm"
                 />
               </div>
+              <p className="text-xs text-foreground-soft">
+                {t.market.balanceLabel}: <CoinAmount amount={catalog.coinBalance} />
+              </p>
               {status.kind === "undeliverable" && (
                 <p role="alert" className="text-sm text-danger">
                   {t.undeliverable}
                 </p>
               )}
+              {status.kind === "refunded" && (
+                <p role="alert" className="text-sm text-danger">
+                  {t.market.result.refunded}
+                </p>
+              )}
+              {status.kind === "pending" && (
+                <p role="alert" className="text-sm text-foreground-soft">
+                  {t.market.result.pending}
+                </p>
+              )}
               {status.kind === "error" && (
                 <p role="alert" className="text-sm text-danger">
-                  {byCode(t.errors, status.code)}
+                  {status.code === "network" ? t.market.result.network : byCode(t.errors, status.code)}
                 </p>
               )}
               <button
@@ -470,7 +522,7 @@ export function GiftPickerSheet({
                 disabled={!selectedProduct || noteTooLong || isPending}
                 className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink disabled:opacity-50"
               >
-                {isPending ? t.sending : t.sendButton}
+                {isPending ? t.sending : status.kind === "pending" ? t.market.result.tryAgain : t.sendButton}
               </button>
             </div>
           )}

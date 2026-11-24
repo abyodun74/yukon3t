@@ -69,6 +69,7 @@ export const settings: typeof settingsEn = {
   // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
   gifts: {
     heading: "Regali",
+    marketplaceLink: "Apri il mercato dei regali",
     intro:
       "Scegli chi può inviarti regali. Se hai meno di 18 anni, ricevi regali solo dai tuoi contatti, mai durante una diretta.",
     label: "Chi può inviarmi regali",

@@ -4,10 +4,10 @@
 // written by exactly one metadata UPDATE), and the actions read the database, never this file, for what can be sent:
 // a product an admin switches off (GiftProduct.active) can't be sent whatever this says.
 //
-// Prices are the store price tiers in USD, in minor units (cents), as GiftProduct.webPriceMinor; never above
-// GIFT_PRICE_CEILING_MINOR. A price of 0 is a free gift (only the appreciation sentiments; sent by sendFreeGift, never
-// by createGiftIntent). Store product ids (GiftProduct.appleProductId / googleProductId) are set in the payments
-// phases, once the products exist in App Store Connect and the Play Console.
+// webPriceMinor is a USD store price tier in minor units (cents), never above GIFT_PRICE_CEILING_MINOR; nothing is sold
+// for money, so it only marks a paid gift (> 0) and is never charged. A paid gift is sent with Y3T Coins (coinPrice,
+// GIFT_MARKET / GIFT_BOX_COIN_PRICES at the end of this file; coins are granted by YuKon3t, never bought). A price of
+// 0 is a free gift (only the appreciation sentiments; sent by sendFreeGift, never by createGiftIntent) or an award.
 //
 // Phase A metadata: `universe` (the picker section, src/lib/gift-universes.ts), `collection` (a slug grouping items
 // inside a universe), `occasionTags` (what occasions the gift fits, matched by src/lib/gift-occasions.ts), `rarity`
@@ -30,6 +30,7 @@ export const GIFT_CATALOG_SEED_MIGRATIONS = [
   "20261114120200_gift_catalog_metadata",
   "20261114120300_gift_universe_catalog_seed",
   "20261115120500_gift_arena_champion_award",
+  "20261201120300_gift_marketplace_catalog_seed",
 ] as const;
 
 /** No gift, box or edition costs more than this (USD cents). */
@@ -124,6 +125,17 @@ export const GIFT_ITEMS = [
   // Phase B (20261115120500_gift_arena_champion_award): the badge the app awards every declared winner of a challenge
   // (src/lib/challenge-awards.ts). Never sold, never sendable by a person.
   { slug: "arena-champion", kind: "BADGE", assetKey: "arena-champion", sortOrder: 600, universe: "GAMING", collection: "arena", occasionTags: ["tournament_win"], rarity: "STANDARD" },
+
+  // Gift marketplace (20261201120300_gift_marketplace_catalog_seed): eight new gifts so each of the nine marketplace
+  // categories has four. Hand-authored placeholder SVG art (gift-art.tsx), like every drawn gift.
+  { slug: "birthday-balloons", kind: "STICKER", assetKey: "birthday-balloons", sortOrder: 700, universe: "CELEBRATE", collection: "party", occasionTags: ["birthday"], rarity: "STANDARD" },
+  { slug: "teddy-bear", kind: "STICKER", assetKey: "teddy-bear", sortOrder: 710, universe: "LOVE", collection: "tender", occasionTags: ["love", "appreciation"], rarity: "STANDARD" },
+  { slug: "playful-kitten", kind: "STICKER", assetKey: "playful-kitten", sortOrder: 720, universe: "CELEBRATE", collection: "cute", occasionTags: ["appreciation"], rarity: "STANDARD" },
+  { slug: "houseplant", kind: "STICKER", assetKey: "houseplant", sortOrder: 730, universe: "CELEBRATE", collection: "everyday", occasionTags: ["appreciation"], rarity: "STANDARD" },
+  { slug: "sunset-postcard", kind: "STICKER", assetKey: "sunset-postcard", sortOrder: 740, universe: "CELEBRATE", collection: "everyday", occasionTags: ["appreciation", "community"], rarity: "STANDARD" },
+  { slug: "fireworks", kind: "STICKER", assetKey: "fireworks", sortOrder: 750, universe: "CELEBRATE", collection: "party", occasionTags: ["birthday", "achievement", "holiday"], rarity: "STANDARD" },
+  { slug: "shooting-star", kind: "STICKER", assetKey: "shooting-star", sortOrder: 760, universe: "LOVE", collection: "tender", occasionTags: ["love", "achievement"], rarity: "STANDARD" },
+  { slug: "keepsake-locket", kind: "STICKER", assetKey: "keepsake-locket", sortOrder: 770, universe: "LUXURY", collection: "atelier", occasionTags: ["love", "anniversary"], rarity: "PREMIUM", piece: 5 },
 ] as const satisfies readonly GiftItemDef[];
 
 export type GiftItemSlug = (typeof GIFT_ITEMS)[number]["slug"];
@@ -241,7 +253,124 @@ export const GIFT_PRODUCTS: readonly GiftProductDef[] = [
   single("free.proud-of-you", "proud-of-you", 0, 530),
   // Phase B: awards (price 0, "award." skus): given by the app only (SYSTEM_AWARD), never offered or sendable.
   single("award.arena-champion", "arena-champion", 0, 600),
+  // Gift marketplace. webPriceMinor is the store tier the gift would match if gifts were ever sold for money; nothing
+  // reads it for a send today (coin-paid sends use coinPrice, GIFT_MARKET below).
+  single("sticker.birthday-balloons", "birthday-balloons", 499, 700),
+  single("sticker.teddy-bear", "teddy-bear", 199, 710),
+  single("sticker.playful-kitten", "playful-kitten", 499, 720),
+  single("sticker.houseplant", "houseplant", 99, 730),
+  single("sticker.sunset-postcard", "sunset-postcard", 499, 740),
+  single("sticker.fireworks", "fireworks", 499, 750),
+  single("sticker.shooting-star", "shooting-star", 199, 760),
+  single("sticker.keepsake-locket", "keepsake-locket", 999, 770),
 ];
+
+// ---------- Gift marketplace (2026-11): Y3T Coin prices, the nine categories and the four rarity tiers ----------
+//
+// Written to the database by GIFT_MARKET_SEED_MIGRATIONS (gifts-data.test.ts checks every row below is written exactly
+// once, by sku, as listed). A product with a category is one of the marketplace's 36 launch gifts (9 categories x 4);
+// boxes have a coin price (they can still be sent from the gift picker) but no category. Free gifts and awards have no
+// coin price at all. The marketplace and the picker read the database, never this list.
+
+export const GIFT_MARKET_SEED_MIGRATIONS = ["20261201120300_gift_marketplace_catalog_seed"] as const;
+
+export const GIFT_CATEGORIES = [
+  "LOVE_ROMANCE",
+  "BIRTHDAY",
+  "CONGRATULATIONS",
+  "LUXURY",
+  "CUTE_FUN",
+  "GAMING",
+  "LIFESTYLE",
+  "CELEBRATION",
+  "SPECIAL_MOMENTS",
+] as const;
+export type GiftCategoryName = (typeof GIFT_CATEGORIES)[number];
+
+/** Rarity tiers, lowest first. A tier sets the look (glow, halo, particles), never what a gift gives. */
+export const GIFT_TIERS = ["COMMON", "RARE", "EPIC", "LEGENDARY"] as const;
+export type GiftTierName = (typeof GIFT_TIERS)[number];
+
+/** Launch gifts per category. */
+export const GIFTS_PER_CATEGORY = 4;
+/** Highest coin price a product may have (the database CHECK allows up to 100000). */
+export const COIN_PRICE_MAX = 5000;
+
+export type GiftMarketDef = {
+  sku: string;
+  category: GiftCategoryName;
+  tier: GiftTierName;
+  coinPrice: number;
+  featured: boolean;
+};
+
+const market = (sku: string, category: GiftCategoryName, tier: GiftTierName, coinPrice: number, featured = false): GiftMarketDef => ({
+  sku,
+  category,
+  tier,
+  coinPrice,
+  featured,
+});
+
+/** The 36 launch gifts, by category (each category mixes tiers). Prices are Y3T Coins: owner-adjustable here. */
+export const GIFT_MARKET: readonly GiftMarketDef[] = [
+  // Love & Romance
+  market("sticker.rose", "LOVE_ROMANCE", "COMMON", 25),
+  market("sticker.heart-burst", "LOVE_ROMANCE", "COMMON", 30),
+  market("sticker.heartbeat-note", "LOVE_ROMANCE", "RARE", 90),
+  market("badge.kindred-spirit", "LOVE_ROMANCE", "EPIC", 300),
+  // Birthday
+  market("sticker.birthday-candle", "BIRTHDAY", "COMMON", 25),
+  market("sticker.cake-slice", "BIRTHDAY", "COMMON", 30),
+  market("frame.frost", "BIRTHDAY", "RARE", 120),
+  market("sticker.birthday-balloons", "BIRTHDAY", "EPIC", 280, true),
+  // Congratulations
+  market("sticker.high-five", "CONGRATULATIONS", "COMMON", 20),
+  market("sticker.gold-star", "CONGRATULATIONS", "COMMON", 30),
+  market("sticker.grad-cap", "CONGRATULATIONS", "RARE", 100),
+  market("badge.supporter-star", "CONGRATULATIONS", "EPIC", 250),
+  // Luxury
+  market("frame.gold-ring", "LUXURY", "RARE", 150),
+  market("frame.midnight-crystal", "LUXURY", "EPIC", 400),
+  market("sticker.gold-orchid", "LUXURY", "LEGENDARY", 900),
+  market("gift-luxury-red-rose", "LUXURY", "LEGENDARY", 1500, true),
+  // Cute & Fun
+  market("sticker.wave", "CUTE_FUN", "COMMON", 20),
+  market("sticker.paper-crane", "CUTE_FUN", "COMMON", 30),
+  market("sticker.teddy-bear", "CUTE_FUN", "RARE", 90, true),
+  market("sticker.playful-kitten", "CUTE_FUN", "EPIC", 260),
+  // Gaming
+  market("sticker.pixel-heart", "GAMING", "COMMON", 25),
+  market("badge.gg", "GAMING", "RARE", 100),
+  market("live.level-up", "GAMING", "EPIC", 250),
+  market("frame.trophy", "GAMING", "LEGENDARY", 750, true),
+  // Lifestyle
+  market("sticker.coffee", "LIFESTYLE", "COMMON", 20),
+  market("sticker.houseplant", "LIFESTYLE", "COMMON", 30),
+  market("sticker.shared-table", "LIFESTYLE", "RARE", 80),
+  market("sticker.sunset-postcard", "LIFESTYLE", "EPIC", 260),
+  // Celebration
+  market("live.confetti", "CELEBRATION", "COMMON", 40),
+  market("sticker.lantern", "CELEBRATION", "RARE", 90),
+  market("sticker.fireworks", "CELEBRATION", "EPIC", 350, true),
+  market("live.aurora-sweep", "CELEBRATION", "LEGENDARY", 800),
+  // Special Moments
+  market("sticker.forget-me-not", "SPECIAL_MOMENTS", "COMMON", 30),
+  market("sticker.shooting-star", "SPECIAL_MOMENTS", "RARE", 120),
+  market("frame.aurora", "SPECIAL_MOMENTS", "EPIC", 380),
+  market("sticker.keepsake-locket", "SPECIAL_MOMENTS", "LEGENDARY", 1000, true),
+];
+
+/** Coin prices of the boxes (sendable from the gift picker; not in the marketplace grid). */
+export const GIFT_BOX_COIN_PRICES: Readonly<Record<string, number>> = {
+  "box.say-hi": 60,
+  "box.celebration": 300,
+  "box.aurora": 600,
+  "box.love-letter": 150,
+  "box.party": 120,
+  "box.champion": 900,
+  "box.harvest": 150,
+};
 
 /** The free product a recipient sends back to thank someone for a gift (sendThankYouGift). */
 export const THANK_YOU_SKU = "free.thank-you";

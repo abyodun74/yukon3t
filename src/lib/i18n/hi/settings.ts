@@ -69,6 +69,7 @@ export const settings: typeof settingsEn = {
   // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
   gifts: {
     heading: "गिफ़्ट",
+    marketplaceLink: "उपहार बाज़ार खोलें",
     intro:
       "चुनें कि आपको गिफ़्ट कौन भेज सकता है। अगर आपकी उम्र 18 साल से कम है, तो आपको गिफ़्ट सिर्फ़ आपके कॉन्टैक्ट्स से मिलते हैं, लाइव स्ट्रीम में कभी नहीं।",
     label: "मुझे गिफ़्ट कौन भेज सकता है",

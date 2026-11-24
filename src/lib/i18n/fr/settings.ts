@@ -69,6 +69,7 @@ export const settings: typeof settingsEn = {
   // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
   gifts: {
     heading: "Cadeaux",
+    marketplaceLink: "Ouvrir le catalogue de cadeaux",
     intro:
       "Choisissez qui peut vous offrir des cadeaux. Si vous avez moins de 18 ans, vous ne recevez des cadeaux que de vos relations, jamais pendant un direct.",
     label: "Qui peut m'offrir des cadeaux",

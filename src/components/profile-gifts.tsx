@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Gift } from "lucide-react";
 import { GiftArt } from "@/components/gift-art";
 import { GiftOpenOverlay } from "@/components/gift-open-overlay";
@@ -146,6 +147,11 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
         {t.profile.heading}
       </h2>
       {isOwner && <p className="mt-1 text-xs text-foreground-soft">{t.profile.ownerHint}</p>}
+      {isOwner && (
+        <Link href="/gift-marketplace" className="mt-1 inline-block text-sm font-medium text-accent hover:underline">
+          {t.market.title}
+        </Link>
+      )}
       {error && (
         <p role="alert" className="mt-2 text-sm text-danger">
           {error}

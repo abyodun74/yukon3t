@@ -188,10 +188,10 @@ describe("gift catalog", () => {
     });
     const singles = GIFT_PRODUCTS.filter((p) => !p.isBox);
     expect(Math.max(...singles.map((p) => p.webPriceMinor))).toBe(999);
-    // 13 Phase 1 items + 15 Phase A gifts + 4 free kind words + the Phase B award; 16 Phase 1 products + 19 singles +
-    // 4 boxes + the award.
-    expect(GIFT_ITEMS).toHaveLength(33);
-    expect(GIFT_PRODUCTS).toHaveLength(40);
+    // 13 Phase 1 items + 15 Phase A gifts + 4 free kind words + the Phase B award + 8 marketplace gifts; 16 Phase 1
+    // products + 19 singles + 4 boxes + the award + 8 marketplace singles.
+    expect(GIFT_ITEMS).toHaveLength(41);
+    expect(GIFT_PRODUCTS).toHaveLength(48);
   });
 
   it("has the Arena Champion award (Phase B): a free Gaming badge only the app gives, tagged tournament_win", () => {
@@ -202,8 +202,9 @@ describe("gift catalog", () => {
     expect(award).toMatchObject({ webPriceMinor: 0, isBox: false, universe: "GAMING", items: [{ slug: "arena-champion", quantity: 1 }] });
     expect(isAwardProduct(award)).toBe(true);
     expect(isFreeGiftProduct(award)).toBe(false);
-    // Seeded by its own, newest migration.
-    expect(GIFT_CATALOG_SEED_MIGRATIONS.at(-1)).toBe("20261115120500_gift_arena_champion_award");
+    // Seeded by its own migration (the marketplace seed came after it).
+    expect(GIFT_CATALOG_SEED_MIGRATIONS).toContain("20261115120500_gift_arena_champion_award");
+    expect(seed).toContain("('gift_product_award.arena-champion', 'award.arena-champion', false, 0, 'USD', true, 600)");
   });
 
   it.each(SUPPORTED_LOCALES)("names every item and box in %s", (locale) => {

@@ -75,6 +75,11 @@ export default async function AdminSystemPage() {
       <p className="mt-1 text-sm text-foreground-soft">
         Health signals that don&apos;t show up anywhere else in the app.
       </p>
+      <p className="mt-2 text-sm">
+        <Link href="/admin/coins" className="text-accent hover:underline">
+          Y3T Coins: grant coins and see recent grants
+        </Link>
+      </p>
 
       <div className="mt-8 rounded-xl border border-line p-5">
         <h2 className="text-sm font-semibold">Database backups</h2>

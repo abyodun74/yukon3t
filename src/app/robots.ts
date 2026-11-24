@@ -24,6 +24,7 @@ const DISALLOWED_PATHS = [
   "/post",
   "/search",
   "/birthdays",
+  "/gift-marketplace",
   "/onboarding",
   "/invite",
   "/u/",

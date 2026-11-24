@@ -31,7 +31,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Terms of Service</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 22, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 24, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company
@@ -249,16 +249,18 @@ export default function TermsPage() {
         badges, live-stream effects and boxes of them) and challenges
         gradually, so they may not be available to you, and we may change,
         limit, pause or withdraw them, or any individual gift, at any time.
-        Gifts can&apos;t be bought yet: every gift today is free. If we
-        open purchasing, the terms that apply to buying gifts will be added
-        here before it opens.
+        Gifts and Y3T Coins can&apos;t be bought with money: paid gifts are
+        sent with Y3T Coins, which only YuKon3t grants, and the kind words
+        and Thank You are free. If we ever open purchasing, the terms that
+        apply to it will be added here before it opens.
       </p>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground-soft">
         <li><b>No cash value.</b> Gifts, numbered editions and challenge awards are digital items shown in YuKon3t. They are not currency or a stored value, have no cash or monetary value, and can&apos;t be transferred, traded, sold, exchanged or cashed out, inside or outside YuKon3t. An edition number only records the order in which a copy was given and adds no value.</li>
+        <li><b>Y3T Coins.</b> Y3T Coins are granted by YuKon3t at its discretion; you can&apos;t buy them, and nothing entitles you to receive any. Like gifts, they are not currency or a stored value, have no cash or monetary value, and can&apos;t be transferred, traded, sold, exchanged or cashed out, inside or outside YuKon3t; they can only be spent on gifts. A gift&apos;s price in coins is the one shown when you confirm, and the coins are taken once. If a gift can&apos;t be delivered after you confirm it (for example because of a block or the recipient&apos;s gift settings), its coins are returned to your balance; otherwise spent coins are not returned, including when a gift is later removed under these Terms. We may correct a balance that is wrong because of an error, and we may change, limit, pause or withdraw coins (and any balance) at any time, including when gifts or coins are withdrawn or your account is closed.</li>
         <li><b>Free gifts are limited.</b> Free gifts (such as the &ldquo;kind words&rdquo; and the Thank You you can send back for a gift) are subject to daily limits and to the same rules as any gift.</li>
         <li><b>Removal and reversal.</b> We may remove a gift, take back the items it gave (including a frame or badge you are wearing), and reverse or cancel a challenge result and take back its awards, if they break these Terms or our Community Guidelines, or if we need to for safety, legal or technical reasons. A challenge&apos;s host can also change or cancel its result for 24 hours after declaring it, which takes back any awards it no longer gives.</li>
         <li><b>Challenge results.</b> A challenge result is only the declaration of the person who ran it. It is not a contest, competition or game of chance run by us, we don&apos;t verify it, and it carries no prize of value: winners receive only a free, cosmetic badge.</li>
-        <li><b>Prohibited uses.</b> You may not use a gift&apos;s note to harass, threaten or abuse anyone, or otherwise break our Community Guidelines; fake, arrange or farm challenge results (for example by declaring winners who didn&apos;t take part in good faith or by trading wins); or buy, sell or trade gifts, awards or accounts for them outside YuKon3t, or offer to.</li>
+        <li><b>Prohibited uses.</b> You may not use a gift&apos;s note to harass, threaten or abuse anyone, or otherwise break our Community Guidelines; fake, arrange or farm challenge results (for example by declaring winners who didn&apos;t take part in good faith or by trading wins); or buy, sell or trade gifts, awards, Y3T Coins or accounts for them outside YuKon3t, or offer to.</li>
       </ul>
 
       <h2 className="mt-8 font-semibold">10. Termination</h2>

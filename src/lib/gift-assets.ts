@@ -74,6 +74,15 @@ export const GIFT_SVG_ASSET_KEYS = [
   "arena-champion",
   // Not a catalog item: the live room's winner moment (a challenge result), drawn like a gift effect.
   "challenge-winner",
+  // Gift marketplace (2026-11): hand-authored placeholders; commissioned art is still pending.
+  "birthday-balloons",
+  "teddy-bear",
+  "playful-kitten",
+  "houseplant",
+  "sunset-postcard",
+  "fireworks",
+  "shooting-star",
+  "keepsake-locket",
   "sparkle",
 ] as const;
 

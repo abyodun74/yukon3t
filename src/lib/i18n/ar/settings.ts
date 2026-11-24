@@ -70,6 +70,7 @@ export const settings: typeof settingsEn = {
   // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
   gifts: {
     heading: "الهدايا",
+    marketplaceLink: "افتح سوق الهدايا",
     intro: "اختر من يمكنه إرسال الهدايا إليك. إذا كان عمرك أقل من 18 عامًا، فلن تتلقى الهدايا إلا من جهات تواصلك، ولا تتلقاها أبدًا في بث مباشر.",
     label: "من يمكنه إرسال الهدايا إليّ",
     EVERYONE: "الجميع",

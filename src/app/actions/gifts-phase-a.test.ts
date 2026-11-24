@@ -56,6 +56,13 @@ vi.mock("@/lib/hidden-chats", () => ({ isMembershipLocked: async (m: { hiddenAt:
 vi.mock("@/lib/live-stream-access", () => ({ canAccessLiveStream: async () => true }));
 vi.mock("@/lib/gift-delivery", () => ({ deliverGiftPurchase: (id: string) => deliverGiftPurchase(id) }));
 vi.mock("@/lib/gift-occasions-data", () => ({ loadGiftOccasions: () => loadGiftOccasions() }));
+// Y3T Coins (src/lib/coin-wallet.ts): a balance for the catalog; nothing here reaches a spend.
+const spendCoinsOnGift = vi.fn();
+vi.mock("@/lib/coin-wallet", () => ({
+  getCoinBalance: async () => 500,
+  findCoinPurchase: async () => null,
+  spendCoinsOnGift: (...a: unknown[]) => spendCoinsOnGift(...a),
+}));
 vi.mock("@/lib/prisma", () => {
   const prisma: Record<string, unknown> = {
     user: { findUnique: async () => recipient, update: vi.fn(async () => ({ id: ME })) },
@@ -124,6 +131,8 @@ const product = (sku: string, universe: string, tags: string[], price: number, i
   availableFrom: null,
   availableUntil: null,
   items: items.map((i) => ({ quantity: 1, item: i })),
+  // Paid gifts are sent with Y3T Coins: a coin price whenever there is a store price.
+  coinPrice: price > 0 ? 25 : null,
   ...over,
 });
 const birthday: Occasion = { kind: "BIRTHDAY", universes: ["CELEBRATE", "LOVE"], tags: ["birthday"], reasonKey: "BIRTHDAY", window: "today" };
@@ -149,7 +158,7 @@ beforeEach(() => {
     product("sticker.limited", "LUXURY", ["love"], 499, [item("limited", { rarity: "EDITION", editionSize: 2 })]),
   ];
   freeProduct = { id: "gift_product_free.thank-you", currency: "USD", webPriceMinor: 0, occasionTags: ["appreciation"] };
-  paidProduct = { id: "gift_product_sticker.rose", currency: "USD", webPriceMinor: 99, universe: "LOVE", availableFrom: null, availableUntil: null };
+  paidProduct = { id: "gift_product_sticker.rose", currency: "USD", webPriceMinor: 99, universe: "LOVE", coinPrice: 25, availableFrom: null, availableUntil: null };
   received = { id: SEND, recipientId: ME, senderId: BOB, status: "OPENED", thanksForSendId: null, conversationId: CHAT, thankedBy: null };
   conversation = {
     isGroup: false,
@@ -194,6 +203,9 @@ describe("getGiftCatalog(recipientId)", () => {
     editionGiven = 2;
     const result = await getGiftCatalog(BOB);
     if (result.error) throw new Error(result.error);
+    expect(result.coinBalance).toBe(500);
+    expect(result.products.find((p) => p.sku === "sticker.rose")?.coinPrice).toBe(25);
+    expect(result.products.find((p) => p.sku === "free.thank-you")?.coinPrice).toBeNull();
     const skus = result.products.map((p) => p.sku);
     expect(skus).toEqual(expect.arrayContaining(["sticker.cake-slice", "sticker.rose", "live.confetti", "badge.gg", "free.thank-you"]));
     for (const gone of ["free.mystery", "sticker.seasonal", "sticker.retired", "sticker.limited"]) expect(skus).not.toContain(gone);
@@ -221,15 +233,19 @@ describe("getGiftCatalog(recipientId)", () => {
 });
 
 describe("createGiftIntent (Phase A checks)", () => {
-  it("never sends a free product (those go through sendFreeGift) nor Love & Emotion into a live room", async () => {
+  const options = { clientRequestId: "req-phase-a-0001" };
+  it("never sends a free product (those go through sendFreeGift), nor one out of season, nor one with no coin price", async () => {
     paidProduct = { ...paidProduct!, webPriceMinor: 0 };
-    expect(await createGiftIntent("free.thank-you", BOB, null)).toEqual({ error: "invalid" });
+    expect(await createGiftIntent("free.thank-you", BOB, null, undefined, options)).toEqual({ error: "invalid" });
     paidProduct = { ...paidProduct!, webPriceMinor: 99, availableFrom: "01-01", availableUntil: "01-01" };
     const today = new Date();
     if (!(today.getUTCMonth() === 0 && today.getUTCDate() === 1)) {
-      expect(await createGiftIntent("sticker.rose", BOB, null)).toEqual({ error: "invalid" });
+      expect(await createGiftIntent("sticker.rose", BOB, null, undefined, options)).toEqual({ error: "gift_unavailable" });
     }
+    paidProduct = { ...paidProduct!, availableFrom: null, availableUntil: null, coinPrice: null };
+    expect(await createGiftIntent("sticker.rose", BOB, null, undefined, options)).toEqual({ error: "gift_unavailable" });
     expect(purchaseCreate).not.toHaveBeenCalled();
+    expect(spendCoinsOnGift).not.toHaveBeenCalled();
   });
 });
 

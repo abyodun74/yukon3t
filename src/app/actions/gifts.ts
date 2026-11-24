@@ -13,6 +13,8 @@ import { isSecretChat } from "@/lib/e2ee/secret-chat";
 import { canAccessLiveStream } from "@/lib/live-stream-access";
 import { holdsViewerSlot } from "@/lib/live-viewer-cap";
 import { deliverGiftPurchase } from "@/lib/gift-delivery";
+import { findCoinPurchase, getCoinBalance, spendCoinsOnGift } from "@/lib/coin-wallet";
+import { coinTotal, isClientRequestId, normalizeGiftQuantity, sameCoinRequest } from "@/lib/coins";
 import { loadGiftOccasions } from "@/lib/gift-occasions-data";
 import {
   buildGiftShelves,
@@ -64,14 +66,16 @@ import {
 // Digital gifts (rules: src/lib/gifts.ts; delivery: src/lib/gift-delivery.ts). Every action re-derives the user from
 // the session and refuses unless giftsEnabledFor says gifts are on for them (Phase 1: site admins only), whatever the
 // UI shows. Answers carry only what the screen needs: never a User row, and the sender of a gift only to its recipient.
+// A paid gift is paid with Y3T Coins (src/lib/coins.ts; granted by YuKon3t, never bought): the price is read from the
+// database and the total computed here, never taken from the browser.
 
 type ItemView = { slug: string; kind: "STICKER" | "FRAME" | "BADGE" | "LIVE_EFFECT"; assetKey: string };
 
 export type GiftCatalogProduct = {
   sku: string;
   isBox: boolean;
-  priceMinor: number;
-  currency: string;
+  /** What one costs in Y3T Coins (null for a free gift). */
+  coinPrice: number | null;
   universe: GiftUniverseName;
   rarity: GiftRarityName;
   /** A free kind-words gift (sent with sendFreeGift). */
@@ -131,7 +135,8 @@ export async function getGiftCatalog(
   recipientId: string,
   context: GiftContextValue = "DIRECT",
 ): Promise<
-  { error: Refusal | "invalid" | "rate_limited" } | { error: null; products: GiftCatalogProduct[]; shelves: GiftShelves }
+  | { error: Refusal | "invalid" | "rate_limited" }
+  | { error: null; products: GiftCatalogProduct[]; shelves: GiftShelves; coinBalance: number }
 > {
   const user = await requireVerifiedUser();
   if (!giftsEnabledFor(user)) return { error: "disabled" };
@@ -147,7 +152,7 @@ export async function getGiftCatalog(
 
   const now = new Date();
   const today = localDateTime(now, "UTC");
-  const [rows, occasions] = await Promise.all([
+  const [rows, occasions, coinBalance] = await Promise.all([
     prisma.giftProduct.findMany({
       where: { active: true, webPriceMinor: { lte: GIFT_PRICE_CEILING_MINOR } },
       orderBy: { sortOrder: "asc" },
@@ -155,7 +160,7 @@ export async function getGiftCatalog(
         sku: true,
         isBox: true,
         webPriceMinor: true,
-        currency: true,
+        coinPrice: true,
         universe: true,
         rarity: true,
         occasionTags: true,
@@ -183,6 +188,7 @@ export async function getGiftCatalog(
       },
     }),
     loadGiftOccasions(recipient.id, user, now),
+    getCoinBalance(user.id),
   ]);
 
   // Limited editions that have given every copy are simply no longer offered (nothing says how many are left).
@@ -205,13 +211,14 @@ export async function getGiftCatalog(
         (r) => r.item.active && !soldOut.has(r.item.id) && inYearlyWindow(r.item.availableFrom, r.item.availableUntil, today),
       ) &&
       inYearlyWindow(p.availableFrom, p.availableUntil, today) &&
-      (p.webPriceMinor > 0 || isFreeGiftProduct(p)),
+      (p.webPriceMinor > 0 || isFreeGiftProduct(p)) &&
+      // A paid gift is offered only once it has a coin price (it can't be sent without one).
+      (isFreeGiftProduct(p) || p.coinPrice !== null),
   );
   const products: GiftCatalogProduct[] = offered.map((p) => ({
     sku: p.sku,
     isBox: p.isBox,
-    priceMinor: p.webPriceMinor,
-    currency: p.currency,
+    coinPrice: p.webPriceMinor === 0 ? null : p.coinPrice,
     universe: p.universe,
     rarity: p.rarity,
     free: p.webPriceMinor === 0,
@@ -232,11 +239,23 @@ export async function getGiftCatalog(
     where,
   );
   const shown = new Set([...(shelves.rightNow?.skus ?? []), ...shelves.kindWords, ...shelves.universes.flatMap((u) => u.skus)]);
-  return { error: null, products: products.filter((p) => shown.has(p.sku)), shelves };
+  return { error: null, products: products.filter((p) => shown.has(p.sku)), shelves, coinBalance };
 }
 
 export type GiftIntentResult =
-  | { error: null; sendId: string; delivered: boolean }
+  | {
+      error: null;
+      sendId: string;
+      /** The gift reached its recipient. */
+      delivered: boolean;
+      /** It couldn't be delivered after all (a block or the recipient's settings changed), so its coins came back. */
+      refunded: boolean;
+      /** The coins are spent but delivery hasn't finished: sending the same request again (same id) finishes it. */
+      pending: boolean;
+      /** The sender's coin balance afterwards. */
+      coinBalance: number;
+    }
+  | { error: "insufficient_coins"; coinBalance: number; total: number }
   | {
       error:
         | "disabled"
@@ -248,36 +267,47 @@ export type GiftIntentResult =
         | "not_accepting"
         | "moderation"
         | "hidden_locked"
-        | "not_in_stream";
+        | "not_in_stream"
+        | "gift_unavailable";
     };
 
 type GiftPlace = { context: "DIRECT" } | { context: "CHAT"; conversationId: string } | { context: "LIVE"; liveStreamId: string };
 
+/** What the browser sends with a paid gift: its own request id (the same one on every retry) and how many. */
+export type GiftIntentOptions = { clientRequestId: string; quantity?: number };
+
 /**
- * Asks for a gift of `productSku` to `recipientId`, with an optional note, sent from a profile (DIRECT), a chat
- * (CHAT, the chat gets a gift card) or a live stream (LIVE, the room plays the effect). Every rule is checked before
- * anything is written: the gate, the limits, the product, where it is sent from, blocks either way, age, the
- * recipient's giftsFrom, and the note (at most GIFT_MESSAGE_MAX characters, moderated; flagged text is refused, not
- * stored). Then one PENDING purchase and its send are created and, in Phase 1 (free, admins only), delivered at once
- * through deliverGiftPurchase, the same function the payment phases will call after a confirmed payment.
+ * Sends a paid gift of `productSku` (x `quantity`, 1..GIFT_QUANTITY_MAX) to `recipientId`, paid with Y3T Coins, with an
+ * optional note, from a profile or the marketplace (DIRECT), a chat (CHAT, the chat gets a gift card) or a live stream
+ * (LIVE, the room plays the effect). Every rule is checked before any coin moves: the gate, the limits, the product
+ * (active, in season, a coin price), where it is sent from, blocks either way, age, the recipient's giftsFrom, and the
+ * note (at most GIFT_MESSAGE_MAX characters, moderated; flagged text is refused, not stored). The price is read from
+ * the database and the total computed here. Then spendCoinsOnGift debits the wallet and creates the PENDING purchase
+ * + send + ledger row in one transaction under the request's idempotency key, and deliverGiftPurchase delivers it (or,
+ * if it turned undeliverable, refunds it in the same transaction as the refusal).
+ *
+ * Idempotent per `clientRequestId`: the same request again (a double tap, a retry after a lost answer) spends nothing
+ * more and answers with the first one's outcome, finishing a delivery that was interrupted. Anything failing after the
+ * coins were spent (a push, a chat card, an animation) never undoes the send.
  */
 export async function createGiftIntent(
   productSku: string,
   recipientId: string,
   message: string | null,
   place?: GiftPlace,
+  options?: GiftIntentOptions,
 ): Promise<GiftIntentResult> {
   const user = await requireVerifiedUser();
   if (!giftsEnabledFor(user)) return { error: "disabled" };
   const parsed = giftIntentSchema.safeParse({ productSku, recipientId, message, place });
   if (!parsed.success) return { error: "invalid" };
+  const quantity = normalizeGiftQuantity(options?.quantity);
+  const requestId = options?.clientRequestId;
+  if (quantity === null || !isClientRequestId(requestId)) return { error: "invalid" };
   const where: GiftPlace = parsed.data.place ?? { context: "DIRECT" };
   const note = normalizeGiftMessage(parsed.data.message);
   if (giftMessageRefusal(note)) return { error: "too_long" };
   if (recipientId === user.id) return { error: "invalid" };
-
-  if (!(await checkRateLimit("giftIntent", user.id))) return { error: "rate_limited" };
-  if (!(await checkRateLimit("giftToSameRecipient", `${user.id}:${recipientId}`))) return { error: "rate_limited" };
 
   const [recipient, product] = await Promise.all([
     prisma.user.findUnique({
@@ -286,18 +316,32 @@ export async function createGiftIntent(
     }),
     prisma.giftProduct.findFirst({
       where: { sku: parsed.data.productSku, active: true, items: { some: {} }, NOT: { items: { some: { item: { active: false } } } } },
-      select: { id: true, currency: true, webPriceMinor: true, universe: true, availableFrom: true, availableUntil: true },
+      select: { id: true, webPriceMinor: true, coinPrice: true, universe: true, availableFrom: true, availableUntil: true },
     }),
   ]);
+
+  // The same request again: spend nothing more, answer (and if needed finish) the first one. Checked before the
+  // limiters, so a retry never uses one up.
+  const settled = await settledCoinSend(user.id, requestId, product?.id ?? null, recipientId, quantity);
+  if (settled) return settled;
+
+  if (!(await checkRateLimit("giftIntent", user.id))) return { error: "rate_limited" };
+  if (!(await checkRateLimit("giftToSameRecipient", `${user.id}:${recipientId}`))) return { error: "rate_limited" };
+
   if (!recipient) return { error: "unavailable" };
-  if (!product) return { error: "invalid" };
+  if (!product) return { error: "gift_unavailable" };
   // A free gift goes through sendFreeGift (its own, stricter limits); out of season isn't offered; and a public live
   // room never gets a Love & Emotion gift.
   if (product.webPriceMinor === 0 || product.webPriceMinor > GIFT_PRICE_CEILING_MINOR) return { error: "invalid" };
-  if (!inYearlyWindow(product.availableFrom, product.availableUntil, localDateTime(new Date(), "UTC"))) return { error: "invalid" };
+  if (!inYearlyWindow(product.availableFrom, product.availableUntil, localDateTime(new Date(), "UTC"))) {
+    return { error: "gift_unavailable" };
+  }
   if (where.context === "LIVE" && product.universe && !GIFT_UNIVERSE_STYLES[product.universe].inLiveRooms) {
     return { error: "invalid" };
   }
+  // The total is the database's price x quantity, computed here. A product with no coin price can't be sent.
+  const total = coinTotal(product.coinPrice, quantity);
+  if (total === null || product.coinPrice === null) return { error: "gift_unavailable" };
 
   // Where it is sent from. A chat: a 1:1 both are in, not secret (a server-written card can't go into one) and, if the
   // sender hid it, unlocked. A live stream: live, the recipient is its host, and the sender is in it right now (a row
@@ -327,37 +371,92 @@ export async function createGiftIntent(
 
   if (note !== null && !(await moderateText(note)).allowed) return { error: "moderation" };
 
-  // Phase 1's free path: a grant, recorded as a purchase of 0 so the same delivery (and, later, refund) machinery
-  // applies. The provider id is a fresh random one: nothing outside us confirms a grant.
-  const purchase = await prisma.giftPurchase.create({
-    data: {
-      buyerId: user.id,
-      productId: product.id,
-      provider: "ADMIN_GRANT",
-      providerTxnId: randomUUID(),
-      status: "PENDING",
-      amountMinor: 0,
-      currency: product.currency,
-      rawRef: "admin-grant",
-      send: {
-        create: {
-          senderId: user.id,
-          recipientId,
-          message: note,
-          messageModeration: "PUBLISHED",
-          context: where.context,
-          conversationId: where.context === "CHAT" ? where.conversationId : null,
-          liveStreamId: where.context === "LIVE" ? where.liveStreamId : null,
-          status: "AWAITING_PAYMENT",
-        },
-      },
+  const spent = await spendCoinsOnGift({
+    buyerId: user.id,
+    productId: product.id,
+    unitPrice: product.coinPrice,
+    quantity,
+    total,
+    clientRequestId: requestId,
+    send: {
+      recipientId,
+      message: note,
+      context: where.context,
+      conversationId: where.context === "CHAT" ? where.conversationId : null,
+      liveStreamId: where.context === "LIVE" ? where.liveStreamId : null,
     },
-    select: { id: true, send: { select: { id: true } } },
   });
+  if (spent.outcome === "insufficient") return { error: "insufficient_coins", coinBalance: spent.balance, total };
+  if (spent.outcome === "key_conflict") return { error: "invalid" };
+  return finishCoinSend(user.id, spent.purchaseId, spent.sendId, recipientId);
+}
 
-  const outcome = await deliverGiftPurchase(purchase.id);
+/**
+ * A request already filed under this request id: its outcome (finishing the delivery if it was interrupted), or null
+ * when there is none. The same id used for a different gift, recipient or quantity is refused.
+ */
+async function settledCoinSend(
+  buyerId: string,
+  clientRequestId: string,
+  productId: string | null,
+  recipientId: string,
+  quantity: number,
+): Promise<GiftIntentResult | null> {
+  const existing = await findCoinPurchase(buyerId, clientRequestId);
+  if (!existing) return null;
+  if (
+    !existing.send ||
+    !sameCoinRequest(
+      { buyerId: existing.buyerId, productId: existing.productId, quantity: existing.quantity, recipientId: existing.send.recipientId },
+      { buyerId, productId: productId ?? existing.productId, quantity, recipientId },
+    )
+  ) {
+    return { error: "invalid" };
+  }
+  return finishCoinSend(buyerId, existing.id, existing.send.id, recipientId);
+}
+
+/** Delivers a coin-paid purchase (idempotent) and answers with where it stands. A failure here leaves it PENDING. */
+async function finishCoinSend(buyerId: string, purchaseId: string, sendId: string, recipientId: string): Promise<GiftIntentResult> {
+  try {
+    await deliverGiftPurchase(purchaseId);
+  } catch (err) {
+    // The coins are spent and the purchase is still PENDING: the same request again finishes it.
+    console.error("[gifts] delivery after a coin spend failed; the same request again finishes it", err);
+  }
+  const [state, coinBalance] = await Promise.all([
+    prisma.giftPurchase.findUnique({ where: { id: purchaseId }, select: { status: true, send: { select: { status: true } } } }),
+    getCoinBalance(buyerId),
+  ]);
   revalidatePath(`/u/${recipientId}`);
-  return { error: null, sendId: purchase.send!.id, delivered: outcome === "delivered" };
+  const status = state?.status ?? "PENDING";
+  const sendStatus = state?.send?.status ?? "AWAITING_PAYMENT";
+  return {
+    error: null,
+    sendId,
+    delivered: status === "PAID" && sendStatus !== "UNDELIVERABLE" && sendStatus !== "AWAITING_PAYMENT",
+    refunded: status === "REFUNDED",
+    pending: status === "PENDING",
+    coinBalance,
+  };
+}
+
+/**
+ * Whether the user could send `recipientId` a gift from a profile or the marketplace right now (gate, blocks either way,
+ * age, the recipient's giftsFrom), so the marketplace can say so before checkout. One answer for every refusal that
+ * could reveal a block. The send checks all of it again.
+ */
+export async function checkGiftRecipient(
+  recipientId: string,
+): Promise<{ error: Refusal | "invalid" | "rate_limited" | null }> {
+  const user = await requireVerifiedUser();
+  if (!giftsEnabledFor(user)) return { error: "disabled" };
+  const parsed = giftCatalogSchema.safeParse({ recipientId });
+  if (!parsed.success || recipientId === user.id) return { error: "invalid" };
+  if (!(await checkRateLimit("giftCatalog", user.id))) return { error: "rate_limited" };
+  const recipient = await prisma.user.findUnique({ where: { id: parsed.data.recipientId }, select: recipientSelect });
+  if (!recipient) return { error: "unavailable" };
+  return { error: await sendRulesRefusal(user, recipient, "DIRECT") };
 }
 
 /** Why a gift card can't go into this chat: a 1:1 of these two people, not secret, and unlocked for the sender. */

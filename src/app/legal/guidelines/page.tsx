@@ -30,7 +30,7 @@ export default function GuidelinesPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Community Guidelines</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 22, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 24, 2026</p>
       <p className="mt-4 text-foreground-soft">
         YuKon3t exists to connect people honestly across borders, cultures,
         and interests. These rules are enforced consistently, and every
@@ -74,8 +74,8 @@ export default function GuidelinesPage() {
       <p className="mt-2 text-foreground-soft">
         The same applies to gifts and challenges: no harassing or abusive
         gift notes, no faked or farmed challenge results, and no buying,
-        selling or trading of gifts or awards outside YuKon3t. Gifts have no
-        cash value. Reported gifts and challenge results can be removed or
+        selling or trading of gifts, awards or Y3T Coins outside YuKon3t.
+        Gifts and coins have no cash value, and coins can&apos;t be bought. Reported gifts and challenge results can be removed or
         reversed by our moderators.
       </p>
 

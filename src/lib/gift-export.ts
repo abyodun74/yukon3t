@@ -5,7 +5,8 @@ import { giftItemName, giftProductName } from "@/lib/gift-names";
 import { giftsEn } from "@/lib/i18n/en/gifts";
 import type { HiddenState } from "@/lib/hidden-chats-rules";
 
-// The "Gifts and challenges" part of "Export my data" (exportMyData, src/app/actions/profile.ts). Only the requester's
+// The "Gifts and challenges" part of "Export my data" (exportMyData, src/app/actions/profile.ts), with their Y3T Coins
+// balance and coin ledger (kinds, amounts and dates only; a row tied to a hidden gift is left out). Only the requester's
 // own data, and only what the app already shows them: exact `select`s, never a User row, never anyone's email/phone/
 // birth date, never a purchase/provider record. Nobody blocked either way with the requester is named, and (unless
 // the hidden-chats PIN unlock is live, which the caller decides by passing an empty HiddenState) anything sent in a
@@ -18,6 +19,7 @@ export const GIFT_EXPORT_LIMITS = {
   selfOccasions: 100,
   challengesHosted: 200,
   challengesJoined: 500,
+  coinLedger: 1000,
 } as const;
 
 export type ExportList<T> = { items: T[]; truncated: boolean; limit: number };
@@ -113,7 +115,7 @@ export async function loadGiftExport(userId: string, hidden: HiddenState) {
       ? [{ OR: [{ conversationId: null }, { conversationId: { notIn: hidden.conversationIds } }] }]
       : [];
 
-  const [settings, pins, selfOccasions, sent, received, hosted, joined, wins] = await Promise.all([
+  const [settings, pins, selfOccasions, sent, received, hosted, joined, wins, wallet, ledger, hiddenPurchases] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -221,7 +223,32 @@ export async function loadGiftExport(userId: string, hidden: HiddenState) {
       take: L.challengesJoined + 1,
       select: { challengeId: true, createdAt: true },
     }),
+    // Y3T Coins: the balance and the person's own ledger (no admin id or note: those are for admins).
+    prisma.coinWallet.findUnique({ where: { userId }, select: { balance: true } }),
+    prisma.coinLedgerEntry.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: L.coinLedger + 1,
+      select: { kind: true, amount: true, balanceAfter: true, purchaseId: true, createdAt: true },
+    }),
+    // Coin purchases of gifts sent in a hidden chat or to a hidden peer: their ledger rows are left out like the gifts.
+    hidden.conversationIds.length > 0 || hidden.peerIds.length > 0
+      ? prisma.giftPurchase.findMany({
+          where: {
+            buyerId: userId,
+            provider: "COINS",
+            send: {
+              OR: [
+                ...(hidden.conversationIds.length > 0 ? [{ conversationId: { in: hidden.conversationIds } }] : []),
+                ...(hidden.peerIds.length > 0 ? [{ recipientId: { in: hidden.peerIds } }] : []),
+              ],
+            },
+          },
+          select: { id: true },
+        })
+      : Promise.resolve([] as { id: string }[]),
   ]);
+  const hiddenPurchaseIds = new Set(hiddenPurchases.map((p) => p.id));
 
   // Challenges joined or won (a winner may have left the participant list since): one entry each. As in the app, a
   // challenge whose host is blocked either way with the requester is left out (the app doesn't show it at all).
@@ -325,6 +352,15 @@ export async function loadGiftExport(userId: string, hidden: HiddenState) {
       }),
       L.giftsReceived,
     ),
+    coins: {
+      balance: wallet?.balance ?? 0,
+      ledger: capList(
+        ledger
+          .filter((row) => !row.purchaseId || !hiddenPurchaseIds.has(row.purchaseId))
+          .map((row) => ({ kind: row.kind, amount: row.amount, balanceAfter: row.balanceAfter, at: row.createdAt })),
+        L.coinLedger,
+      ),
+    },
     challengesHosted: capList(
       hosted.map((c) => ({
         title: c.title,

@@ -2893,11 +2893,42 @@ const sections: Section[] = [
             Inspire, Gaming Arena, Luxury Universe, and Culture &amp; Community.
             <br />
             <br />
+            The <strong>gift marketplace</strong> shows 36 gifts in nine
+            categories (Love &amp; Romance, Birthday, Congratulations, Luxury,
+            Cute &amp; Fun, Gaming, Lifestyle, Celebration and Special Moments),
+            with search, filters, a preview and your gift history. Each gift has
+            a rarity (Common, Rare, Epic or Legendary), which only changes how
+            it looks, never what it gives. Gift art is still being finished, so
+            some gifts look simpler for now.
+            <br />
+            <br />
             Gifts are rolling out gradually, so you may not see them yet: a gift
             can only be sent between two people who both have gifts. Paid gifts
-            are not available yet: there is no way to buy a gift today, and every
-            gift is free while gifts are being tested. Details will be added here
-            when purchasing opens.
+            are sent with Y3T Coins, which are granted by YuKon3t: there is no way
+            to buy coins or gifts with money. The kind words and Thank You stay
+            free.
+          </>
+        ),
+      },
+      {
+        id: "y3t-coins",
+        q: "What are Y3T Coins, and can I buy them?",
+        a: (
+          <>
+            Y3T Coins are what paid gifts are sent with. They are granted by
+            YuKon3t, and you can&apos;t buy them: there is no payment, card or
+            app store purchase anywhere for coins or gifts. Coins have no cash
+            value, can&apos;t be transferred to anyone, sold or cashed out, and
+            can only be spent on gifts.
+            <br />
+            <br />
+            When you send a gift, the price is the gift&apos;s price in coins
+            times how many you send (up to 10 at once, to one person), and your
+            balance and what&apos;s left are shown before you confirm. Coins are
+            taken only once even if you tap Send twice or retry after a lost
+            connection. If a gift can&apos;t be delivered after all (for example
+            because of a block or the person&apos;s gift settings), its coins
+            are returned to you.
           </>
         ),
       },

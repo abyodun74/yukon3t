@@ -281,6 +281,18 @@ export const giftFreeSchema = z.object({
     .optional(),
 });
 export const giftOwnedIdSchema = z.string().cuid();
+// Gift marketplace (app/actions/gift-market.ts). A favorite's sku, and a recipient search (within the user's own
+// recent recipients and connections; up to 60 characters).
+export const giftMarketSkuSchema = giftSku;
+export const giftMarketQuerySchema = z.string().max(60);
+// Admin coin grants (app/actions/coins.ts): the recipient by username or id, a whole amount, a reason, and the form's
+// one-time id (a double submit grants once). Bounds match src/lib/coins.ts (COIN_GRANT_MAX, COIN_GRANT_REASON_MAX).
+export const coinGrantSchema = z.object({
+  recipient: z.string().trim().min(1).max(64),
+  amount: z.coerce.number().int().min(1).max(100_000),
+  reason: z.string().trim().min(3).max(200),
+  formId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+});
 export const giftSelfOccasionKindSchema = z.enum(["GRADUATION", "NEW_JOB", "ACHIEVEMENT", "MILESTONE"]);
 export const giftOccasionSettingsSchema = z.object({
   anniversaryOptIn: z.boolean(),

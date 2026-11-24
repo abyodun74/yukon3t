@@ -69,6 +69,7 @@ export const settings: typeof settingsEn = {
   // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
   gifts: {
     heading: "Zawadi",
+    marketplaceLink: "Fungua soko la zawadi",
     intro:
       "Chagua nani anaweza kukutumia zawadi. Ikiwa una chini ya miaka 18, unapokea zawadi kutoka kwa wasiliani wako tu, kamwe si kwenye matangazo ya moja kwa moja.",
     label: "Nani anaweza kunitumia zawadi",

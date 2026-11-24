@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, type TransactionClient } from "@/lib/prisma";
 import { isBlockedEitherWay } from "@/lib/blocks";
 import {
   expandProductItems,
@@ -19,12 +19,14 @@ import { activityLine, hiddenPush, nameOrSomeone } from "@/lib/push-text";
 import { notifyBadgeChange, publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { captureError } from "@/lib/error-tracking";
+import { refundCoinPurchaseInTx } from "@/lib/coin-wallet";
 import type { Locale } from "@/lib/i18n/locales";
 
 // The server half of digital gifts (src/lib/gifts.ts). deliverGiftPurchase is the ONE way a purchase turns into owned
-// gifts. Phase 1 calls it straight after createGiftIntent (the free admin path); the payment phases will call the same
-// function once a provider has confirmed payment, so nothing here knows or cares how a purchase was paid. In a lib
-// file, not a "use server" one: it trusts its argument.
+// gifts. createGiftIntent calls it straight after the coins were spent (src/lib/coin-wallet.ts); free gifts and awards
+// call it straight after creating their purchase. The only thing it knows about how a purchase was paid: a COINS
+// purchase that turns out to be undeliverable gets its coins back in the same transaction (refundCoinPurchaseInTx).
+// In a lib file, not a "use server" one: it trusts its argument.
 
 export type GiftDeliveryOutcome = "delivered" | "already_done" | "undeliverable" | "not_found";
 
@@ -70,6 +72,9 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
       id: true,
       status: true,
       provider: true,
+      buyerId: true,
+      amountMinor: true,
+      quantity: true,
       product: {
         select: {
           items: {
@@ -121,7 +126,21 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
       }) !== null;
   }
 
-  const itemIds = expandProductItems(purchase.product.items);
+  // A purchase of several (the marketplace's quantity) gives the product's contents that many times.
+  const perProduct = expandProductItems(purchase.product.items);
+  const quantity = Math.min(10, Math.max(1, Math.floor(purchase.quantity ?? 1)));
+  const itemIds = Array.from({ length: quantity }, () => perProduct).flat();
+  // An undeliverable coin-paid gift gets its coins back in the same transaction as the refusal.
+  const coinPaid = purchase.provider === "COINS";
+  const refuse = async (tx: TransactionClient) => {
+    await tx.giftSend.updateMany({
+      where: { id: send.id, status: "AWAITING_PAYMENT" },
+      data: { status: "UNDELIVERABLE" },
+    });
+    if (coinPaid) {
+      await refundCoinPurchaseInTx(tx, { id: purchase.id, buyerId: purchase.buyerId ?? null, amountMinor: purchase.amountMinor ?? 0 }, now);
+    }
+  };
   const editionItems = new Map(
     purchase.product.items
       .filter((row) => row.item.rarity === "EDITION")
@@ -134,10 +153,7 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
     });
     if (claimed.count !== 1) return "already_done";
     if (refused) {
-      await tx.giftSend.updateMany({
-        where: { id: send.id, status: "AWAITING_PAYMENT" },
-        data: { status: "UNDELIVERABLE" },
-      });
+      await refuse(tx);
       return "undeliverable";
     }
     // Numbered editions: each EDITION copy takes the next number of its item, in delivery order, under a per-item
@@ -154,10 +170,7 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
       for (let i = 0; i < copies; i++) {
         const next = nextEditionNumber(current, editionSize);
         if (next === null) {
-          await tx.giftSend.updateMany({
-            where: { id: send.id, status: "AWAITING_PAYMENT" },
-            data: { status: "UNDELIVERABLE" },
-          });
+          await refuse(tx);
           return "undeliverable";
         }
         taken.push(next);

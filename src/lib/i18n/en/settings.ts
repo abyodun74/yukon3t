@@ -78,6 +78,7 @@ export const settingsEn = {
   // Settings -> Gifts (digital gifts, src/lib/gifts.ts): shown only while gifts are on for the account.
   gifts: {
     heading: "Gifts",
+    marketplaceLink: "Open the gift marketplace",
     intro:
       "Choose who can send you gifts. If you're under 18, you only receive gifts from your connections, never in a live stream.",
     label: "Who can send me gifts",
