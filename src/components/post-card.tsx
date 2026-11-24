@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type CSSProperties, type UIEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type UIEvent,
+} from "react";
 import Link from "next/link";
 import { inAppPathFor } from "@/lib/app-links";
 import { Calendar, ChevronDown, ChevronUp, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Pause, Play, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
@@ -11,7 +19,16 @@ import { toggleLike, togglePostReaction } from "@/app/actions/likes";
 import { announceLikeGroup, useLikeGroupSync } from "@/lib/like-group-sync";
 import { LikeHeartArt } from "@/components/like-heart-art";
 import { useHeartBurst } from "@/lib/use-heart-burst";
-import { createDoubleTapDetector, doubleTapNeedsLike, DOUBLE_TAP_MS } from "@/lib/heart-burst";
+import {
+  armSecondTapGuard,
+  createDoubleTapDetector,
+  createVideoTapToggle,
+  doubleTapNeedsLike,
+  DOUBLE_TAP_MS,
+  hasActiveTextSelection,
+  isDoubleTapIgnoredTarget,
+  type HeartSpec,
+} from "@/lib/heart-burst";
 import { useGuestPreview } from "@/components/guest-preview";
 import { editPost } from "@/app/actions/posts";
 import { EventRsvpButtons, useEventRsvp, useRsvpCountsLine } from "@/components/event-rsvp";
@@ -520,6 +537,7 @@ function AlbumCarousel({ photos, alt }: { photos: { id: string; url: string }[];
 function MediaBlock({
   post,
   onOpenImage,
+  onCloseImage,
   onOpenVideo,
   onOpenInMuse,
   onDoubleTapLike,
@@ -527,9 +545,14 @@ function MediaBlock({
 }: {
   post: EmbeddedPost;
   onOpenImage: (index: number) => void;
+  /** Closes the photo viewer onOpenImage opened (a double tap's second tap landed on it). */
+  onCloseImage?: () => void;
   onOpenVideo: () => void;
   onOpenInMuse?: (post: EmbeddedPost) => void;
-  /** Double tap / double click on the photo, GIF or video (PostCard decides like vs. heart only). */
+  /**
+   * Double tap / double click on the photo, GIF, video or the post's text (PostCard decides like vs. heart only).
+   * Not on an album carousel photo (its double tap zooms) or inside an embedded player (its taps never reach us).
+   */
   onDoubleTapLike?: () => void;
   editing?: {
     draft: string;
@@ -561,37 +584,81 @@ function MediaBlock({
       ? embedPublicUrl({ provider: post.embedProvider, id: post.embedId })
       : null;
   const [embedLinkOpen, setEmbedLinkOpen] = useState(false);
-  // Double tap on the media likes. A tap that opens something (photo, GIF, Muse) waits DOUBLE_TAP_MS so the second
-  // tap can cancel it; a video's play/pause runs at once and the second tap's toggle puts it back (net unchanged).
-  // Keyboard activation (detail 0) never waits and never counts as a tap.
-  const doubleTap = useRef(createDoubleTapDetector());
-  const pendingTap = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Double tap to like (src/lib/heart-burst.ts). Keyboard activation (detail 0) always acts at once and never counts
+  // as a tap. Nothing waits on a tap except opening the Muse viewer from Home (it adds a history entry, so it can't be
+  // closed again cleanly mid-open): that one still waits DOUBLE_TAP_MS so a second tap can cancel it.
+  const doubleTapLikes = !!onDoubleTapLike && !editing;
+  // Photo / GIF: the viewer opens on the first tap; the second tap of a double tap lands on the viewer and is caught
+  // there by armSecondTapGuard (window capture phase), which closes the viewer again and likes.
+  const disarmOpenGuard = useRef<(() => void) | null>(null);
+  // Muse open from Home (deferred, see above).
+  const museTap = useRef(createDoubleTapDetector());
+  const pendingMuseOpen = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Video play/pause: immediate; a double tap restores the state from before its first tap.
+  const videoTap = useRef(createVideoTapToggle());
+  // The post's text (all post types): a double tap likes, except on links/buttons or with text selected.
+  const textTap = useRef(createDoubleTapDetector());
   useEffect(
     () => () => {
-      if (pendingTap.current) clearTimeout(pendingTap.current);
+      disarmOpenGuard.current?.();
+      if (pendingMuseOpen.current) clearTimeout(pendingMuseOpen.current);
     },
     [],
   );
-  function mediaTap(e: { detail: number; clientX: number; clientY: number }, single: () => void, defer: boolean) {
-    if (!onDoubleTapLike || editing || e.detail === 0) {
-      single();
+  function openImageTap(e: ReactMouseEvent<HTMLElement>) {
+    disarmOpenGuard.current?.();
+    disarmOpenGuard.current = null;
+    onOpenImage(0);
+    if (!doubleTapLikes || e.detail === 0 || typeof window === "undefined") return;
+    disarmOpenGuard.current = armSecondTapGuard({
+      target: window,
+      first: { t: Date.now(), x: e.clientX, y: e.clientY },
+      now: Date.now,
+      ignore: e.nativeEvent,
+      onDoubleTap: () => {
+        disarmOpenGuard.current = null;
+        onCloseImage?.();
+        onDoubleTapLike?.();
+      },
+    });
+  }
+  function museOpenTap(e: ReactMouseEvent<HTMLElement>, open: () => void) {
+    if (!doubleTapLikes || e.detail === 0) {
+      open();
       return;
     }
-    if (pendingTap.current) {
-      clearTimeout(pendingTap.current);
-      pendingTap.current = null;
+    if (pendingMuseOpen.current) {
+      clearTimeout(pendingMuseOpen.current);
+      pendingMuseOpen.current = null;
     }
-    if (doubleTap.current.tap(Date.now(), e.clientX, e.clientY)) {
-      onDoubleTapLike();
-      if (!defer) single();
-    } else if (defer) {
-      pendingTap.current = setTimeout(() => {
-        pendingTap.current = null;
-        single();
-      }, DOUBLE_TAP_MS);
-    } else {
-      single();
+    if (museTap.current.tap(Date.now(), e.clientX, e.clientY)) {
+      onDoubleTapLike?.();
+      return;
     }
+    pendingMuseOpen.current = setTimeout(() => {
+      pendingMuseOpen.current = null;
+      open();
+    }, DOUBLE_TAP_MS);
+  }
+  function videoPlaybackTap(e: ReactMouseEvent<HTMLVideoElement>) {
+    const el = e.currentTarget;
+    if (!doubleTapLikes || e.detail === 0) {
+      if (el.paused) el.play().catch(() => {});
+      else el.pause();
+      return;
+    }
+    if (videoTap.current.tap(Date.now(), e.clientX, e.clientY, el) === "double") onDoubleTapLike?.();
+  }
+  function textDoubleTap(e: ReactMouseEvent<HTMLDivElement>) {
+    if (!doubleTapLikes || e.detail === 0) return;
+    if (
+      isDoubleTapIgnoredTarget(e.target, e.currentTarget) ||
+      hasActiveTextSelection(typeof window === "undefined" ? null : window.getSelection())
+    ) {
+      textTap.current.reset();
+      return;
+    }
+    if (textTap.current.tap(Date.now(), e.clientX, e.clientY)) onDoubleTapLike?.();
   }
   const [muted, setMuted] = useFeedVideoMuted();
   // Mirrors the element's real state (onPlay/onPause below) rather than
@@ -659,10 +726,18 @@ function MediaBlock({
       ) : (
         post.content && (
           <>
-            <TruncatedText
-              text={translation.displayText}
-              className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}
-            />
+            {/* Double tap on the text likes (textDoubleTap ignores links, buttons and selected text). No iOS tap
+                highlight: the click listener alone would make WebKit flash the whole text block on every tap. The
+                property inherits, so links and buttons inside get WebKit's default (rgba 0,0,0,0.4) back. */}
+            <div
+              onClick={textDoubleTap}
+              className="[-webkit-tap-highlight-color:transparent] [&_a]:[-webkit-tap-highlight-color:rgba(0,0,0,0.4)] [&_button]:[-webkit-tap-highlight-color:rgba(0,0,0,0.4)]"
+            >
+              <TruncatedText
+                text={translation.displayText}
+                className={cn("mt-2 whitespace-pre-wrap text-sm", isEmojiOnly(post.content) && "text-4xl leading-tight")}
+              />
+            </div>
             {translation.control}
           </>
         )
@@ -682,7 +757,7 @@ function MediaBlock({
         post.mediaUrls[0] && (
           <button
             type="button"
-            onClick={(e) => mediaTap(e, () => onOpenImage(0), true)}
+            onClick={openImageTap}
             className="mt-3 block w-full cursor-zoom-in touch-manipulation"
           >
             {/* Plain <img>, not next/image: avoids routing user-uploaded
@@ -716,7 +791,7 @@ function MediaBlock({
       {post.mediaType === "GIF" && post.mediaUrls.length > 0 && (
         <button
           type="button"
-          onClick={(e) => mediaTap(e, () => onOpenImage(0), true)}
+          onClick={openImageTap}
           className="mt-3 block w-full cursor-zoom-in touch-manipulation"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- Giphy-hosted GIF, not a local/optimizable asset */}
@@ -752,17 +827,12 @@ function MediaBlock({
             className="aspect-[4/5] w-full cursor-pointer touch-manipulation bg-black object-cover"
             onClick={(e) => {
               const el = e.currentTarget;
-              mediaTap(
-                e,
-                () => {
-                  if (openInMuse) {
-                    el.pause();
-                    openInMuse();
-                  } else if (el.paused) el.play().catch(() => {});
-                  else el.pause();
-                },
-                !!openInMuse,
-              );
+              if (openInMuse) {
+                museOpenTap(e, () => {
+                  el.pause();
+                  openInMuse();
+                });
+              } else videoPlaybackTap(e);
             }}
           >
             <source src={post.videoUrl} />
@@ -1058,11 +1128,21 @@ export function PostCard({
     });
   }
 
+  // The hearts rise over the media on a photo / GIF / video / embed post, and over the whole card otherwise (a text or
+  // link post's text alone is often a single line, too short for them). The host's height is read once per burst and
+  // becomes the layer's --hb-h (rise distance, see globals.css).
+  const heartOnMedia = HEART_ON_MEDIA_TYPES.has(displayPost.mediaType);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const mediaHostRef = useRef<HTMLDivElement>(null);
+  function showHeart() {
+    heart.show((heartOnMedia ? mediaHostRef : cardRef).current?.clientHeight);
+  }
+
   function handleLike() {
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLikeCount((c) => c + (nextLiked ? 1 : -1));
-    if (nextLiked) heart.show();
+    if (nextLiked) showHeart();
     startLikeTransition(async () => {
       const result = await toggleLike(interactionTargetId);
       if (result.error || typeof result.liked !== "boolean" || typeof result.likeCount !== "number") {
@@ -1087,7 +1167,7 @@ export function PostCard({
     }
     if (doubleTapNeedsLike(liked)) {
       if (!isLikePending) handleLike();
-    } else heart.show();
+    } else showHeart();
   }
 
   function toggleReaction(emoji: string) {
@@ -1149,8 +1229,9 @@ export function PostCard({
 
   return (
     <div
+      ref={cardRef}
       className={cn(
-        "animate-rise-in rounded-xl border border-line bg-surface shadow-[var(--shadow-sm)]",
+        "relative animate-rise-in rounded-xl border border-line bg-surface shadow-[var(--shadow-sm)]",
         isCompact ? "p-3" : "p-4",
       )}
     >
@@ -1283,10 +1364,11 @@ export function PostCard({
         />
       )}
 
-      <div className="relative">
+      <div ref={mediaHostRef} className="relative">
       <MediaBlock
         post={isQuoting ? displayPost : { ...displayPost, content }}
         onOpenImage={(index) => setLightboxIndex(index)}
+        onCloseImage={() => setLightboxIndex(null)}
         onOpenVideo={() => setLightboxVideo(true)}
         onOpenInMuse={onOpenVideoInMuse}
         onDoubleTapLike={handleDoubleTapLike}
@@ -1303,29 +1385,7 @@ export function PostCard({
             : undefined
         }
       />
-      {heart.key !== null && (
-        <span aria-hidden="true" className="post-heart-layer pointer-events-none absolute inset-0 z-[1] overflow-hidden">
-          {heart.hearts.map((h) => (
-            <span
-              key={`${heart.key}-${h.id}`}
-              className="post-heart-float"
-              data-trail={h.lead ? undefined : ""}
-              style={
-                {
-                  left: `calc(50% + ${h.offsetPct}%)`,
-                  "--hb-sway": `${h.sway}px`,
-                  "--hb-rot": `${h.rotate}deg`,
-                  "--hb-rise": h.rise,
-                  "--hb-dur": `${h.durationMs}ms`,
-                  "--hb-delay": `${h.delayMs}ms`,
-                } as CSSProperties
-              }
-            >
-              <LikeHeartArt size={h.size} />
-            </span>
-          ))}
-        </span>
-      )}
+      {heartOnMedia && <HeartLayer burstKey={heart.key} hearts={heart.hearts} heightPx={heart.heightPx} />}
       </div>
 
       <div
@@ -1506,6 +1566,59 @@ export function PostCard({
         onClose={() => setShareModalOpen(false)}
         onShareCountChange={setShareCount}
       />
+      {!heartOnMedia && (
+        <HeartLayer burstKey={heart.key} hearts={heart.hearts} heightPx={heart.heightPx} className="rounded-[inherit]" />
+      )}
     </div>
+  );
+}
+
+/** Post types whose hearts rise over the media; every other post's hearts rise over the whole card. */
+const HEART_ON_MEDIA_TYPES: ReadonlySet<MediaType> = new Set<MediaType>(["IMAGE", "GIF", "VIDEO", "EMBED"]);
+
+/**
+ * The floating hearts (useHeartBurst + globals.css `.post-heart-*`). Absolute over its positioned parent, clipped to
+ * it, never hit-testable. `heightPx` (measured once per burst) sets --hb-h, the rise distance in px; the layer is
+ * remounted per burst (keyed) so a restart replays every heart.
+ */
+function HeartLayer({
+  burstKey,
+  hearts,
+  heightPx,
+  className,
+}: {
+  burstKey: number | null;
+  hearts: HeartSpec[];
+  heightPx: number | null;
+  className?: string;
+}) {
+  if (burstKey === null) return null;
+  return (
+    <span
+      key={burstKey}
+      aria-hidden="true"
+      className={cn("post-heart-layer pointer-events-none absolute inset-0 z-[1] overflow-hidden", className)}
+      style={heightPx ? ({ "--hb-h": `${heightPx}px` } as CSSProperties) : undefined}
+    >
+      {hearts.map((h) => (
+        <span
+          key={h.id}
+          className="post-heart-float"
+          data-trail={h.lead ? undefined : ""}
+          style={
+            {
+              left: `calc(50% + ${h.offsetPct}%)`,
+              "--hb-sway": `${h.sway}px`,
+              "--hb-rot": `${h.rotate}deg`,
+              "--hb-rise": h.rise,
+              "--hb-dur": `${h.durationMs}ms`,
+              "--hb-delay": `${h.delayMs}ms`,
+            } as CSSProperties
+          }
+        >
+          <LikeHeartArt size={h.size} />
+        </span>
+      ))}
+    </span>
   );
 }

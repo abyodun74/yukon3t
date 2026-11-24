@@ -20,7 +20,6 @@
   --accent-soft: #f3e3d2;
   --teal: #1f6f6b;
   --danger: #a3372b;
-  --heart-burst: #8b3fd9;
   --success: #3f7d4f;
   /* Third aurora-background hue (see .aurora-bg below) — a warm gold that
      sits between --accent and --accent-soft, so the drifting blobs read as
@@ -1068,11 +1067,14 @@ img[data-press-highlight] {
 
 /* The hearts that float up a post when it is liked (PostCard, src/lib/heart-burst.ts + like-heart-art.tsx). The layer
    is absolute, clipped to the media container (overflow hidden), pointer-events none and takes no layout space; each
-   heart moves with transform + opacity only. Rise distance is a percentage of the container's height (cqh); sway,
-   rotation, scale, size and delays are per-heart custom properties set by planHearts. HEART_BURST_MS (2200) must be
-   at least the longest delay + duration planHearts can produce. */
+   heart moves with transform + opacity only. Rise distance is a percentage (--hb-rise) of the layer's height, which
+   PostCard measures in JS once per burst and sets as --hb-h in px (no container query units: cqh needs iOS 16+);
+   sway, rotation, scale, size and delays are per-heart custom properties set by planHearts. `contain: layout paint`
+   keeps the hearts' repaints inside the layer; no CSS filter (the glow is baked into the SVG). The hearts exist only
+   while the burst runs (unmounted after HEART_BURST_MS), so their will-change lasts only for the animation.
+   HEART_BURST_MS (2200) must be at least the longest delay + duration planHearts can produce. */
 .post-heart-layer {
-  container-type: size;
+  contain: layout paint;
 }
 
 .post-heart-float {
@@ -1090,23 +1092,23 @@ img[data-press-highlight] {
   }
   10% {
     opacity: 1;
-    transform: translate(-50%, calc(var(--hb-rise) * -0.05cqh)) scale(0.8) rotate(calc(var(--hb-rot) * -0.5));
+    transform: translate(-50%, calc(var(--hb-rise) * var(--hb-h, 320px) * -0.0005)) scale(0.8) rotate(calc(var(--hb-rot) * -0.5));
   }
   32% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--hb-sway)), calc(var(--hb-rise) * -0.32cqh)) scale(0.95) rotate(var(--hb-rot));
+    transform: translate(calc(-50% + var(--hb-sway)), calc(var(--hb-rise) * var(--hb-h, 320px) * -0.0032)) scale(0.95) rotate(var(--hb-rot));
   }
   58% {
     opacity: 1;
-    transform: translate(calc(-50% - var(--hb-sway)), calc(var(--hb-rise) * -0.6cqh)) scale(1.05) rotate(calc(var(--hb-rot) * -1));
+    transform: translate(calc(-50% - var(--hb-sway)), calc(var(--hb-rise) * var(--hb-h, 320px) * -0.006)) scale(1.05) rotate(calc(var(--hb-rot) * -1));
   }
   80% {
     opacity: 0.85;
-    transform: translate(calc(-50% + var(--hb-sway) * 0.5), calc(var(--hb-rise) * -0.86cqh)) scale(1.12) rotate(calc(var(--hb-rot) * 0.5));
+    transform: translate(calc(-50% + var(--hb-sway) * 0.5), calc(var(--hb-rise) * var(--hb-h, 320px) * -0.0086)) scale(1.12) rotate(calc(var(--hb-rot) * 0.5));
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, calc(var(--hb-rise) * -1cqh)) scale(1.2) rotate(0deg);
+    transform: translate(-50%, calc(var(--hb-rise) * var(--hb-h, 320px) * -0.01)) scale(1.2) rotate(0deg);
   }
 }
 
