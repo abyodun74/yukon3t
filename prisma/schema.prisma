@@ -4043,6 +4043,10 @@ model GiftPurchase {
 
   @@unique([provider, providerTxnId])
   @@index([buyerId, createdAt])
+  // The marketplace's "Popular" order: delivered (PAID) purchases counted per product (gift-market-data.ts).
+  @@index([productId, status])
+  // The sweep-stuck-gift-purchases cron: PENDING purchases, oldest first (gift-purchase-sweep.ts).
+  @@index([status, createdAt])
 }
 
 // Who a purchase was for. The message (<= 140 chars) was moderated before anything was created. Only the recipient

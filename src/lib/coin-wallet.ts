@@ -17,7 +17,9 @@ import {
 //   purchase and its send are created in the same transaction under a unique idempotency key, so a double submit
 //   can't spend twice;
 // - a refund (a coin-paid gift that couldn't be delivered) is written inside deliverGiftPurchase's own transaction, at
-//   most once (its ledger key is unique).
+//   most once (its ledger key is unique); a purchase left PENDING (delivery failed and nobody retried) is retried or,
+//   past GIFT_PURCHASE_REFUND_AFTER_MS, refunded by refundStuckCoinPurchase from the sweep-stuck-gift-purchases cron
+//   (src/lib/gift-purchase-sweep.ts), under the same once-only guards.
 // Delivery itself (deliverGiftPurchase) runs after the spend commits; anything that goes wrong after that (an
 // animation, a push, a chat card) never undoes a settled send.
 
@@ -228,6 +230,14 @@ export async function refundCoinPurchaseInTx(
     data: { status: "REFUNDED", refundedAt: now },
     select: { id: true },
   });
+  await creditCoinRefundInTx(tx, purchase);
+}
+
+/** The wallet credit + the one REFUND ledger row of a refunded coin purchase (nothing for a buyer who is gone). */
+async function creditCoinRefundInTx(
+  tx: TransactionClient,
+  purchase: { id: string; buyerId: string | null; amountMinor: number },
+): Promise<void> {
   if (!purchase.buyerId || purchase.amountMinor < 1) return;
   const wallet = await tx.coinWallet.upsert({
     where: { userId: purchase.buyerId },
@@ -245,6 +255,50 @@ export async function refundCoinPurchaseInTx(
       purchaseId: purchase.id,
     },
     select: { id: true },
+  });
+}
+
+export type StuckRefundOutcome = "refunded" | "already_done" | "busy";
+
+/**
+ * Gives back the coins of a coin purchase that was never delivered (the sweep-stuck-gift-purchases cron, for one left
+ * PENDING past GIFT_PURCHASE_REFUND_AFTER_MS or whose send is gone with its recipient's account). One transaction:
+ * - the purchase row is locked FOR UPDATE SKIP LOCKED, still PENDING and COINS. A row another transaction holds (a
+ *   delivery mid-claim, another sweep) answers "busy" and is left for the next run; one that is no longer PENDING
+ *   (delivered, refunded, revoked) answers "already_done";
+ * - a guarded PENDING -> REFUNDED update (the same guard deliverGiftPurchase's PENDING -> PAID claim uses, so exactly
+ *   one of the two can ever win: a delivered gift is never refunded and a refunded one is never delivered later);
+ * - its send, if it still exists, AWAITING_PAYMENT -> UNDELIVERABLE (the sender's history reads "Not delivered, coins
+ *   returned");
+ * - the wallet credit and one REFUND ledger row under coinRefundKey(purchaseId), unique per buyer, so a refund can't be
+ *   written twice even by a path that skipped the guards above.
+ */
+export async function refundStuckCoinPurchase(
+  purchaseId: string,
+  now: Date,
+): Promise<StuckRefundOutcome> {
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<
+      { id: string; buyerId: string | null; amountMinor: number }[]
+    >`SELECT "id", "buyerId", "amountMinor" FROM "GiftPurchase" WHERE "id" = ${purchaseId} FOR UPDATE SKIP LOCKED`;
+    if (locked.length !== 1) {
+      const exists = await tx.giftPurchase.findUnique({
+        where: { id: purchaseId },
+        select: { id: true },
+      });
+      return exists ? "busy" : "already_done";
+    }
+    const claimed = await tx.giftPurchase.updateMany({
+      where: { id: purchaseId, provider: "COINS", status: "PENDING" },
+      data: { status: "REFUNDED", refundedAt: now },
+    });
+    if (claimed.count !== 1) return "already_done";
+    await tx.giftSend.updateMany({
+      where: { purchaseId, status: "AWAITING_PAYMENT" },
+      data: { status: "UNDELIVERABLE" },
+    });
+    await creditCoinRefundInTx(tx, locked[0]);
+    return "refunded";
   });
 }
 
