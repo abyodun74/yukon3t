@@ -96,6 +96,15 @@
     "@xmldom/xmldom": "^0.9.12",
     "@grpc/grpc-js": "^1.14.5",
     "@fastify/busboy": "^3.2.2",
-    "date-holidays-parser": "3.4.7"
+    "date-holidays-parser": "3.4.7",
+    "@prisma/config": {
+      "effect": "^3.22.5"
+    },
+    "@sentry/bundler-plugins": {
+      "glob": "^14.0.6"
+    },
+    "google-gax": {
+      "rimraf": "^6.1.4"
+    }
   }
 }
