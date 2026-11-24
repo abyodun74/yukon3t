@@ -17,7 +17,7 @@ function newFormId() {
 
 const MESSAGES: Record<string, string> = {
   invalid: "Check the form: a recipient, a whole amount between 1 and 100,000 and a reason (3 to 200 characters).",
-  recipient: "No active account has that exact username or id.",
+  recipient: "No active account has that exact username, email or user id.",
   balance_cap: `That would take the balance above ${COIN_BALANCE_MAX.toLocaleString("en")} coins.`,
 };
 
@@ -81,15 +81,23 @@ export default async function AdminCoinsPage({
       <form action={grantCoinsAction} className="mt-6 space-y-3 rounded-xl border border-line p-4">
         <input type="hidden" name="formId" value={newFormId()} />
         <label className="block text-sm font-medium">
-          Recipient (exact username or user id)
+          Recipient (exact username, email or user id)
           <input
             name="recipient"
+            placeholder="username, email or user id"
             required
             maxLength={64}
             autoComplete="off"
             className="mt-1 w-full rounded-lg border border-line bg-background px-3 py-2 text-base sm:text-sm"
           />
         </label>
+        <p className="-mt-1 text-xs text-foreground-soft">
+          Need the id or username? Search by email or name at{" "}
+          <Link href="/admin/users" className="text-accent hover:underline">
+            /admin/users
+          </Link>
+          ; each account is listed there with its id and its @username if it has one. The match is exact.
+        </p>
         <label className="block text-sm font-medium">
           Amount (1 to {COIN_GRANT_MAX.toLocaleString("en")})
           <input

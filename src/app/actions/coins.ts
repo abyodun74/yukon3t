@@ -13,7 +13,7 @@ import { coinGrantSchema } from "@/lib/validations";
 // as the wallet credit (src/lib/coin-wallet.ts grantCoins). The form carries a one-time id, so a double submit grants
 // once.
 
-/** Grants coins to one person, found by their exact username or user id. Answers by redirecting back with the outcome. */
+/** Grants coins to one person, found by their exact user id, username or email. Answers by redirecting back with the outcome. */
 export async function grantCoinsAction(formData: FormData) {
   const admin = await requireAdmin();
   const parsed = coinGrantSchema.safeParse({
@@ -25,11 +25,14 @@ export async function grantCoinsAction(formData: FormData) {
   if (!parsed.success) redirect("/admin/coins?error=invalid");
   const { recipient, amount, reason, formId } = parsed.data;
   const handle = recipient.replace(/^@/, "");
-  // Exact match only, never a fuzzy one for a grant: a user id first, then the username exactly as stored (both unique).
+  // Exact match only, never a fuzzy one for a grant: a user id first, then the username exactly as stored, then the email
+  // (trimmed and lowercased, how every sign-up path stores it). All three are unique columns. The typed text is only ever
+  // used to find the account: the ledger and audit log get the resolved user id (grantCoins), never the typed email.
   const select = { id: true, status: true, isGuestPreview: true } as const;
   const target =
     (await prisma.user.findUnique({ where: { id: handle }, select })) ??
-    (await prisma.user.findUnique({ where: { username: handle }, select }));
+    (await prisma.user.findUnique({ where: { username: handle }, select })) ??
+    (handle.includes("@") ? await prisma.user.findUnique({ where: { email: handle.toLowerCase() }, select }) : null);
   if (!target || target.isGuestPreview || target.status !== "ACTIVE") redirect("/admin/coins?error=recipient");
   if (grantRefusal(amount, await getCoinBalance(target.id)) === "balance_cap") redirect("/admin/coins?error=balance_cap");
 

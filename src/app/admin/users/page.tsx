@@ -92,6 +92,7 @@ export default async function AdminUsersPage({
                     {u.email}
                     {u.username && ` · @${u.username}`}
                   </p>
+                  <p className="mt-1 break-all text-xs text-foreground-soft select-all">id: {u.id}</p>
                   <p className="mt-1 text-xs text-foreground-soft">
                     {u.status} · {u.emailVerified ? "email verified" : "email not verified"}
                     {isLocked && (
