@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="alert_channel_name">Nachrichten und Aktivitäten</string>
+    <string name="alert_channel_description">Nachrichten, Anrufe, Kommentare, Likes und andere Aktivitäten</string>
+    <string name="quiet_channel_name">Geburtstagserinnerungen</string>
+    <string name="quiet_channel_description">Stille Geburtstagserinnerungen, ohne Ton und Vibration</string>
+</resources>

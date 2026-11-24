@@ -62,6 +62,31 @@
 
         </activity>
 
+        <!-- App Links: https://yukon3t.com links tapped in other apps (texts,
+             WhatsApp, email incl. sign-in/reset links) open in the app once
+             Android verifies the domain against
+             public/.well-known/assetlinks.json (autoVerify). Apex host only:
+             www.yukon3t.com answers assetlinks.json with a 301, which
+             Android's verifier doesn't follow, and on Android 11 and older
+             one unverifiable host fails the whole app's verification. A
+             filter can't exclude paths before Android 15, so the whole host
+             is claimed and AppLinkActivity (no UI) sends excluded paths to the
+             browser and the rest, signed, to MainActivity. -->
+        <activity
+            android:name=".AppLinkActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="yukon3t.com" />
+            </intent-filter>
+        </activity>
+
         <!-- Handles every FCM message for this app, including
              incoming_call/call_cancelled data pushes (src/lib/fcm.ts) while
              backgrounded/asleep — see CallMessagingService's own doc
@@ -113,6 +138,14 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_stat_notify" />
+        <!-- The channel Firebase posts a background notification to when the
+             push names none, or names one that doesn't exist on this device:
+             yk_alerts (heads-up banner + sound, src/lib/alert-push.ts) instead
+             of Firebase's "Miscellaneous" fallback. CallMessagingService and
+             MainActivity create it natively (AlertNotifications). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="yk_alerts" />
     </application>
 
     <!-- Permissions -->

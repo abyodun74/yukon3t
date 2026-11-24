@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="alert_channel_name">Messages et activité</string>
+    <string name="alert_channel_description">Messages, appels, commentaires, mentions J\'aime et autre activité</string>
+    <string name="quiet_channel_name">Rappels d\'anniversaire</string>
+    <string name="quiet_channel_description">Rappels d\'anniversaire discrets, sans son ni vibration</string>
+</resources>

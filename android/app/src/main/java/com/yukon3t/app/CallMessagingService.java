@@ -33,12 +33,29 @@ import java.util.Map;
  * ring notification is CallForegroundService's job (it needs to be the one
  * holding the foreground-service-backed notification anyway), so this class
  * only decides *whether* to start/stop it.
+ *
+ * Every other message (a new message, like, comment, Story repost...) is an
+ * FCM *notification* message (sendFcmActivityToUser and friends in fcm.ts).
+ * Firebase draws those itself only while the app is in the background; with
+ * the app open they arrive here, and AlertNotifications posts the same
+ * heads-up notification (yk_alerts channel, sound, same tag, same tap) so
+ * they show while the app is open too. Call pushes are data-only (no
+ * notification block), so they never take that path.
  */
 public class CallMessagingService extends FirebaseMessagingService {
 
     // Only used for the Log.e call below (an unexpected failure) — see
     // CallForegroundService's own TAG field for why this stays sparse.
     private static final String TAG = "YuKon3tCall";
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        // The channels ordinary notifications are posted to, created natively
+        // as well as from JS (capacitor-bridge.tsx): a push that arrives before
+        // the WebView ever created yk_alerts still gets a heads-up banner.
+        AlertNotifications.ensureChannels(this);
+    }
 
     @Override
     public void onNewToken(@NonNull String token) {
@@ -69,6 +86,14 @@ public class CallMessagingService extends FirebaseMessagingService {
     private void handleMessageReceived(@NonNull RemoteMessage remoteMessage) {
         Map<String, String> data = remoteMessage.getData();
         String type = data.get("type");
+
+        if (remoteMessage.getNotification() != null && !isCallType(type)) {
+            // Only reaches this service while the app is in the foreground
+            // (in the background Firebase draws it itself and this isn't called).
+            AlertNotifications.showWhileOpen(this, remoteMessage);
+            return;
+        }
+
         if (type == null) return;
 
         String callId = data.get("callId");
@@ -111,5 +136,9 @@ public class CallMessagingService extends FirebaseMessagingService {
                 data.get("url")
             );
         }
+    }
+
+    private static boolean isCallType(String type) {
+        return "incoming_call".equals(type) || "call_cancelled".equals(type) || "missed_call".equals(type);
     }
 }

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="alert_channel_name">Messaggi e attività</string>
+    <string name="alert_channel_description">Messaggi, chiamate, commenti, Mi piace e altre attività</string>
+    <string name="quiet_channel_name">Promemoria dei compleanni</string>
+    <string name="quiet_channel_description">Promemoria silenziosi dei compleanni, senza suono né vibrazione</string>
+</resources>

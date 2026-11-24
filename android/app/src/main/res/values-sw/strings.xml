@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="alert_channel_name">Ujumbe na shughuli</string>
+    <string name="alert_channel_description">Ujumbe, simu, maoni, kupendwa na shughuli nyingine</string>
+    <string name="quiet_channel_name">Vikumbusho vya siku ya kuzaliwa</string>
+    <string name="quiet_channel_description">Vikumbusho visivyo na kelele vya siku ya kuzaliwa, bila sauti wala mtetemo</string>
+</resources>

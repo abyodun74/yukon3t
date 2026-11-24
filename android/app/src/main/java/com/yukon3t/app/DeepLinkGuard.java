@@ -75,7 +75,9 @@ final class DeepLinkGuard {
      * Runs on every intent MainActivity receives, before Capacitor sees it
      * (onCreate before super.onCreate, onNewIntent before super.onNewIntent).
      * Drops the intent's data unless it is a signed, allow-listed yukon3t://
-     * link; strips the token and the Cordova preference extras either way.
+     * link or a signed https://yukon3t.com App Link (AppLinkActivity signs
+     * only links that passed AppLinkPolicy); strips the token and the Cordova
+     * preference extras either way.
      * The type is kept, because a share intent's declared MIME type is its
      * fallback (Intent.setData alone would clear it).
      */
@@ -100,6 +102,14 @@ final class DeepLinkGuard {
     private static boolean isAllowed(Uri uri) {
         try {
             if (!uri.isHierarchical()) return false;
+            // An https://yukon3t.com App Link, forwarded (and signed) by
+            // AppLinkActivity. Query and fragment are kept: a sign-in link's
+            // token is in the query, a reset link's in the #fragment; the web
+            // side (openedUrlTarget) re-validates the whole URL.
+            if ("https".equalsIgnoreCase(uri.getScheme())) {
+                return AppLinkPolicy.isAppLink(uri.getScheme(), uri.getHost(), uri.getPort(), uri.getUserInfo(), uri.getPath())
+                    && AppLinkPolicy.opensInApp(uri.getPath());
+            }
             Map<String, List<String>> params = new HashMap<>();
             for (String name : uri.getQueryParameterNames()) {
                 params.put(name, new ArrayList<>(uri.getQueryParameters(name)));

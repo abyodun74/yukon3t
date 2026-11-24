@@ -21,5 +21,16 @@
 	     com.yukon3t.app App ID in the Apple Developer Portal. -->
 	<key>com.apple.developer.devicecheck.appattest-environment</key>
 	<string>production</string>
+	<!-- Universal links: https://yukon3t.com links tapped in other apps open
+	     in the app (served association file:
+	     src/app/.well-known/apple-app-site-association/route.ts), and iOS
+	     offers passwords saved for yukon3t.com on the sign-in screen. Needs
+	     the Associated Domains capability on the com.yukon3t.app App ID in
+	     the Apple Developer Portal (Xcode's automatic signing adds it). -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:yukon3t.com</string>
+		<string>webcredentials:yukon3t.com</string>
+	</array>
 </dict>
 </plist>

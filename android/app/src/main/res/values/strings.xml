@@ -4,4 +4,11 @@
     <string name="title_activity_main">YuKon3t</string>
     <string name="package_name">com.yukon3t.app</string>
     <string name="custom_url_scheme">com.yukon3t.app</string>
+    <!-- Notification channels (AlertNotifications). Same text as src/lib/i18n/<locale>/ui.ts
+         pushPrompt.channelName/channelDescription and birthdays.quietChannelName/quietChannelDescription;
+         capacitor-bridge.tsx renames the channels into the app's own language later. -->
+    <string name="alert_channel_name">Messages and activity</string>
+    <string name="alert_channel_description">Messages, calls, comments, likes and other activity</string>
+    <string name="quiet_channel_name">Birthday reminders</string>
+    <string name="quiet_channel_description">Quiet reminders of birthdays, without sound or vibration</string>
 </resources>

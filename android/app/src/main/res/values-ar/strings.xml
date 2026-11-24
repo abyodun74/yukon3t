@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="alert_channel_name">الرسائل والنشاط</string>
+    <string name="alert_channel_description">الرسائل والمكالمات والتعليقات والإعجابات وغيرها من النشاط</string>
+    <string name="quiet_channel_name">تذكيرات أعياد الميلاد</string>
+    <string name="quiet_channel_description">تذكيرات هادئة بأعياد الميلاد، بلا صوت ولا اهتزاز</string>
+</resources>

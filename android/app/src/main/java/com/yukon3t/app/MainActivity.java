@@ -35,6 +35,15 @@ public class MainActivity extends BridgeActivity {
     private final Handler lockScreenHandler = new Handler(Looper.getMainLooper());
     private final Runnable clearShowOverLockScreen = () -> setShowOverLockScreen(false);
 
+    // Between onResume and onPause: the person is looking at the app. Read by
+    // AlertNotifications (any thread) to skip a banner for the very page on
+    // screen.
+    private static volatile boolean inForeground = false;
+
+    static boolean isInForeground() {
+        return inForeground;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // Must run before super.onCreate() (setContentView happens inside it) —
@@ -59,6 +68,8 @@ public class MainActivity extends BridgeActivity {
         // while it is built there. See DeepLinkGuard.
         DeepLinkGuard.sanitize(this, getIntent());
         super.onCreate(savedInstanceState);
+        // Same ids/importance capacitor-bridge.tsx uses (see AlertNotifications).
+        AlertNotifications.ensureChannels(this);
         handleCallDeepLink(getIntent());
         handleShareIntent(getIntent());
     }
@@ -128,6 +139,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        inForeground = true;
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
         for (StatusBarNotification sbn : manager.getActiveNotifications()) {
@@ -151,6 +163,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPause() {
         super.onPause();
+        inForeground = false;
         CookieManager.getInstance().flush();
     }
 

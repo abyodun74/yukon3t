@@ -154,9 +154,10 @@ export async function sendFcmMissedCallToUser(
  * data-only messages for calls) for ordinary social activity — likes,
  * comments, connection requests, etc. Android auto-displays this in the
  * system tray whenever the app is backgrounded or killed, with no native
- * code involved; CallMessagingService still receives it if the app is
- * foregrounded but won't match any of its existing `type` branches and
- * no-ops, since the in-app bell notification already covers that case live.
+ * code involved. While the app is foregrounded Firebase hands it to
+ * CallMessagingService instead, which (from Android build 32 / 1.29) posts
+ * the same heads-up notification itself (AlertNotifications.java: same
+ * channel, same tag, same tap); older builds only update the in-app bell.
  * Best-effort, same contract as sendFcmDataToUser/sendPushToUser.
  * `replaceKey`: a later push with the same key replaces this one on the device instead of stacking (Android drawer tag,
  * iOS apns-collapse-id; src/lib/push-replace.ts); `quiet` sends it without sound or vibration.

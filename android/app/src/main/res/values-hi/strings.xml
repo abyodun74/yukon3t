@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="alert_channel_name">मैसेज और गतिविधि</string>
+    <string name="alert_channel_description">मैसेज, कॉल, कमेंट, लाइक और दूसरी गतिविधि</string>
+    <string name="quiet_channel_name">जन्मदिन के रिमाइंडर</string>
+    <string name="quiet_channel_description">जन्मदिन के शांत रिमाइंडर, बिना आवाज़ और वाइब्रेशन के</string>
+</resources>
