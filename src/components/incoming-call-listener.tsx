@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Phone, PhoneOff, Video } from "lucide-react";
+import { MessageSquare, Phone, PhoneOff, Video } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
-import { getIncomingCall, getCallStatus, respondToCall } from "@/app/actions/calls";
+import { declineCallWithReply, getIncomingCall, getCallStatus, respondToCall } from "@/app/actions/calls";
 import { useCallSession } from "@/lib/call-session";
 import { useReloadHold } from "@/lib/stale-build-client";
 import { holdReload } from "@/lib/stale-build";
@@ -28,6 +28,8 @@ import { answeredCallLabel, callLabel, isPrivateCaller } from "@/lib/call-names"
 import { aroundPlaceholder } from "@/lib/i18n/locales";
 import { UserAvatar } from "@/components/user-link";
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
+import { CallQuickReplyPicker } from "@/components/call-quick-reply-picker";
+import { offersQuickReply, type CallQuickReplyChoice } from "@/lib/call-quick-reply";
 
 type IncomingCall = {
   id: string;
@@ -46,6 +48,8 @@ type IncomingCall = {
   // inviteToCall): `caller` is whoever added this user, and this is how
   // many other people are in it. 0 for an ordinary call.
   othersInCall: number;
+  // A ring to join a call already going (see othersInCall), which can't be declined with a quick reply.
+  invite?: boolean;
 };
 
 /**
@@ -85,6 +89,12 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // The call whose answer is being sent: its ring is hidden and silent from the tap on, not from the server's reply.
   const [answeringId, setAnsweringId] = useState<string | null>(null);
   useReloadHold("call", answeringId !== null);
+  // "Message" (decline with a quick reply, src/lib/call-quick-reply.ts): the call whose reply panel is open, and the
+  // call whose reply is being sent (its ring is hidden from the tap on, like an answer's).
+  const [replyPickerId, setReplyPickerId] = useState<string | null>(null);
+  const [replyingId, setReplyingId] = useState<string | null>(null);
+  useReloadHold("call", replyingId !== null);
+  const messageButtonRef = useRef<HTMLButtonElement>(null);
 
   const activeCallRef = useRef(activeCall);
   useEffect(() => {
@@ -287,7 +297,11 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // actually ringing, and stops the moment it isn't — accepted, declined,
   // hung up by the caller, or this component unmounts.
   const playerRef = useRef<RingtonePlayer | null>(null);
-  const ringingId = incoming && incoming.id !== answeringId ? incoming.id : null;
+  // Quiet while the reply panel is open, as on a phone: the call still rings for the caller until a reply is sent.
+  const ringingId =
+    incoming && incoming.id !== answeringId && incoming.id !== replyPickerId && incoming.id !== replyingId
+      ? incoming.id
+      : null;
   useEffect(() => {
     if (!ringingId) return undefined;
     if (!playerRef.current) playerRef.current = new RingtonePlayer();
@@ -409,6 +423,34 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     setIncoming((current) => (current?.id === callId ? null : current));
   }, [callKitRing]);
 
+  // Declines with a quick reply: the call stops ringing everywhere exactly as for Decline, and the caller is shown the
+  // reply and sent it as a chat message (declineCallWithReply). Refused before anything was declined (a block, a locked
+  // hidden chat, a failed request): a plain decline instead, so the tap still declines. Already answered, cancelled
+  // or timed out: nothing is sent and the ring is settled like any call resolved elsewhere.
+  const declineWithReply = useCallback(
+    async (callId: string, reply: CallQuickReplyChoice) => {
+      setReplyingId(callId);
+      let result: Awaited<ReturnType<typeof declineCallWithReply>> | null;
+      try {
+        result = await declineCallWithReply({ callId, reply }, currentCallDevice());
+      } catch {
+        result = null;
+      }
+      if (result?.error === "not_ringing") {
+        void callKitRing.settle(callId);
+      } else {
+        if (!result || result.error !== null) {
+          await respondToCall(callId, false, currentCallDevice()).catch(() => null);
+        }
+        void callKitRing.declinedHere(callId);
+      }
+      setReplyPickerId((current) => (current === callId ? null : current));
+      setReplyingId((current) => (current === callId ? null : current));
+      setIncoming((current) => (current?.id === callId ? null : current));
+    },
+    [callKitRing],
+  );
+
   // An Accept or Decline tapped outside the app: CallKit on iOS, the
   // incoming-call notification on Android.
   const answeredOutOfApp = useCallback(
@@ -481,6 +523,22 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     if (incoming) await declineCall(incoming.id);
   }
 
+  function openReplies() {
+    hapticImpact("light");
+    if (incoming) setReplyPickerId(incoming.id);
+  }
+
+  function closeReplies() {
+    setReplyPickerId(null);
+    // The panel replaced the buttons: focus goes back to "Message" once they are drawn again.
+    requestAnimationFrame(() => messageButtonRef.current?.focus({ preventScroll: true }));
+  }
+
+  async function sendReply(reply: CallQuickReplyChoice) {
+    hapticImpact("light");
+    if (incoming) await declineWithReply(incoming.id, reply);
+  }
+
   // Native Android only: the incoming-call notification (CallMessagingService,
   // native side) opens yukon3t://call?callId=...&action=accept|decline when
   // its Accept/Decline actions are tapped — this is what lets a call raised
@@ -505,6 +563,9 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       if (!callId) return;
       if (action === "accept") answeredOutOfApp(callId);
       else if (action === "decline") declinedOutOfApp(callId);
+      // A "Message" action on the ringing notification (needs a native build that adds it): opens the in-app ring
+      // with its reply panel, once that ring is loaded.
+      else if (action === "reply") setReplyPickerId(callId);
       // No action (notification body tap) — just foregrounding the app is
       // enough; the mount-check above picks up the ringing banner.
     }
@@ -588,7 +649,7 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   if (activeCall) return null;
 
   // Nothing to answer while this call's answer is already on its way.
-  if (!incoming || incoming.id === answeringId) return null;
+  if (!incoming || incoming.id === answeringId || incoming.id === replyingId) return null;
 
   // One sentence per kind of ring, the caller's name in bold wherever that language puts it. A caller whose chat
   // the reader has hidden is shown as the app's stand-in for the name, in a sentence worded for it.
@@ -608,6 +669,11 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
           ? t.callingVideo
           : t.calling;
   const [beforeName, afterName] = aroundPlaceholder(sentence, "name");
+  const canReply = offersQuickReply({
+    invite: Boolean(incoming.invite),
+    privateCaller: isPrivateCaller(incoming.caller.name),
+  });
+  const repliesOpen = canReply && replyPickerId === incoming.id;
 
   return (
     <OverlayPortal z={ringZ}>
@@ -632,22 +698,37 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
           {afterName}
         </p>
       </div>
-      <div className="mt-3 flex items-center justify-center gap-4">
-        <button
-          type="button"
-          onClick={decline}
-          className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.95]"
-        >
-          <PhoneOff size={16} /> {t.decline}
-        </button>
-        <button
-          type="button"
-          onClick={accept}
-          className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.95]"
-        >
-          {incoming.type === "VIDEO" ? <Video size={16} /> : <Phone size={16} />} {t.accept}
-        </button>
-      </div>
+      {repliesOpen ? (
+        <CallQuickReplyPicker text={calls.quickReply} onPick={(reply) => void sendReply(reply)} onBack={closeReplies} />
+      ) : (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={decline}
+            className="flex items-center gap-1.5 rounded-lg bg-danger px-4 py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.95]"
+          >
+            <PhoneOff size={16} /> {t.decline}
+          </button>
+          {canReply && (
+            <button
+              ref={messageButtonRef}
+              type="button"
+              onClick={openReplies}
+              aria-label={t.messageLabel}
+              className="flex items-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-medium transition-transform hover:border-accent hover:text-accent active:scale-[0.95]"
+            >
+              <MessageSquare size={16} aria-hidden /> {t.message}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={accept}
+            className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2.5 text-sm font-medium text-white transition-transform active:scale-[0.95]"
+          >
+            {incoming.type === "VIDEO" ? <Video size={16} /> : <Phone size={16} />} {t.accept}
+          </button>
+        </div>
+      )}
     </div>
     </OverlayPortal>
   );

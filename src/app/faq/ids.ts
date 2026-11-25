@@ -127,6 +127,7 @@ export const FAQ_IDS = [
   "see-photo-chat-full-screen",
   "when-open-chat-jump-straight",
   "voice-video-calls-work",
+  "decline-call-with-message",
   "add-more-people-call",
   "put-call-hold",
   "share-screen-during-call",

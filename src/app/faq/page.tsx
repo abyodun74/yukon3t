@@ -1908,6 +1908,34 @@ const sections: Section[] = [
         ),
       },
       {
+        id: "decline-call-with-message",
+        q: "Can I decline a call with a message?",
+        a: (
+          <>
+            Yes. When a call rings in the app, tap Message next to Decline and
+            pick a quick reply (&ldquo;I&apos;m in a meeting.&rdquo;,
+            &ldquo;Will call you right back.&rdquo;, &ldquo;Can&apos;t talk
+            right now.&rdquo;, &ldquo;I&apos;m driving.&rdquo; and a few
+            more), or type a short one of your own, up to 120 characters. The
+            call is declined and stops ringing on all your devices, the
+            caller sees your reply on their screen as the call ends, and it
+            is also sent to them as an ordinary chat message from you, so they
+            get the usual message notification if they&apos;ve already left
+            the call screen. One reply per call, and nothing is sent if the
+            call was answered, cancelled or stopped ringing first. Quick
+            replies are offered for one-to-one calls only: not when someone
+            adds you to a call that&apos;s already going, and not for a
+            &ldquo;Private call&rdquo; (someone whose chat you&apos;ve hidden).
+            If your chat with the caller is a secret chat, they still see the
+            reply on the call screen, but no chat message is sent, because
+            YuKon3t can&apos;t write into a secret chat. The phone&apos;s own
+            call screens (the iPhone call screen and the Android incoming-call
+            notification) don&apos;t have a Message button yet: open the app
+            while it rings to reply with a message.
+          </>
+        ),
+      },
+      {
         id: "add-more-people-call",
         q: "Can I add more people to a call?",
         a: (

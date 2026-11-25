@@ -78,6 +78,8 @@ const UNCHECKED_CHAT_READS = new Set([
   // 1:1 chats only (`isGroup: false`, or refuses a group before anything else): a collab chat is always a group.
   "app/actions/stories.ts#replyToStory",
   "lib/birthday-wish-server.ts#sendBirthdayWishAs",
+  // The pair's 1:1 chat from findDirectConversationId, which never returns a group.
+  "lib/call-quick-reply-server.ts#callReplyConversation",
   "app/actions/gifts.ts#chatPlaceRefusal",
   // Gift cards only ever go into a 1:1 (chatPlaceRefusal), so a gift's chat is never a collab chat.
   "app/actions/gifts.ts#getGiftChatCard",

@@ -3397,6 +3397,13 @@ model Call {
   voipOthersCleared Boolean @default(false)
   answerVoipTokenId String?
 
+  // A 1:1 ring the callee declined with a quick reply (declineCallWithReply, src/lib/call-quick-reply.ts): the reply's
+  // text, written in the same guarded RINGING -> DECLINED write, so the caller's ending-call screen can show it; and
+  // the chat message it was also sent as (null if none was, e.g. their chat is a secret chat). One per call. Deleted
+  // with the call record.
+  declineReply          String?
+  declineReplyMessageId String?
+
   @@index([calleeId, status])
   @@index([callerId, status])
   @@index([status, createdAt])

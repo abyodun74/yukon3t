@@ -27,6 +27,9 @@ export const callsEn = {
     neverMind: "Never mind",
     declined: "{name} declined the call.",
     declinedUnnamed: "The call was declined.",
+    // The callee declined with a quick reply ({reply} is their words, in their language).
+    replied: "{name} replied: {reply}",
+    repliedUnnamed: "Reply: {reply}",
     ended: "Call ended.",
     alreadyRinging: "You already have a call ringing to this person.",
     errors: {
@@ -48,6 +51,28 @@ export const callsEn = {
     callingPrivateVideo: "{name} is calling (video)...",
     decline: "Decline",
     accept: "Accept",
+    // Decline with a quick reply (src/lib/call-quick-reply.ts).
+    message: "Message",
+    messageLabel: "Decline and reply with a message",
+  },
+  // The quick replies offered by "Message" on the incoming-call card. A preset is sent in the callee's language, as a
+  // chat message from them and as the caller's "{name} replied: ..." notice.
+  quickReply: {
+    title: "Reply with a message",
+    back: "Back",
+    presets: {
+      meeting: "I'm in a meeting.",
+      callBack: "Will call you right back.",
+      cantTalk: "Can't talk right now.",
+      driving: "I'm driving.",
+      willText: "I'll text you.",
+      messageMe: "Can you message me instead?",
+      onMyWay: "On my way.",
+    },
+    customLabel: "Write your own reply",
+    customPlaceholder: "Write a reply…",
+    send: "Send",
+    sendLabel: "Decline and send this reply",
   },
   frame: {
     expand: "Expand",

@@ -26,6 +26,8 @@ type OutgoingState =
   | { phase: "in-call"; callId: string; roomUrl: string; token: string; type: CallType }
   // Why it ended, not the sentence: the toast below words it in the reader's language when it shows.
   | { phase: "ended"; reason: "declined" | "ended" | "already_ringing"; name: string | null }
+  // Declined with a quick reply (declineCallWithReply): the callee's own words, shown as "<name> replied: ...".
+  | { phase: "ended"; reason: "replied"; name: string | null; reply: string }
   | { phase: "ended"; reason: "error"; code: string | undefined }
   | { phase: "duplicate"; existingCallId: string; type: CallType };
 
@@ -187,7 +189,11 @@ export function CallButton({
         cancelPrewarm(pendingPrewarmKeyRef.current);
         pendingPrewarmKeyRef.current = null;
       }
-      setState({ phase: "ended", reason: "declined", name: calleeName });
+      setState(
+        result.reply
+          ? { phase: "ended", reason: "replied", name: calleeName, reply: result.reply }
+          : { phase: "ended", reason: "declined", name: calleeName },
+      );
     } else if (result.status === "ENDED" || result.status === "MISSED") {
       // Normally the callee hanging up ejects us from the Daily room, which
       // fires the session's onLeave (registered above) via GlobalCallFrame.
@@ -230,7 +236,8 @@ export function CallButton({
 
   useEffect(() => {
     if (state.phase !== "ended") return undefined;
-    const timer = setTimeout(() => setState({ phase: "idle" }), 3000);
+    // A reply stays up long enough to read.
+    const timer = setTimeout(() => setState({ phase: "idle" }), state.reason === "replied" ? 7000 : 3000);
     return () => clearTimeout(timer);
   }, [state]);
 
@@ -308,6 +315,10 @@ export function CallButton({
           ? state.name
             ? format(t.declined, { name: state.name })
             : t.declinedUnnamed
+          : state.reason === "replied"
+            ? state.name
+              ? format(t.replied, { name: state.name, reply: state.reply })
+              : format(t.repliedUnnamed, { reply: state.reply })
           : state.reason === "already_ringing"
             ? t.alreadyRinging
             : t.ended;
@@ -399,7 +410,7 @@ export function CallButton({
         <OverlayPortal z={toastZ}>
           <div
             role="status"
-            className="fixed inset-x-0 mx-auto w-fit rounded-lg border border-line bg-surface px-4 py-2 text-sm shadow-lg"
+            className="fixed inset-x-0 mx-auto w-fit max-w-[calc(100vw-2rem)] break-words rounded-lg border border-line bg-surface px-4 py-2 text-sm shadow-lg"
             style={{ zIndex: toastZ, bottom: "calc(1rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)))" }}
           >
             {endedMessage}

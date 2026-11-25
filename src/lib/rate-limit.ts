@@ -330,6 +330,9 @@ const limiterDefinitions = {
   shareToChats: makeLimiter(20, "10 m", "shareToChats"),
   // Birthday wishes (sendBirthdayWish): per sender, on top of messageSend. At most one per celebrant per year anyway.
   birthdayWish: makeLimiter(30, "1 h", "birthdayWish"),
+  // Declining a ringing call with a quick reply (declineCallWithReply): per callee, on top of messageSend. At most one
+  // reply per call anyway.
+  callQuickReply: makeLimiter(10, "10 m", "callQuickReply"),
   // Settings -> Privacy -> Birthday, "Add your birth date" (setBirthDateOnce): per user. It can only ever succeed once;
   // this just caps retries of a refused date (underage, invalid).
   birthDateSet: makeLimiter(5, "1 h", "birthDateSet"),

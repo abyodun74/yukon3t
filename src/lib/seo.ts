@@ -66,7 +66,7 @@ export function languageAlternates(path: LocalizedSeoPath, base = siteUrl()): Re
  */
 export const LEGAL_LAST_UPDATED: Record<string, string> = {
   "/legal/guidelines": "2026-11-24",
-  "/legal/privacy": "2026-11-24",
+  "/legal/privacy": "2026-11-25",
   "/legal/terms": "2026-11-24",
   "/legal/disclaimer": "2026-08-08",
   "/legal/delete-account": "2026-08-08",

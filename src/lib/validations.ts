@@ -35,6 +35,7 @@ import {
   BIRTHDAY_PRESET_IDS,
   BIRTHDAY_WISH_TEXT_MAX,
 } from "@/lib/birthdays";
+import { CALL_QUICK_REPLY_CUSTOM_RAW_MAX, CALL_QUICK_REPLY_PRESET_IDS } from "@/lib/call-quick-reply";
 
 // The plain constants live in the zod-free src/lib/validation-constants.ts so client components can import them
 // without bundling zod; re-exported here for server code that reads them alongside the schemas.
@@ -343,6 +344,15 @@ const captionId = z
   .min(1)
   .max(64)
   .regex(/^[A-Za-z0-9_-]+$/);
+// Declining a ringing 1:1 call with a quick reply (declineCallWithReply in actions/calls.ts). A preset by id only; custom
+// text is cleaned up and capped by callQuickReplyContent (src/lib/call-quick-reply.ts), this only bounds the raw input.
+export const callQuickReplySchema = z.object({
+  callId: captionId,
+  reply: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("preset"), presetId: z.enum(CALL_QUICK_REPLY_PRESET_IDS) }),
+    z.object({ kind: z.literal("custom"), text: z.string().min(1).max(CALL_QUICK_REPLY_CUSTOM_RAW_MAX) }),
+  ]),
+});
 export const callCaptionCallSchema = z.object({ callId: captionId });
 export const callCaptionConsentSchema = z.object({ callId: captionId, on: z.boolean() });
 export const callCaptionStartSchema = z.object({

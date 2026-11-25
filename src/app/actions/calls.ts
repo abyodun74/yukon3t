@@ -43,6 +43,10 @@ import {
   signalCallUsers,
   wasRungForCall,
 } from "@/lib/call-participants";
+import { callQuickReplySchema } from "@/lib/validations";
+import { callQuickReplyContent, callQuickReplyRefusal } from "@/lib/call-quick-reply";
+import { callReplyConversation, deliverCallReply } from "@/lib/call-quick-reply-server";
+import { getDictionary } from "@/lib/i18n/server";
 
 async function requireAcceptedConnection(userId: string, otherId: string) {
   return prisma.connection.findFirst({
@@ -212,7 +216,14 @@ export async function getCallStatus(callId: string) {
     return { error: "not_found" as const };
   }
 
-  return { error: null, status: statusForMember(call.status, mine?.status), type: call.type, ringing: call.ringingAt !== null };
+  return {
+    error: null,
+    status: statusForMember(call.status, mine?.status),
+    type: call.type,
+    ringing: call.ringingAt !== null,
+    // The callee's quick reply (declineCallWithReply), for the caller's ending-call notice only.
+    reply: call.callerId === user.id && call.status === "DECLINED" ? call.declineReply : null,
+  };
 }
 
 /**
@@ -277,6 +288,7 @@ export async function getIncomingCall() {
             avatarUrl: ringCallerAvatarUrl(callerName, call.caller.avatarUrl),
           },
           othersInCall: 0,
+          invite: false,
         },
         ringtone: user.ringtone,
       };
@@ -326,6 +338,7 @@ async function getIncomingInvite(userId: string) {
     calleeToken: null,
     caller: { id: inviterId, name: inviterName, avatarUrl: ringCallerAvatarUrl(inviterName, inviter?.avatarUrl ?? null) },
     othersInCall: invite.call.participants.filter((p) => p.userId !== inviterId).length,
+    invite: true,
   };
 }
 
@@ -415,6 +428,79 @@ export async function respondToCall(callId: string, accept: boolean, device?: Ca
   } catch {
     return { error: "call_service_unavailable" as const };
   }
+}
+
+export type DeclineWithReplyResult =
+  | { error: null }
+  | { error: "invalid" | "rate_limited" | "not_found" | "not_ringing" | "unavailable" | "hidden_locked" };
+
+/**
+ * The callee declines a ringing 1:1 call with a quick reply ("I'm in a meeting", or a short text of their own, see
+ * src/lib/call-quick-reply.ts). The decline is exactly respondToCall's (same guarded RINGING -> DECLINED write, the
+ * ring stopped on every one of the callee's devices, the caller signalled), and the reply's text is written in that
+ * same write, so the caller's screen reads "<name> replied: ..." the moment it learns of the decline. Then the reply is
+ * sent as an ordinary chat message from the callee (src/lib/call-quick-reply-server.ts), which pushes it to the caller
+ * like any message, covering a caller who has already left the call screen.
+ *
+ * Only the callee, only while it is still ringing: a call answered, cancelled, timed out or declined in the meantime
+ * sends nothing ("not_ringing"). One reply per call: a repeat after a reply answers success and sends nothing more.
+ * Every refusal before the decline (blocked, not connected any more, a locked hidden chat) declines nothing, so the
+ * app falls back to a plain Decline.
+ */
+export async function declineCallWithReply(input: unknown, device?: CallDevice | null): Promise<DeclineWithReplyResult> {
+  const user = await requireVerifiedUser();
+  const parsed = callQuickReplySchema.safeParse(input);
+  if (!parsed.success) return { error: "invalid" };
+  const { callId, reply } = parsed.data;
+  const content = callQuickReplyContent(reply, (await getDictionary()).calls.quickReply.presets);
+  if (!content) return { error: "invalid" };
+
+  if (!(await checkRateLimit("callQuickReply", user.id))) return { error: "rate_limited" };
+  if (!(await checkRateLimit("messageSend", user.id))) return { error: "rate_limited" };
+
+  const call = await findCallWithParticipants(callId);
+  const refusal = callQuickReplyRefusal(
+    call && { ...call, participantCount: call.participants.length },
+    user.id,
+  );
+  if (refusal === "already_replied") return { error: null };
+  if (refusal || !call) return { error: refusal ?? "not_found" };
+
+  const callerId = call.callerId;
+  const [caller, connection, blocked] = await Promise.all([
+    prisma.user.findUnique({ where: { id: callerId }, select: { id: true, status: true, openToIntents: true } }),
+    requireAcceptedConnection(user.id, callerId),
+    isBlockedEitherWay(user.id, callerId),
+  ]);
+  // One answer for every reason, so a reply can't be used to find out which it was.
+  if (!caller || caller.status !== "ACTIVE" || !connection || blocked) return { error: "unavailable" };
+  const destination = await callReplyConversation(user.id, callerId);
+  if (destination.error) return { error: destination.error };
+
+  const responder = parseCallDevice(device);
+  const { count } = await prisma.call.updateMany({
+    where: { id: callId, calleeId: user.id, status: "RINGING" },
+    data: { status: "DECLINED", respondedAt: new Date(), declineReply: content },
+  });
+  if (count === 0) {
+    // Resolved in between: a reply that got there first (the same tap sent twice) is done; anything else sends nothing.
+    const current = await prisma.call.findUnique({ where: { id: callId }, select: { status: true, declineReply: true } });
+    return current?.status === "DECLINED" && current.declineReply !== null ? { error: null } : { error: "not_ringing" };
+  }
+  const voip = planResponderVoipCancel(await findVoipTokens(user.id), responder);
+  await Promise.all([
+    publishEvent(REALTIME_CHANNELS.callSignal(callerId), "changed"),
+    clearRingOnRespondersDevices(user.id, callId, voip.cancel, "declinedElsewhere"),
+  ]);
+
+  await deliverCallReply({
+    callee: { id: user.id, name: user.name },
+    caller,
+    callId,
+    content,
+    conversationId: destination.conversationId,
+  });
+  return { error: null };
 }
 
 /**
