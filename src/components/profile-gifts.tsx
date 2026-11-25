@@ -23,6 +23,7 @@ import { giftPieceNumber } from "@/lib/gifts-data";
 import { giftItemName, giftProductName } from "@/lib/gift-names";
 import { format } from "@/lib/i18n/locales";
 import type { ProfileGiftsView } from "@/lib/gift-profile";
+import { armGiftSound } from "@/lib/gift-sound";
 
 /**
  * "Send a gift" for a profile, a chat header or a live room. Rendered only where giftsEnabledFor is on for the viewer
@@ -124,6 +125,8 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
   }
 
   function open(sendId: string) {
+    // This tap is what lets the reveal play its sound once the gift has opened.
+    armGiftSound();
     setError(null);
     startTransition(async () => {
       try {

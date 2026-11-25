@@ -70,6 +70,20 @@ export const giftsEn = {
     thanked: "You've said thank you for this gift.",
     replay: "Replay",
   },
+  // The reveal's sound (src/lib/gift-sound-plan.ts): the speaker button, the per-tier note and the iPhone silent-switch note.
+  sound: {
+    mute: "Mute gift sound",
+    notes: {
+      COMMON: "This gift plays a short chime.",
+      RARE: "This gift plays sound effects for 30 seconds.",
+      EPIC: "This gift plays sound effects for 60 seconds.",
+      LEGENDARY: "This gift plays cinematic sound effects for 100 seconds.",
+    },
+    muteHint: "Tap the speaker to mute it.",
+    mutedNote: "Gift sound is muted on this device.",
+    unmuteHint: "Tap the speaker to turn it on.",
+    silentSwitch: "Turn off silent mode to hear the gift.",
+  },
   card: {
     received: "Sent you a gift",
     sent: "You sent a gift",
@@ -277,7 +291,6 @@ export const giftsEn = {
       tierLabel: "{tier} gift",
       effectStandard: "Standard effect",
       effectImmersive: "Immersive effect",
-      noSound: "Gifts play no sound.",
       previewOnly: "This is only a preview: nothing is bought, sent or charged.",
       reducedMotion: "Reduced motion is on, so the preview shows the final look with a gentle fade instead of movement.",
       lowEnd: "Your device looks low-powered, so the preview uses a lighter version of the effect.",

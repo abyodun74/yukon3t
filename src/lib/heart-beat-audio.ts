@@ -1,5 +1,6 @@
 "use client";
 
+import { isGiftSoundPlaying } from "@/lib/gift-sound";
 import { HEART_BEAT_START_MS, planHeartbeat, shouldPlayHeartbeat } from "@/lib/heart-beat";
 import { isCallMediaHoldActive } from "@/lib/video-playback-guard";
 
@@ -31,6 +32,8 @@ function getContext(): AudioContext | null {
 export function playHeartbeat(reducedMotion: boolean): boolean {
   try {
     if (typeof document === "undefined") return false;
+    // One app sound at a time: a gift's score playing keeps the like heartbeat quiet.
+    if (isGiftSoundPlaying()) return false;
     const audioAvailable =
       !unusable &&
       (typeof window.AudioContext !== "undefined" ||

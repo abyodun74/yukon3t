@@ -67,6 +67,19 @@ export const gifts: typeof giftsEn = {
     thanked: "Vous avez déjà dit merci pour ce cadeau.",
     replay: "Revoir",
   },
+  sound: {
+    mute: "Couper le son du cadeau",
+    notes: {
+      COMMON: "Ce cadeau joue un court carillon.",
+      RARE: "Ce cadeau joue des effets sonores pendant 30 secondes.",
+      EPIC: "Ce cadeau joue des effets sonores pendant 60 secondes.",
+      LEGENDARY: "Ce cadeau joue des effets sonores cinématographiques pendant 100 secondes.",
+    },
+    muteHint: "Touchez le haut-parleur pour couper le son.",
+    mutedNote: "Le son des cadeaux est coupé sur cet appareil.",
+    unmuteHint: "Touchez le haut-parleur pour le réactiver.",
+    silentSwitch: "Désactivez le mode silencieux pour entendre le cadeau.",
+  },
   card: {
     received: "Vous a offert un cadeau",
     sent: "Vous avez offert un cadeau",
@@ -274,7 +287,6 @@ export const gifts: typeof giftsEn = {
       tierLabel: "Cadeau {tier}",
       effectStandard: "Effet classique",
       effectImmersive: "Effet immersif",
-      noSound: "Les cadeaux ne jouent aucun son.",
       previewOnly: "Ceci n'est qu'un aperçu : rien n'est acheté, envoyé ni débité.",
       reducedMotion: "Le mouvement réduit est activé : l'aperçu montre le rendu final avec un léger fondu au lieu d'un mouvement.",
       lowEnd: "Votre appareil semble peu puissant : l'aperçu utilise une version allégée de l'effet.",

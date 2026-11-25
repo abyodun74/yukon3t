@@ -13,6 +13,7 @@ import { useGiftsText } from "@/components/gifts-text";
 import { setGiftFavorite } from "@/app/actions/gift-market";
 import { formatCoins } from "@/lib/coins";
 import { prefetchGiftReveal } from "@/lib/gift-render-capability";
+import { armGiftSound } from "@/lib/gift-sound";
 import { giftProductDescription, giftProductName } from "@/lib/gift-names";
 import {
   DEFAULT_MARKET_FILTERS,
@@ -121,7 +122,11 @@ export function GiftMarketplace({
       <li key={gift.sku}>
         <button
           type="button"
-          onClick={() => setPreviewSku(gift.sku)}
+          onClick={() => {
+            // This tap is what lets the preview play its sound (never on its own).
+            armGiftSound();
+            setPreviewSku(gift.sku);
+          }}
           // Intent only: warms an Epic / Legendary gift's 3D scene and model (nothing for the rest, nothing on scroll).
           onPointerEnter={() => prefetchGiftReveal(gift)}
           onFocus={() => prefetchGiftReveal(gift)}
@@ -317,7 +322,7 @@ export function GiftMarketplace({
               </p>
               <p className="line-clamp-2 text-sm text-white/85">{descriptionOf(preview)}</p>
               <p role="note" className="text-[11px] text-white/60">
-                {m.preview.sampleNote} {m.preview.previewOnly} {m.preview.noSound}
+                {m.preview.sampleNote} {m.preview.previewOnly}
               </p>
               {reduce && (
                 <p role="note" className="text-[11px] text-white/60">

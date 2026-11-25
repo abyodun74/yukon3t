@@ -67,6 +67,19 @@ export const gifts: typeof giftsEn = {
     thanked: "Hai già detto grazie per questo regalo.",
     replay: "Rivedi",
   },
+  sound: {
+    mute: "Disattiva l'audio del regalo",
+    notes: {
+      COMMON: "Questo regalo riproduce un breve scampanellio.",
+      RARE: "Questo regalo riproduce effetti sonori per 30 secondi.",
+      EPIC: "Questo regalo riproduce effetti sonori per 60 secondi.",
+      LEGENDARY: "Questo regalo riproduce effetti sonori cinematografici per 100 secondi.",
+    },
+    muteHint: "Tocca l'altoparlante per disattivarlo.",
+    mutedNote: "L'audio dei regali è disattivato su questo dispositivo.",
+    unmuteHint: "Tocca l'altoparlante per attivarlo.",
+    silentSwitch: "Disattiva la modalità silenziosa per sentire il regalo.",
+  },
   card: {
     received: "Ti ha inviato un regalo",
     sent: "Hai inviato un regalo",
@@ -273,7 +286,6 @@ export const gifts: typeof giftsEn = {
       tierLabel: "Regalo {tier}",
       effectStandard: "Effetto classico",
       effectImmersive: "Effetto immersivo",
-      noSound: "I regali non riproducono suoni.",
       previewOnly: "Questa è solo un'anteprima: non viene acquistato, inviato né addebitato nulla.",
       reducedMotion: "Il movimento ridotto è attivo, quindi l'anteprima mostra l'aspetto finale con una leggera dissolvenza invece del movimento.",
       lowEnd: "Il tuo dispositivo sembra poco potente, quindi l'anteprima usa una versione più leggera dell'effetto.",

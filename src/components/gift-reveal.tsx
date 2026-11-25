@@ -15,7 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { useReducedMotion } from "motion/react";
-import { RotateCcw, Sparkles, X } from "lucide-react";
+import { RotateCcw, Sparkles, Volume2, VolumeX, X } from "lucide-react";
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { GiftStage, useLowEndDevice } from "@/components/gift-stage";
 import { useGiftsText } from "@/components/gifts-text";
@@ -31,6 +31,7 @@ import type { GiftTierName } from "@/lib/gift-market";
 import { registerOverlay } from "@/lib/overlay-registry";
 import { useBackDismiss } from "@/lib/use-back-dismiss";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { useGiftSound } from "@/lib/use-gift-sound";
 import { holdPageMedia, releasePageMedia } from "@/lib/video-playback-guard";
 import { format } from "@/lib/i18n/locales";
 
@@ -63,8 +64,11 @@ const readArtSize = () => giftRevealArtSize({ width: window.innerWidth, height: 
  * and with a light sweep over its name. Reduced motion: everything at once with one short fade; a low-end device: the
  * lighter plan. Transform and opacity only (globals.css "Gift reveal").
  *
- * Pure presentation: no server action, no storage, no sound. What the buttons do is the caller's (`primary`,
- * `secondary`; useGiftRevealClose closes it from one of them). A dialog: focus moves in and is kept inside (Tab wraps), Escape, Back, the X and a tap outside the
+ * No server action and no storage of its own. Sound (use-gift-sound.ts, gift-sound.ts): the tier's score plays only if
+ * the tap that opened this reveal armed it and this device hasn't muted gift sound; the speaker button mutes / unmutes
+ * (remembered per device), Replay restarts it, and it stops the moment the reveal starts closing, on unmount, during a
+ * call and while the page is hidden. Its hit lands on the name's step, and its climax adds one soft glow (full motion
+ * only). What the buttons do is the caller's (`primary`, `secondary`; useGiftRevealClose closes it from one of them). A dialog: focus moves in and is kept inside (Tab wraps), Escape, Back, the X and a tap outside the
  * panel close it (one history entry of its own, see useBackDismiss), a starting call closes it (overlay registry),
  * page media pauses while it is open, and a polite live region announces it.
  */
@@ -111,6 +115,8 @@ export function GiftReveal({
   const step = (name: GiftRevealStep) => ({ "--step-delay": `${delays.get(name) ?? 0}ms` }) as CSSProperties;
   const [playKey, setPlayKey] = useState(0);
   const [announced, setAnnounced] = useState("");
+  const sound = useGiftSound({ tier: stageTier, lowEnd, hitMs: delays.get("name") ?? 0 });
+  const stopSound = sound.stop;
 
   const senderLine =
     sender === "sample"
@@ -132,23 +138,26 @@ export function GiftReveal({
   const finish = useCallback(() => {
     if (closedRef.current) return;
     closedRef.current = true;
+    stopSound();
     if (fallbackRef.current) clearTimeout(fallbackRef.current);
     onCloseRef.current();
     const then = thenRef.current;
     // The next overlay (the marketplace's send sheet) opens only once this one is gone.
     if (then) requestAnimationFrame(() => then());
-  }, []);
+  }, [stopSound]);
 
   // Back closes it; any other way out steps back through the same entry first (finish runs on that popstate).
   useBackDismiss(true, finish);
   const close = useCallback<GiftRevealClose>(
     (then) => {
       if (closedRef.current || fallbackRef.current) return;
+      // The sound stops the moment the reveal starts closing, not when the back step lands.
+      stopSound();
       thenRef.current = then ?? null;
       fallbackRef.current = setTimeout(finish, CLOSE_FALLBACK_MS);
       window.history.back();
     },
-    [finish],
+    [finish, stopSound],
   );
 
   const dialogRef = useDialogFocus<HTMLDivElement>(true, () => close());
@@ -226,6 +235,9 @@ export function GiftReveal({
           className="gift-reveal-panel relative flex h-full w-full flex-col overflow-hidden text-white sm:h-[min(92dvh,62rem)] sm:max-w-2xl sm:rounded-3xl sm:border sm:border-white/10 lg:h-[min(86dvh,46rem)] lg:max-w-6xl lg:flex-row"
         >
           <div className="relative flex min-h-36 flex-1 flex-col pt-[var(--reveal-safe-top)] sm:pt-0" style={{ "--reveal-safe-top": safeTop } as CSSProperties}>
+            {plan.motion === "full" && sound.climaxCount > 0 && (
+              <span key={sound.climaxCount} className="gift-reveal-climax" aria-hidden />
+            )}
             <GiftStage
               tier={stageTier}
               items={items}
@@ -282,12 +294,24 @@ export function GiftReveal({
             )}
             <div className="gift-reveal-step flex w-full max-w-sm flex-col items-center gap-2" style={step("actions")}>
               {details}
+              <p role="note" className="text-[11px] text-white/60">
+                {sound.muted ? t.sound.mutedNote : t.sound.notes[stageTier]}{" "}
+                {sound.muted ? t.sound.unmuteHint : t.sound.muteHint}
+              </p>
+              {sound.silentNote && !sound.muted && (
+                <p role="note" className="text-[11px] text-white/75">
+                  {t.sound.silentSwitch}
+                </p>
+              )}
               {primary}
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   data-reveal-replay=""
-                  onClick={() => setPlayKey((k) => k + 1)}
+                  onClick={() => {
+                    sound.replay();
+                    setPlayKey((k) => k + 1);
+                  }}
                   className="flex h-10 items-center gap-1.5 rounded-full border border-white/30 px-4 text-sm font-medium text-white hover:border-white/60"
                 >
                   <RotateCcw size={14} aria-hidden />
@@ -306,6 +330,17 @@ export function GiftReveal({
               {m.preview.previewBadge}
             </span>
           )}
+          <button
+            type="button"
+            onClick={sound.toggleMuted}
+            aria-pressed={sound.muted}
+            aria-label={t.sound.mute}
+            title={t.sound.mute}
+            className="absolute end-14 top-[calc(0.5rem+var(--reveal-safe-top))] rounded-full bg-black/45 p-2 text-white/85 hover:text-white sm:top-3"
+            style={{ "--reveal-safe-top": safeTop } as CSSProperties}
+          >
+            {sound.muted ? <VolumeX size={22} aria-hidden /> : <Volume2 size={22} aria-hidden />}
+          </button>
           <button
             type="button"
             onClick={() => close()}

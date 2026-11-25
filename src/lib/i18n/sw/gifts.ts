@@ -67,6 +67,19 @@ export const gifts: typeof giftsEn = {
     thanked: "Umeshatoa shukrani kwa zawadi hii.",
     replay: "Cheza tena",
   },
+  sound: {
+    mute: "Zima sauti ya zawadi",
+    notes: {
+      COMMON: "Zawadi hii inacheza mlio mfupi wa kengele.",
+      RARE: "Zawadi hii inacheza madoido ya sauti kwa sekunde 30.",
+      EPIC: "Zawadi hii inacheza madoido ya sauti kwa sekunde 60.",
+      LEGENDARY: "Zawadi hii inacheza madoido ya sauti ya kisinema kwa sekunde 100.",
+    },
+    muteHint: "Gusa spika ili kuizima.",
+    mutedNote: "Sauti ya zawadi imezimwa kwenye kifaa hiki.",
+    unmuteHint: "Gusa spika ili kuiwasha.",
+    silentSwitch: "Zima hali ya kimya ili usikie zawadi.",
+  },
   card: {
     received: "Amekutumia zawadi",
     sent: "Ulituma zawadi",
@@ -273,7 +286,6 @@ export const gifts: typeof giftsEn = {
       tierLabel: "Zawadi ya {tier}",
       effectStandard: "Madoido ya kawaida",
       effectImmersive: "Madoido ya kuzama ndani",
-      noSound: "Zawadi hazitoi sauti.",
       previewOnly: "Huu ni uhakiki tu: hakuna kinachonunuliwa, kutumwa wala kutozwa.",
       reducedMotion: "Mwendo uliopunguzwa umewashwa, kwa hiyo uhakiki unaonyesha mwonekano wa mwisho kwa kufifia taratibu badala ya mwendo.",
       lowEnd: "Kifaa chako kinaonekana kuwa na nguvu ndogo, kwa hiyo uhakiki unatumia toleo jepesi la madoido.",

@@ -67,6 +67,19 @@ export const gifts: typeof giftsEn = {
     thanked: "Você já agradeceu por este presente.",
     replay: "Ver de novo",
   },
+  sound: {
+    mute: "Silenciar o som do presente",
+    notes: {
+      COMMON: "Este presente toca um breve tilintar.",
+      RARE: "Este presente toca efeitos sonoros por 30 segundos.",
+      EPIC: "Este presente toca efeitos sonoros por 60 segundos.",
+      LEGENDARY: "Este presente toca efeitos sonoros cinematográficos por 100 segundos.",
+    },
+    muteHint: "Toque no alto-falante para silenciar.",
+    mutedNote: "O som dos presentes está silenciado neste dispositivo.",
+    unmuteHint: "Toque no alto-falante para ativar.",
+    silentSwitch: "Desative o modo silencioso para ouvir o presente.",
+  },
   card: {
     received: "Te enviou um presente",
     sent: "Você enviou um presente",
@@ -273,7 +286,6 @@ export const gifts: typeof giftsEn = {
       tierLabel: "Presente {tier}",
       effectStandard: "Efeito padrão",
       effectImmersive: "Efeito imersivo",
-      noSound: "Os presentes não tocam som.",
       previewOnly: "Isto é apenas uma prévia: nada é comprado, enviado ou cobrado.",
       reducedMotion: "O movimento reduzido está ativado, então a prévia mostra o visual final com um leve esmaecimento em vez de movimento.",
       lowEnd: "Seu dispositivo parece ter pouca potência, então a prévia usa uma versão mais leve do efeito.",

@@ -12,6 +12,7 @@ import { openGift, type OpenedGift } from "@/app/actions/gifts";
 import { giftItemName, giftProductName } from "@/lib/gift-names";
 import { byCode, format } from "@/lib/i18n/locales";
 import type { ReceivedGiftEntry, SentGiftEntry } from "@/lib/gift-history";
+import { armGiftSound } from "@/lib/gift-sound";
 
 type Tab = "sent" | "received";
 
@@ -58,6 +59,8 @@ export function GiftHistoryView() {
     iso ? new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(iso)) : "";
 
   function open(entry: ReceivedGiftEntry) {
+    // This tap is what lets the reveal play its sound once the gift has opened.
+    armGiftSound();
     setOpenError(null);
     startOpening(async () => {
       try {

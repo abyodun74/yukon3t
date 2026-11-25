@@ -1452,6 +1452,33 @@ img[data-press-highlight] {
     opacity: 1;
   }
 }
+/* The sound's climax cue (src/lib/gift-sound-plan.ts, full motion only): one soft glow behind the art, once per cue.
+   Opacity and a slow, steady scale only; no flash (one rise and fall over 2.4s). */
+.gift-reveal-climax {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--gift-tier) 45%, transparent), transparent 62%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gift-reveal-full .gift-reveal-climax {
+    animation: gift-reveal-climax 2400ms ease-in-out backwards;
+  }
+}
+@keyframes gift-reveal-climax {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  45% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
 
 /* The hearts that float up a post, a Muse or a Story when it is liked (heart-burst-layer.tsx in PostCard, MuseCard and
    StoryViewer; src/lib/heart-burst.ts + like-heart-art.tsx). The layer

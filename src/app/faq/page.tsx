@@ -3159,14 +3159,28 @@ const sections: Section[] = [
       },
       {
         id: "gift-animations-reduced-motion",
-        q: "Do gift animations respect reduced motion?",
+        q: "Do gift animations respect reduced motion? Do gifts play sound?",
         a: (
           <>
             Yes. With your device&apos;s reduce-motion setting on, gifts and
             live effects show as still pictures instead of animations. Gift
             animations are short, live effects last a few seconds, nothing
-            flashes, and gifts never play sound. When you open a gift, a screen
-            reader announces what was inside.
+            flashes, and live effects play no sound. When you open a gift, a
+            screen reader announces what was inside.
+            <br />
+            <br />
+            Opening a gift (or previewing one in the gift marketplace) also
+            plays sound, always after your tap, never on its own: a short chime
+            for Common gifts, 30 seconds of sound effects for Rare, 60 seconds
+            for Epic and 100 seconds of cinematic sound for Legendary. Reduce
+            motion doesn&apos;t turn it off, since that&apos;s a motion setting.
+            Tap the speaker button on the reveal to <strong>mute</strong> it;
+            the choice is remembered on that device. The sound stops as soon as
+            you close the reveal, leave the app or a call starts, and your
+            device&apos;s volume decides how loud it is. On an iPhone or iPad,
+            gift sound follows the ring/silent switch: turn off silent mode to
+            hear it. The sound is made on your device: nothing is downloaded or
+            recorded.
           </>
         ),
       },

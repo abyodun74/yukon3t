@@ -67,6 +67,19 @@ export const gifts: typeof giftsEn = {
     thanked: "Du hast dich für dieses Geschenk schon bedankt.",
     replay: "Noch einmal",
   },
+  sound: {
+    mute: "Geschenkton stummschalten",
+    notes: {
+      COMMON: "Dieses Geschenk spielt ein kurzes Glockenspiel.",
+      RARE: "Dieses Geschenk spielt 30 Sekunden lang Soundeffekte.",
+      EPIC: "Dieses Geschenk spielt 60 Sekunden lang Soundeffekte.",
+      LEGENDARY: "Dieses Geschenk spielt 100 Sekunden lang filmreife Soundeffekte.",
+    },
+    muteHint: "Tippe auf den Lautsprecher, um ihn stummzuschalten.",
+    mutedNote: "Der Geschenkton ist auf diesem Gerät stummgeschaltet.",
+    unmuteHint: "Tippe auf den Lautsprecher, um ihn einzuschalten.",
+    silentSwitch: "Schalte den Lautlos-Modus aus, um das Geschenk zu hören.",
+  },
   card: {
     received: "Hat dir ein Geschenk gesendet",
     sent: "Du hast ein Geschenk gesendet",
@@ -273,7 +286,6 @@ export const gifts: typeof giftsEn = {
       tierLabel: "Geschenk: {tier}",
       effectStandard: "Normaler Effekt",
       effectImmersive: "Immersiver Effekt",
-      noSound: "Geschenke spielen keinen Ton ab.",
       previewOnly: "Das ist nur eine Vorschau: Es wird nichts gekauft, gesendet oder abgebucht.",
       reducedMotion: "Reduzierte Bewegung ist aktiv, daher zeigt die Vorschau das fertige Aussehen mit sanftem Einblenden statt Bewegung.",
       lowEnd: "Dein Gerät scheint leistungsschwach zu sein, daher nutzt die Vorschau eine leichtere Version des Effekts.",

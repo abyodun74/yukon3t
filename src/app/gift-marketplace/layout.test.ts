@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,6 +25,16 @@ import Layout from "./layout";
 
 const ROOT = process.cwd();
 const read = (file: string) => readFileSync(path.join(ROOT, file), "utf8");
+const listSourceFiles = (dir: string): string[] =>
+  readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((d) =>
+    d.isDirectory()
+      ? d.name === "generated"
+        ? []
+        : listSourceFiles(`${dir}/${d.name}`)
+      : /\.tsx?$/.test(d.name)
+        ? [`${dir}/${d.name}`]
+        : [],
+  );
 
 // Walks the returned element tree for the props that would be serialized to the client.
 function collectProps(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
@@ -91,11 +101,64 @@ describe("gift-marketplace structure", () => {
     expect(src).toContain("notFound()");
   });
 
-  it("the preview effect code is pure presentation: no actions, DB, network, storage or sound", () => {
+  it("the preview effect code is pure presentation: no actions, DB, network or storage, and sound only via the gift sound modules", () => {
     for (const f of ["src/components/gift-stage.tsx", "src/components/gift-reveal.tsx", "src/lib/gift-effect-plan.ts"]) {
       const src = read(f);
       expect(src).not.toMatch(/@\/app\/actions|prisma|fetch\(|XMLHttpRequest|sendBeacon|localStorage|new Audio|AudioContext|\.play\(\)/);
     }
+    expect(read("src/components/gift-stage.tsx")).not.toMatch(/gift-sound/);
+    expect(read("src/lib/gift-effect-plan.ts")).not.toMatch(/gift-sound/);
+  });
+
+  it("the sound modules touch no actions, DB, network or storage (only the mute preference module uses storage)", () => {
+    const soundFiles = ["src/lib/gift-sound-plan.ts", "src/lib/gift-sound-engine.ts", "src/lib/gift-sound.ts", "src/lib/use-gift-sound.ts"];
+    for (const f of [...soundFiles, "src/lib/gift-sound-pref.ts"]) {
+      const src = read(f);
+      expect(src).not.toMatch(/@\/app\/actions|prisma|fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|https?:\/\/|new Audio|<audio|\.mp3|\.wav|\.ogg/);
+      expect(src).not.toMatch(/sessionStorage|indexedDB|document\.cookie/);
+    }
+    for (const f of soundFiles) expect(read(f)).not.toMatch(/localStorage/);
+    expect(read("src/lib/gift-sound-pref.ts")).toMatch(/localStorage/);
+    // The plan is pure: no Web Audio, no DOM.
+    expect(read("src/lib/gift-sound-plan.ts")).not.toMatch(/AudioContext|window\.|document\.|navigator\./);
+  });
+
+  it("the synth is a lazily loaded chunk: only a dynamic import or type imports reach it", () => {
+    const controller = read("src/lib/gift-sound.ts");
+    expect(controller).toContain('import("@/lib/gift-sound-engine")');
+    expect(controller).toMatch(/import type \{[^}]*\} from "@\/lib\/gift-sound-engine"/);
+    for (const f of listSourceFiles("src")) {
+      if (f.endsWith(".test.ts") || f === "src/lib/gift-sound-engine.ts") continue;
+      expect(read(f), f).not.toMatch(/^import (?!type)[^;]*from "@\/lib\/gift-sound-engine"/m);
+    }
+  });
+
+  it("sound starts only from a tap: arming happens in the opening taps, starting only in the reveal's hook", () => {
+    const armers = new Set<string>();
+    const starters = new Set<string>();
+    for (const f of listSourceFiles("src")) {
+      if (f.endsWith(".test.ts")) continue;
+      const src = read(f);
+      if (/\barmGiftSound\(\)/.test(src)) armers.add(f);
+      if (/\bstartGiftSound\(/.test(src)) starters.add(f);
+    }
+    expect([...armers].sort()).toEqual(
+      [
+        "src/components/gift-chat-card.tsx",
+        "src/components/gift-history-view.tsx",
+        "src/components/gift-marketplace.tsx",
+        "src/components/profile-gifts.tsx",
+        "src/lib/gift-sound.ts",
+        "src/lib/use-gift-sound.ts",
+      ].sort(),
+    );
+    expect([...starters].sort()).toEqual(["src/lib/gift-sound.ts", "src/lib/use-gift-sound.ts"]);
+    // The reveal stops the sound the moment it starts closing, and offers an accessible mute toggle.
+    const reveal = read("src/components/gift-reveal.tsx");
+    expect(reveal).toContain("useGiftSound(");
+    expect(reveal).toMatch(/stopSound\(\);\s*\n\s*thenRef\.current = then/);
+    expect(reveal).toContain("aria-pressed={sound.muted}");
+    expect(reveal).toContain("aria-label={t.sound.mute}");
   });
 
   it("the marketplace calls no server action but favorites and the checkout path", () => {

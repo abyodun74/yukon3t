@@ -7,6 +7,7 @@ import { useGiftsText } from "@/components/gifts-text";
 import { getGiftChatCard, openGift, sendThankYouGift, type GiftChatCard as Card, type OpenedGift } from "@/app/actions/gifts";
 import { byCode } from "@/lib/i18n/locales";
 import { giftItemName, giftProductName } from "@/lib/gift-names";
+import { armGiftSound } from "@/lib/gift-sound";
 
 /**
  * A gift inside a chat (Message.giftSendId). The message itself carries nothing but the link; the card is loaded
@@ -43,6 +44,8 @@ export function GiftChatCard({ giftSendId }: { giftSendId: string }) {
   }, [giftSendId]);
 
   function open() {
+    // This tap is what lets the reveal play its sound once the gift has opened.
+    armGiftSound();
     startTransition(async () => {
       try {
         const result = await openGift(giftSendId);
