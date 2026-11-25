@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useReducedMotion } from "motion/react";
 import { Heart, History, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
 import { Sheet } from "@/components/sheet";
-import { GiftStage } from "@/components/gift-stage";
+import { GiftStage, useLowEndDevice } from "@/components/gift-stage";
 import { CoinAmount, CoinMark } from "@/components/coin-amount";
 import { GiftMarketFilterSheet } from "@/components/gift-market-filter-sheet";
 import { GiftMarketSendSheet } from "@/components/gift-market-send-sheet";
@@ -19,7 +19,6 @@ import {
   activeFilterCount,
   applyMarket,
   categorySlug,
-  effectOf,
   marketEmptyState,
   type GiftCategoryName,
   type MarketFilters,
@@ -48,6 +47,7 @@ export function GiftMarketplace({
   const { locale, dir, t } = useGiftsText();
   const m = t.market;
   const reduce = useReducedMotion() ?? false;
+  const lowEnd = useLowEndDevice();
   const [balance, setBalance] = useState(initialBalance);
   const [favorites, setFavorites] = useState(() => new Set(initialFavorites));
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -128,7 +128,7 @@ export function GiftMarketplace({
           }}
           className={`gift-tier-${gift.tier.toLowerCase()} gift-tier-edge flex h-full w-full flex-col overflow-hidden rounded-2xl border bg-surface text-start transition-colors hover:bg-accent-soft/40`}
         >
-          <GiftStage tier={gift.tier} items={gift.items} name={name} size={72} reduce playAnimation={false} className="aspect-square w-full" />
+          <GiftStage tier={gift.tier} items={gift.items} name={name} size={72} reduce compact playAnimation={false} className="aspect-square w-full" />
           <span className="flex flex-1 flex-col gap-1 p-2.5">
             <span className="line-clamp-2 text-sm font-semibold">{name}</span>
             <span className="flex flex-wrap items-center gap-1.5">
@@ -313,7 +313,7 @@ export function GiftMarketplace({
         title={preview ? nameOf(preview) : ""}
         lang={locale}
         dir={dir}
-        panelClassName="sm:max-w-md"
+        panelClassName={preview?.tier === "LEGENDARY" ? "sm:max-w-2xl" : "sm:max-w-md"}
       >
         {preview && (
           <div className="space-y-3">
@@ -324,17 +324,30 @@ export function GiftMarketplace({
               size={168}
               playKey={playKey}
               reduce={reduce}
-              className="aspect-[4/3] w-full rounded-2xl"
+              className={`w-full rounded-2xl ${preview.tier === "LEGENDARY" ? "aspect-[3/4] max-h-[62dvh] sm:aspect-video" : "aspect-[4/3]"}`}
             />
+            <p className="sr-only" role="status">
+              {format(m.preview.stageLabel, { name: nameOf(preview) })}
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <span className={`gift-tier-${preview.tier.toLowerCase()} gift-tier-badge rounded-full px-2.5 py-0.5 text-xs font-semibold`}>
                 {format(m.preview.tierLabel, { tier: m.tiers[preview.tier] })}
               </span>
               <span className="text-xs text-foreground-soft">{m.categories[preview.category]}</span>
               <span className="text-xs text-foreground-soft">
-                · {effectOf(preview.tier) === "IMMERSIVE" ? m.preview.effectImmersive : m.preview.effectStandard}
+                · {m.preview.effects[preview.tier]}
               </span>
             </div>
+            {reduce && (
+              <p role="note" className="rounded-lg bg-surface px-3 py-2 text-xs text-foreground-soft">
+                {m.preview.reducedMotion}
+              </p>
+            )}
+            {!reduce && lowEnd && (
+              <p role="note" className="rounded-lg bg-surface px-3 py-2 text-xs text-foreground-soft">
+                {m.preview.lowEnd}
+              </p>
+            )}
             <p className="text-sm">{descriptionOf(preview)}</p>
             <div className="flex items-center justify-between gap-2">
               <span className="text-lg font-semibold">
@@ -360,7 +373,9 @@ export function GiftMarketplace({
                 </button>
               </span>
             </div>
-            <p className="text-xs text-foreground-soft">{m.preview.noSound}</p>
+            <p className="text-xs text-foreground-soft">
+              {m.preview.previewOnly} {m.preview.noSound}
+            </p>
             {!preview.available && (
               <p role="status" className="text-sm text-danger">
                 {m.preview.unavailable}

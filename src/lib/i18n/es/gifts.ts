@@ -267,6 +267,16 @@ export const gifts: typeof giftsEn = {
       effectStandard: "Efecto estándar",
       effectImmersive: "Efecto inmersivo",
       noSound: "Los regalos no reproducen sonido.",
+      previewOnly: "Esto es solo una vista previa: no se compra, envía ni cobra nada.",
+      reducedMotion: "El movimiento reducido está activado, así que la vista previa muestra el aspecto final con un suave desvanecimiento en lugar de movimiento.",
+      lowEnd: "Tu dispositivo parece de baja potencia, así que la vista previa usa una versión más ligera del efecto.",
+      stageLabel: "Vista previa de la animación de {name}",
+      effects: {
+        COMMON: "Sencillo: el regalo aparece subiendo.",
+        RARE: "Añade un brillo suave y destellos.",
+        EPIC: "Añade profundidad por capas: anillos, sombra e inclinación lenta.",
+        LEGENDARY: "Revelación cinematográfica completa con luz y profundidad.",
+      },
     },
     recipient: {
       title: "¿Para quién es?",

@@ -1,4 +1,5 @@
 import { canSeeCircleContent } from "@/lib/circle-visibility";
+import type { BirthdayMomentWish } from "@/lib/birthday-moment";
 
 // Birthday reminders and wishes. Pure rules here (dates, time zones, who may be reminded, grouping), unit-tested and
 // client-safe; the server half is birthdays-data.ts (the birthday-reminders cron, the /birthdays list) and
@@ -355,8 +356,14 @@ export function profileBirthdayToday(owner: ProfileBirthdayOwner, now: Date): { 
  */
 export type ProfileBirthdayWish = "available" | "wished" | "none";
 
-/** What the profile's birthday card shows. Only the day is implied ("today"): never a date, a year or an age. */
-export type ProfileBirthdayCard = { kind: "own" } | { kind: "visitor"; wish: ProfileBirthdayWish };
+/**
+ * What the profile's birthday card shows. Only the day is implied ("today"): never a date, a year or an age. The owner's
+ * card carries the wishes received so far for their birthday moment (selectBirthdayMomentWishes), which only the owner
+ * is ever sent.
+ */
+export type ProfileBirthdayCard =
+  | { kind: "own"; wishes: BirthdayMomentWish[] }
+  | { kind: "visitor"; wish: ProfileBirthdayWish };
 
 export function profileBirthdayWishState(input: { hasOpenReminder: boolean; alreadyWished: boolean }): ProfileBirthdayWish {
   if (!input.hasOpenReminder) return "none";

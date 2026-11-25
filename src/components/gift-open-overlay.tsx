@@ -6,6 +6,7 @@ import * as m from "motion/react-m";
 import { Sheet } from "@/components/sheet";
 import { GiftArt } from "@/components/gift-art";
 import { GiftLottie } from "@/components/gift-lottie";
+import { GiftStage } from "@/components/gift-stage";
 import { useGiftsText } from "@/components/gifts-text";
 import { resolveGiftAnimation, resolveGiftArt } from "@/lib/gift-assets";
 import { giftPieceNumber } from "@/lib/gifts-data";
@@ -54,6 +55,16 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
                 : t.open.fromSomeone}
           </p>
 
+          {gift.tier ? (
+            <GiftStage
+              tier={gift.tier}
+              items={gift.items.map((item) => ({ slug: item.slug, assetKey: artKey(item) }))}
+              name={names.join(", ")}
+              size={artSize}
+              reduce={Boolean(reduce)}
+              className="mt-4 aspect-[4/3] w-full rounded-2xl"
+            />
+          ) : (
           <div className="relative mt-4 flex min-h-28 w-full items-end justify-center" aria-hidden>
             {!reduce && (
               <m.div
@@ -96,6 +107,7 @@ export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; on
               )}
             </div>
           </div>
+          )}
 
           <ul className="mt-4 space-y-0.5 text-sm">
             {gift.items.map((item, i) => {

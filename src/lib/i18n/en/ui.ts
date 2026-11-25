@@ -489,6 +489,19 @@ export const uiEn = {
       visitorTitle: "It's {name}'s birthday today",
       visitorBody: "YuKon3t wishes {name} a happy birthday.",
       sendWish: "Send a wish",
+      playMoment: "Play your birthday moment",
+    },
+    // The full-screen birthday moment (birthday-moment.tsx): the owner's, on their profile, with the wishes received so
+    // far as floating cards, and a sender's, once their wish has gone. Everything it shows is also real text.
+    moment: {
+      celebrantTitle: "Happy birthday, {name}!",
+      celebrantSome: "Here are the wishes that have arrived so far.",
+      celebrantNone: "Your wishes will show up here as they arrive.",
+      senderTitle: "Your wish is on its way to {name}",
+      from: "From {name}",
+      fromYou: "From you",
+      openMessages: "Open messages",
+      hint: "Tap anywhere to close",
     },
     // The Android notification channel the midnight reminder is posted to (quiet-push.ts), as Android's app settings list it.
     quietChannelName: "Birthday reminders",

@@ -200,6 +200,8 @@ export default async function PublicProfilePage({
         <ProfileBirthdayCard
           card={birthdayCard}
           person={{ id: user.id, name: user.name }}
+          // A story link opens the story viewer: the birthday moment doesn't play over it.
+          autoPlayMoment={!storyParam}
           giftAction={
             gifts && !isOwnProfile ? (
               <SendGiftButton recipientId={user.id} recipientName={user.name} place={{ context: "DIRECT" }} />

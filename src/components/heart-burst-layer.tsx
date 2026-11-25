@@ -41,7 +41,13 @@ export function HeartBurstLayer({
             } as CSSProperties
           }
         >
-          <LikeHeartArt size={h.size} />
+          {h.lead ? (
+            <span className="post-heart-pulse">
+              <LikeHeartArt size={h.size} />
+            </span>
+          ) : (
+            <LikeHeartArt size={h.size} />
+          )}
         </span>
       ))}
     </span>

@@ -1,25 +1,26 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { Sheet } from "@/components/sheet";
+import { BirthdayMoment } from "@/components/birthday-moment";
 import { useUiText } from "@/components/ui-text";
 import { sendBirthdayWish } from "@/app/actions/birthdays";
 import {
   BIRTHDAY_EMOJIS,
   BIRTHDAY_PRESET_IDS,
   BIRTHDAY_WISH_TEXT_MAX,
+  birthdayWishContent,
   type BirthdayWishChoice,
 } from "@/lib/birthdays";
-import { announce } from "@/lib/announce";
 import { byCode, format } from "@/lib/i18n/locales";
 import { cn } from "@/lib/utils";
 
 /**
  * The quick-wish sheet: pick one reaction, one ready-made message or write your own, and send it to the person as a
- * direct message (sendBirthdayWish). One wish per person per year, so the sheet sends once and then shows where the
- * wish went. Only the person's id and the choice go to the server; a ready-made message is worded there, in the
- * sender's language.
+ * direct message (sendBirthdayWish). One wish per person per year, so the sheet sends once; once the server has
+ * answered that it was sent, the sheet gives way to the birthday moment (birthday-moment.tsx) with the wish as its
+ * card and a way into the chat it went to. Nothing waits on the animation. Only the person's id and the choice go to
+ * the server; a ready-made message is worded there, in the sender's language.
  */
 export function BirthdayWishSheet({
   person,
@@ -35,7 +36,7 @@ export function BirthdayWishSheet({
   const [choice, setChoice] = useState<BirthdayWishChoice | null>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ conversationId: string; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // A sheet opened for someone else starts clean (adjusted during render, as forward-message-sheet.tsx does).
@@ -45,11 +46,11 @@ export function BirthdayWishSheet({
     setChoice(null);
     setText("");
     setError(null);
-    setSentTo(null);
+    setSent(null);
   }
 
   const name = person?.name ?? ui.unknownName;
-  const done = sentTo !== null;
+  const done = sent !== null;
 
   function send() {
     if (!person || !choice || isPending || done) return;
@@ -68,40 +69,30 @@ export function BirthdayWishSheet({
         if (result.error === "already_wished") onSent(person.id);
         return;
       }
-      const line = format(t.sent, { name });
-      setSentTo(result.conversationId);
-      announce(line);
+      setSent({ conversationId: result.conversationId, text: birthdayWishContent(choice, t.presets) });
       onSent(person.id);
     });
   }
 
   return (
-    <Sheet
-      open={person !== null}
-      onClose={onClose}
-      variant="bottom-sheet"
-      responsive
-      title={<span dir="auto">{format(t.sheetTitle, { name })}</span>}
-      panelClassName="sm:max-w-sm"
-    >
-      {done ? (
-        <div className="mt-3 space-y-3">
-          <p role="status" className="text-sm text-success">
-            {format(t.sent, { name })}
-          </p>
-          <div className="flex gap-2">
-            <Link
-              href={`/messages/${sentTo}`}
-              className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-ink"
-            >
-              {t.openChat}
-            </Link>
-            <button type="button" onClick={onClose} className="rounded-full border border-line px-4 py-1.5 text-sm">
-              {t.close}
-            </button>
-          </div>
-        </div>
-      ) : (
+    <>
+      {sent && person && (
+        <BirthdayMoment
+          variant="sender"
+          name={person.name}
+          wishes={[{ id: sent.conversationId, fromName: null, avatarUrl: null, text: sent.text }]}
+          action={{ label: t.openChat, href: `/messages/${sent.conversationId}` }}
+          onClose={onClose}
+        />
+      )}
+      <Sheet
+        open={person !== null && !done}
+        onClose={onClose}
+        variant="bottom-sheet"
+        responsive
+        title={<span dir="auto">{format(t.sheetTitle, { name })}</span>}
+        panelClassName="sm:max-w-sm"
+      >
         <div className="mt-3 space-y-4">
           <fieldset>
             <legend className="text-sm font-medium">{t.reactions}</legend>
@@ -193,7 +184,7 @@ export function BirthdayWishSheet({
             </p>
           )}
         </div>
-      )}
-    </Sheet>
+      </Sheet>
+    </>
   );
 }

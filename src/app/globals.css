@@ -1163,6 +1163,196 @@ img[data-press-highlight] {
   }
 }
 
+/* Gift reveal effects (src/lib/gift-effect-plan.ts decides which exist; GiftStage renders them). Everything moves with
+   transform + opacity only, nothing flashes (the one light bloom peaks at 0.5 opacity and fades over ~1s) and nothing
+   overshoots. --fx-ms is the plan's duration. .gift-fx-still (reduce motion) draws every layer in its final pose and
+   only fades the art in; .gift-fx-light (low-end device) drops the halo's spin and the sparkle loop's length. */
+.gift-fx-sparkle,
+.gift-fx-ring,
+.gift-fx-floor,
+.gift-fx-rays,
+.gift-fx-bloom,
+.gift-fx-bar {
+  pointer-events: none;
+  position: absolute;
+}
+.gift-fx-sparkle {
+  z-index: 1;
+  background: color-mix(in srgb, var(--gift-tier) 55%, white);
+  transform: translate(-50%, -50%) rotate(45deg);
+  opacity: 0.8;
+}
+.gift-fx-depth {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  perspective: 600px;
+}
+.gift-fx-ring {
+  inset: 0;
+  margin: auto;
+  width: calc(46% + var(--i) * 14%);
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--gift-tier) 60%, transparent);
+  opacity: calc(0.55 - var(--i) * 0.14);
+  transform: rotateX(62deg);
+}
+.gift-fx-floor {
+  left: 50%;
+  bottom: 12%;
+  width: 46%;
+  height: 8%;
+  border-radius: 9999px;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.55), transparent 70%);
+  transform: translateX(-50%);
+}
+.gift-fx-rays {
+  inset: -40%;
+  z-index: 0;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--gift-tier) 30%, transparent) 0 6deg, transparent 6deg 24deg);
+  opacity: 0.35;
+}
+.gift-fx-bloom {
+  inset: 0;
+  margin: auto;
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  z-index: 2;
+  background: radial-gradient(circle, rgba(255, 244, 214, 0.9), transparent 65%);
+  opacity: 0;
+}
+.gift-fx-bar {
+  left: 0;
+  right: 0;
+  height: 12%;
+  z-index: 3;
+  background: #000;
+  transform: scaleY(0);
+}
+.gift-fx-bar-top {
+  top: 0;
+  transform-origin: top;
+}
+.gift-fx-bar-bottom {
+  bottom: 0;
+  transform-origin: bottom;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gift-fx-full .gift-stage-art,
+  .gift-fx-light .gift-stage-art {
+    animation-duration: min(var(--fx-ms), 900ms);
+  }
+  .gift-fx-light .gift-stage-halo {
+    animation: none;
+  }
+  .gift-fx-full .gift-fx-sparkle,
+  .gift-fx-light .gift-fx-sparkle {
+    opacity: 0;
+    animation: gift-fx-twinkle 2400ms ease-in-out var(--d) infinite;
+  }
+  .gift-fx-light .gift-fx-sparkle {
+    animation-duration: 3200ms;
+  }
+  .gift-fx-full .gift-fx-ring {
+    animation: gift-fx-ring-in calc(var(--fx-ms) * 0.5) cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i) * 140ms) backwards;
+  }
+  .gift-fx-light .gift-fx-ring {
+    animation: gift-fx-ring-in 500ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .gift-fx-tilt-on {
+    animation: gift-fx-tilt 6s ease-in-out infinite;
+  }
+  .gift-fx-light .gift-fx-tilt-on {
+    animation: none;
+  }
+  .gift-fx-cinematic .gift-fx-bar-top,
+  .gift-fx-cinematic .gift-fx-bar-bottom {
+    animation: gift-fx-bar var(--fx-ms) ease-in-out forwards;
+  }
+  .gift-fx-cinematic .gift-fx-bloom {
+    animation: gift-fx-bloom 1100ms ease-out 900ms backwards;
+  }
+  .gift-fx-cinematic .gift-fx-rays {
+    animation: gift-halo-turn 40s linear infinite, gift-fx-fade 1400ms ease-out 600ms backwards;
+  }
+  .gift-fx-cinematic .gift-stage-art {
+    animation-duration: 900ms;
+    animation-delay: 1000ms;
+  }
+  .gift-stage-still .gift-fx-sparkle,
+  .gift-stage-still .gift-fx-tilt-on {
+    animation: none;
+  }
+}
+.gift-fx-still .gift-stage-art {
+  animation: gift-fx-fade var(--fx-ms) ease-out backwards;
+}
+.gift-stage-still .gift-stage-art {
+  animation: none;
+}
+@keyframes gift-fx-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes gift-fx-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(45deg) scale(0.4);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) rotate(45deg) scale(1);
+  }
+}
+@keyframes gift-fx-ring-in {
+  from {
+    opacity: 0;
+    transform: rotateX(62deg) scale(0.6);
+  }
+}
+@keyframes gift-fx-tilt {
+  0%,
+  100% {
+    transform: perspective(600px) rotateY(-7deg);
+  }
+  50% {
+    transform: perspective(600px) rotateY(7deg);
+  }
+}
+@keyframes gift-fx-bar {
+  0% {
+    transform: scaleY(0);
+  }
+  18%,
+  70% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0);
+  }
+}
+@keyframes gift-fx-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  35% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
 /* The hearts that float up a post, a Muse or a Story when it is liked (heart-burst-layer.tsx in PostCard, MuseCard and
    StoryViewer; src/lib/heart-burst.ts + like-heart-art.tsx). The layer
    is absolute, clipped to the media container (overflow hidden), pointer-events none and takes no layout space; each
@@ -1211,6 +1401,32 @@ img[data-press-highlight] {
   }
 }
 
+/* The lead heart's lub-dub pulse, in step with the heartbeat sound (src/lib/heart-beat.ts: starts HEART_BEAT_START_MS
+   = 40ms in, second beat 120ms after the first). Transform only, on a wrapper so it doesn't fight the float. */
+.post-heart-pulse {
+  display: block;
+  transform-origin: 50% 55%;
+  animation: post-heart-pulse 380ms ease-out calc(var(--hb-delay, 0ms) + 40ms) both;
+}
+
+@keyframes post-heart-pulse {
+  0% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.14);
+  }
+  32% {
+    transform: scale(1);
+  }
+  46% {
+    transform: scale(1.09);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 @keyframes post-heart-fade {
   0% {
     opacity: 0;
@@ -1234,6 +1450,283 @@ img[data-press-highlight] {
   }
   .post-heart-float[data-trail] {
     display: none;
+  }
+  .post-heart-pulse {
+    animation: none;
+  }
+}
+
+/* ---------- The birthday moment (src/components/birthday-moment.tsx; timeline and plan in src/lib/birthday-moment.ts)
+   A full-screen 3D scene: the page dims, the "camera" pushes in slowly toward the headline, balloons / light orbs rise
+   through the depth of the scene, confetti falls, a ribbon unfurls behind the name, then the wishes float in as tilted
+   3D cards. CSS 3D only (perspective, translateZ, rotateX/Y), and only transform and opacity animate: no filter, no
+   layout, no flashing, no bounce (every curve stays inside 0..1 and nothing overshoots). The one-shot pieces are gone
+   from the page after BIRTHDAY_MOMENT_INTRO_MS. `data-still` (reduced motion, decided in JS) and the media query below
+   (a safety net) leave one calm fade of the whole moment and nothing else. */
+.bday-moment {
+  --bday-c0: var(--accent);
+  --bday-c1: var(--aurora-gold);
+  --bday-c2: #3fa49d;
+  --bday-c3: #e98fae;
+  --bday-c4: #fff4dc;
+  perspective: 1000px;
+  perspective-origin: 50% 30%;
+  overflow: hidden;
+  color: #fff;
+}
+
+.bday-backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 28%, color-mix(in oklab, var(--accent) 42%, #120c08) 0%, #0b0907 72%);
+  opacity: 0.97;
+  animation: bday-dim 500ms ease-out backwards;
+}
+
+@keyframes bday-dim {
+  from {
+    opacity: 0;
+  }
+}
+
+.bday-scene {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.bday-riser {
+  position: absolute;
+  bottom: -90px;
+  left: var(--x);
+  width: var(--s);
+  height: calc(var(--s) * 1.2);
+  border-radius: 50% 50% 46% 46%;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.7) 0 10%, var(--c) 42%);
+  opacity: 0;
+  transform: translate3d(0, 0, var(--z));
+  animation: bday-rise var(--dur) cubic-bezier(0.3, 0.1, 0.4, 1) var(--delay) forwards;
+  will-change: transform, opacity;
+}
+.bday-riser::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 1px;
+  height: calc(var(--s) * 0.9);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+@keyframes bday-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, var(--z));
+  }
+  12% {
+    opacity: 0.95;
+  }
+  50% {
+    transform: translate3d(var(--sway), -55vh, var(--z));
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(var(--sway) * -0.5), -118vh, var(--z));
+  }
+}
+
+.bday-confetti {
+  position: absolute;
+  top: -24px;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+  border-radius: 2px;
+  background: var(--c);
+  opacity: 0;
+  animation: bday-fall var(--dur) cubic-bezier(0.25, 0.4, 0.45, 1) var(--delay) forwards;
+  will-change: transform, opacity;
+}
+.bday-confetti[data-strip] {
+  width: calc(var(--s) * 0.45);
+  height: calc(var(--s) * 2.4);
+  border-radius: 1px;
+}
+
+@keyframes bday-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotateZ(0deg) rotateX(0deg);
+  }
+  10% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--drift), calc(var(--fall) * 1vh), 0) rotateZ(var(--spin)) rotateX(calc(var(--spin) * 1.5));
+  }
+}
+
+/* Two soft light ribbons sweeping across the depth of the scene during the intro (not on a low-end phone). */
+.bday-streak {
+  position: absolute;
+  top: 34%;
+  left: -20%;
+  width: 140%;
+  height: 18px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--bday-c1) 70%, transparent), transparent);
+  opacity: 0;
+  transform: translate3d(-40%, 0, -200px) rotateZ(-14deg);
+  animation: bday-streak 2600ms cubic-bezier(0.22, 1, 0.36, 1) var(--delay) forwards;
+}
+.bday-streak[data-alt] {
+  top: 58%;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--bday-c3) 60%, transparent), transparent);
+  transform: translate3d(40%, 0, -320px) rotateZ(10deg);
+  animation-name: bday-streak-alt;
+}
+
+@keyframes bday-streak {
+  30% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(30%, 0, -60px) rotateZ(-14deg);
+  }
+}
+@keyframes bday-streak-alt {
+  30% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-30%, 0, -140px) rotateZ(10deg);
+  }
+}
+
+/* The camera: everything that stays (headline, cards, actions) pushes in from deeper in the scene. */
+.bday-camera {
+  transform-style: preserve-3d;
+  animation: bday-push-in 3200ms cubic-bezier(0.22, 1, 0.36, 1) 120ms backwards;
+}
+
+@keyframes bday-push-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 24px, -260px) rotateX(9deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateX(0deg);
+  }
+}
+
+.bday-ribbon {
+  transform-origin: 50% 50%;
+  background: linear-gradient(90deg, transparent, var(--bday-c0) 18%, var(--bday-c1) 50%, var(--bday-c0) 82%, transparent);
+  animation: bday-unfurl 700ms cubic-bezier(0.22, 1, 0.36, 1) 900ms backwards;
+}
+
+@keyframes bday-unfurl {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+.bday-name {
+  transform-origin: 50% 100%;
+  animation: bday-name-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 1000ms backwards;
+}
+
+@keyframes bday-name-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 30px, -140px) rotateX(70deg);
+  }
+}
+
+.bday-sub {
+  animation: bday-fade-up 600ms ease-out 1350ms backwards;
+}
+.bday-actions {
+  animation: bday-fade-up 500ms ease-out 400ms backwards;
+}
+
+@keyframes bday-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* The wish cards scroll in their own list, which has its own perspective (a scroller flattens 3D from outside). */
+.bday-cards {
+  perspective: 900px;
+  perspective-origin: 50% 0%;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bday-card {
+  transform: rotateY(var(--ty)) rotateX(var(--tx)) translateZ(var(--z));
+  animation: bday-card-in 900ms cubic-bezier(0.22, 1, 0.36, 1) var(--delay) backwards;
+}
+
+@keyframes bday-card-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 60px, -420px) rotateY(calc(var(--ty) * 3)) rotateX(38deg);
+  }
+}
+
+.bday-card-float {
+  animation: bday-float var(--float-ms) ease-in-out calc(var(--delay) + 900ms) infinite alternate;
+}
+
+@keyframes bday-float {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(var(--float-px) * -1));
+  }
+}
+
+.bday-moment[data-still] {
+  animation: bday-dim 300ms ease-out backwards;
+}
+.bday-moment[data-still] * {
+  animation: none !important;
+}
+.bday-moment[data-still] .bday-card {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bday-moment {
+    animation: bday-dim 300ms ease-out backwards;
+  }
+  .bday-moment * {
+    animation: none !important;
+  }
+  .bday-moment .bday-scene {
+    display: none;
+  }
+  .bday-moment .bday-card {
+    transform: none;
   }
 }
 

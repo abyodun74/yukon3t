@@ -267,6 +267,16 @@ export const gifts: typeof giftsEn = {
       effectStandard: "Madoido ya kawaida",
       effectImmersive: "Madoido ya kuzama ndani",
       noSound: "Zawadi hazitoi sauti.",
+      previewOnly: "Huu ni uhakiki tu: hakuna kinachonunuliwa, kutumwa wala kutozwa.",
+      reducedMotion: "Mwendo uliopunguzwa umewashwa, kwa hiyo uhakiki unaonyesha mwonekano wa mwisho kwa kufifia taratibu badala ya mwendo.",
+      lowEnd: "Kifaa chako kinaonekana kuwa na nguvu ndogo, kwa hiyo uhakiki unatumia toleo jepesi la madoido.",
+      stageLabel: "Uhakiki wa uhuishaji wa {name}",
+      effects: {
+        COMMON: "Rahisi: zawadi inapanda na kuonekana.",
+        RARE: "Huongeza mng'ao laini na cheche.",
+        EPIC: "Huongeza kina cha tabaka: pete, kivuli na mwinamo wa polepole.",
+        LEGENDARY: "Ufunuo kamili wa kisinema wenye mwanga na kina.",
+      },
     },
     recipient: {
       title: "Ni ya nani?",

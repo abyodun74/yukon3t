@@ -1624,7 +1624,12 @@ const sections: Section[] = [
             card at the top while the comments fill the lower part of the
             screen. Tap the video, drag the handle at the top of the comments
             down, or go back to return to the full-screen video. The creator,
-            the commenter, or an admin can remove any comment.
+            the commenter, or an admin can remove any comment. When the big
+            heart pops up, a soft heartbeat (lub-dub) plays as it rises; it
+            stays silent if &ldquo;reduce motion&rdquo; is on, during a call,
+            or when the page is in the background, and it sits quietly under
+            any video or audio that is playing. On iPhone, the silent switch
+            mutes it too.
           </>
         ),
       },
@@ -2200,7 +2205,17 @@ const sections: Section[] = [
             you&apos;ve blocked or who has blocked you) see that it&apos;s your
             birthday today there, with a button to send you wishes once their
             reminder has arrived. It never shows the date, the year or your
-            age, and turning birthday sharing off removes it. If you were
+            age, and turning birthday sharing off removes it. On your
+            birthday, your profile also has &ldquo;Play your birthday
+            moment&rdquo;: a short full-screen celebration that shows the
+            wishes you&apos;ve received so far as cards, with the same text as
+            in your chats (never from a chat you&apos;ve hidden, or from anyone
+            you&apos;ve blocked or who has blocked you). Only you see it, and it
+            plays by itself the first time you open your profile that day on a
+            device. When you send a wish, a short celebration shows it on its
+            way, with a button to open the chat. To close either one, tap
+            anywhere, press Esc or use Back; with Reduce Motion turned on in
+            your device settings, it simply fades in, without moving. If you were
             born on February 29, your birthday is celebrated on February 28 in
             other years. To choose who is reminded, go to Settings → Privacy →
             Birthday and pick your connections, members of your Circles, or

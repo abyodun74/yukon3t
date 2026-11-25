@@ -91,6 +91,20 @@ describe("gift-marketplace structure", () => {
     expect(src).toContain("notFound()");
   });
 
+  it("the preview effect code is pure presentation: no actions, DB, network, storage or sound", () => {
+    for (const f of ["src/components/gift-stage.tsx", "src/lib/gift-effect-plan.ts"]) {
+      const src = read(f);
+      expect(src).not.toMatch(/@\/app\/actions|prisma|fetch\(|XMLHttpRequest|sendBeacon|localStorage|new Audio|AudioContext|\.play\(\)/);
+    }
+  });
+
+  it("the marketplace calls no server action but favorites and the checkout path", () => {
+    const src = read("src/components/gift-marketplace.tsx");
+    expect(src.match(/from "@\/app\/actions\/[^"]+"/g)).toEqual(['from "@/app/actions/gift-market"']);
+    expect(src).toContain("setGiftFavorite");
+    expect(src).not.toMatch(/createGiftIntent|purchase|notify/i);
+  });
+
   it("no other gift-marketplace file reads the gifts dictionary", () => {
     for (const f of ["page.tsx", "[category]/page.tsx", "history/page.tsx", "loading.tsx"]) {
       expect(read(`src/app/gift-marketplace/${f}`)).not.toMatch(/getDictionary|GiftsTextProvider|\bt\.gifts\b/);

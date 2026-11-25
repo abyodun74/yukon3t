@@ -29,6 +29,7 @@ import {
   giftPieceNumber,
   type GiftRarityName,
   type GiftUniverseName,
+  type GiftTierName,
 } from "@/lib/gifts-data";
 import { localDateTime } from "@/lib/birthdays";
 import { isUniqueConstraintError } from "@/lib/prisma-errors";
@@ -689,6 +690,8 @@ export type OpenedGift = {
   sendId: string;
   productSku: string;
   isBox: boolean;
+  /** The marketplace rarity tier (null for a gift that has none): picks the reveal GiftStage plays. */
+  tier: GiftTierName | null;
   message: string | null;
   senderName: string | null;
   /** Phase B: an award the app gave (a challenge win's Champion badge): there is no sender. */
@@ -715,6 +718,7 @@ const giftViewSelect = {
         select: {
           sku: true,
           isBox: true,
+          tier: true,
           items: { select: { item: { select: { slug: true, kind: true, assetKey: true, sortOrder: true } } } },
         },
       },
@@ -759,6 +763,7 @@ export async function openGift(sendId: string): Promise<{ error: "disabled" | "n
       sendId: send.id,
       productSku: product.sku,
       isBox: product.isBox,
+      tier: product.tier ?? null,
       message: send.message,
       senderName: send.sender?.name ?? null,
       isAward: send.purchase.provider === "SYSTEM_AWARD",

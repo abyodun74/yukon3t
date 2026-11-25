@@ -271,6 +271,16 @@ export const giftsEn = {
       effectStandard: "Standard effect",
       effectImmersive: "Immersive effect",
       noSound: "Gifts play no sound.",
+      previewOnly: "This is only a preview: nothing is bought, sent or charged.",
+      reducedMotion: "Reduced motion is on, so the preview shows the final look with a gentle fade instead of movement.",
+      lowEnd: "Your device looks low-powered, so the preview uses a lighter version of the effect.",
+      stageLabel: "Animation preview of {name}",
+      effects: {
+        COMMON: "Simple: the gift rises in.",
+        RARE: "Adds a soft glow and sparkles.",
+        EPIC: "Adds layered depth: rings, a shadow and a slow tilt.",
+        LEGENDARY: "Full cinematic reveal with light and depth.",
+      },
     },
     recipient: {
       title: "Who is it for?",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { playHeartbeat } from "@/lib/heart-beat-audio";
 import { createHeartBurst, isLowEndDevice, planHearts, type HeartSpec } from "@/lib/heart-burst";
 
 type BurstState = { key: number; hearts: HeartSpec[]; heightPx: number | null; item: string | undefined };
@@ -53,6 +54,10 @@ export function useHeartBurst(item?: string) {
     show: (heightPx?: number | null) => {
       nextHeight.current = typeof heightPx === "number" && heightPx > 0 ? heightPx : null;
       ref.current?.show(itemRef.current);
+      // Inside the tap's own gesture, once per burst (not per heart).
+      if (ref.current) {
+        playHeartbeat(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+      }
     },
     cancel: (forItem?: string) => ref.current?.cancel(forItem),
   }));

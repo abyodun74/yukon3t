@@ -267,6 +267,16 @@ export const gifts: typeof giftsEn = {
       effectStandard: "Normaler Effekt",
       effectImmersive: "Immersiver Effekt",
       noSound: "Geschenke spielen keinen Ton ab.",
+      previewOnly: "Das ist nur eine Vorschau: Es wird nichts gekauft, gesendet oder abgebucht.",
+      reducedMotion: "Reduzierte Bewegung ist aktiv, daher zeigt die Vorschau das fertige Aussehen mit sanftem Einblenden statt Bewegung.",
+      lowEnd: "Dein Gerät scheint leistungsschwach zu sein, daher nutzt die Vorschau eine leichtere Version des Effekts.",
+      stageLabel: "Animationsvorschau von {name}",
+      effects: {
+        COMMON: "Einfach: Das Geschenk fährt ins Bild.",
+        RARE: "Fügt sanftes Leuchten und Funkeln hinzu.",
+        EPIC: "Fügt Tiefe in Ebenen hinzu: Ringe, Schatten und langsames Kippen.",
+        LEGENDARY: "Volle filmische Enthüllung mit Licht und Tiefe.",
+      },
     },
     recipient: {
       title: "Für wen ist es?",

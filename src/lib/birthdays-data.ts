@@ -6,6 +6,13 @@ import { birthdayPush } from "@/lib/push-text";
 import { publishEvents } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { captureError } from "@/lib/error-tracking";
+import { getBlockedEitherWayIds } from "@/lib/blocks";
+import {
+  BIRTHDAY_MOMENT_LOOKBACK_MS,
+  BIRTHDAY_MOMENT_MAX_WISHES,
+  selectBirthdayMomentWishes,
+  type BirthdayMomentWish,
+} from "@/lib/birthday-moment";
 import {
   BIRTHDAY_CIRCLE_CANDIDATES_MAX,
   BIRTHDAY_MAX_RECIPIENTS,
@@ -366,7 +373,7 @@ export async function loadProfileBirthdayCard(
   now = new Date(),
 ): Promise<ProfileBirthdayCard | null> {
   if (!profileBirthdayToday(owner, now)) return null;
-  if (viewer.id === owner.id) return { kind: "own" };
+  if (viewer.id === owner.id) return { kind: "own", wishes: await loadBirthdayMomentWishes(owner.id, now) };
   if (viewer.isGuestPreview) return null;
   const eligible = await eligibleBirthdayRecipients(owner, now, [viewer.id]);
   if (!eligible.some((r) => r.id === viewer.id)) return null;
@@ -378,6 +385,54 @@ export async function loadProfileBirthdayCard(
       })
     : null;
   return { kind: "visitor", wish: profileBirthdayWishState({ hasOpenReminder: !!reminder, alreadyWished: !!wished }) };
+}
+
+/**
+ * The wishes the celebrant has received for this birthday, for their own birthday moment (only ever loaded for the
+ * owner of the profile, on their birthday): the newest first, read from the wish messages themselves so a wish shows
+ * exactly as the chat does now (edited, deleted, held, a hidden chat or a block all apply; selectBirthdayMomentWishes).
+ * Never fails the profile: any error is no wishes.
+ */
+export async function loadBirthdayMomentWishes(celebrantId: string, now: Date): Promise<BirthdayMomentWish[]> {
+  try {
+    const rows = await prisma.birthdayWish.findMany({
+      where: { celebrantId, createdAt: { gte: new Date(now.getTime() - BIRTHDAY_MOMENT_LOOKBACK_MS) } },
+      orderBy: { createdAt: "desc" },
+      take: BIRTHDAY_MOMENT_MAX_WISHES * 2,
+      select: {
+        id: true,
+        senderId: true,
+        sender: { select: { name: true, avatarUrl: true, status: true } },
+        message: {
+          select: {
+            conversationId: true,
+            content: true,
+            moderationStatus: true,
+            deletedForEveryoneAt: true,
+            deletedForUserIds: true,
+            viewOnce: true,
+          },
+        },
+      },
+    });
+    if (rows.length === 0) return [];
+    const conversationIds = [...new Set(rows.flatMap((r) => (r.message ? [r.message.conversationId] : [])))];
+    const [blockedIds, hidden] = await Promise.all([
+      getBlockedEitherWayIds(celebrantId),
+      prisma.conversationMember.findMany({
+        where: { userId: celebrantId, conversationId: { in: conversationIds }, hiddenAt: { not: null } },
+        select: { conversationId: true },
+      }),
+    ]);
+    return selectBirthdayMomentWishes(rows, {
+      viewerId: celebrantId,
+      blockedIds,
+      hiddenConversationIds: new Set(hidden.map((h) => h.conversationId)),
+    });
+  } catch (err) {
+    await captureError(err, { route: "profile/birthday-moment" });
+    return [];
+  }
 }
 
 /**

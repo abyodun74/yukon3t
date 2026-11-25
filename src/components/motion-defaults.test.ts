@@ -41,6 +41,7 @@ const KEYFRAME_ALLOW: Record<string, string> = {
   "splash-logo-in": "the app-launch wordmark wobble, which the owner explicitly wants kept",
   "aurora-drift": "the page background's slow ambient drift loop (34-50s, infinite, reduced-motion off), not an entrance",
   "logo-aurora-drift": "the wordmark's ambient glow drift loop (9-11s, infinite, reduced-motion off), not an entrance",
+  "post-heart-pulse": "the like heart's two-beat heartbeat pulse (lub-dub, one-shot, reduced-motion off), a rhythm in step with the sound, not an entrance or a settle",
 };
 
 describe("the app-wide default transition", () => {

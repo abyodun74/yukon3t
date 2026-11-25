@@ -12,6 +12,7 @@ const blockFindMany = vi.fn();
 const memberFindMany = vi.fn();
 const reminderFindFirst = vi.fn();
 const wishFindUnique = vi.fn();
+const wishFindMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -21,7 +22,10 @@ vi.mock("@/lib/prisma", () => ({
     block: { findMany: (...a: unknown[]) => blockFindMany(...a) },
     conversationMember: { findMany: (...a: unknown[]) => memberFindMany(...a) },
     birthdayReminder: { findFirst: (...a: unknown[]) => reminderFindFirst(...a) },
-    birthdayWish: { findUnique: (...a: unknown[]) => wishFindUnique(...a) },
+    birthdayWish: {
+      findUnique: (...a: unknown[]) => wishFindUnique(...a),
+      findMany: (...a: unknown[]) => wishFindMany(...a),
+    },
   },
 }));
 vi.mock("@/lib/push", () => ({ sendPushToUsers: vi.fn() }));
@@ -132,10 +136,20 @@ describe("loadProfileBirthdayCard", () => {
     memberFindMany.mockResolvedValue([]);
     reminderFindFirst.mockResolvedValue({ year: 2026 });
     wishFindUnique.mockResolvedValue(null);
+    wishFindMany.mockResolvedValue([]);
   });
 
   const queries = () =>
-    [connectionFindMany, membershipFindMany, userFindMany, blockFindMany, memberFindMany, reminderFindFirst, wishFindUnique]
+    [
+      connectionFindMany,
+      membershipFindMany,
+      userFindMany,
+      blockFindMany,
+      memberFindMany,
+      reminderFindFirst,
+      wishFindUnique,
+      wishFindMany,
+    ]
       .map((fn) => fn.mock.calls.length)
       .reduce((a, b) => a + b, 0);
 
@@ -145,9 +159,59 @@ describe("loadProfileBirthdayCard", () => {
     expect(queries()).toBe(0);
   });
 
-  it("greets the owner without a query", async () => {
-    expect(await loadProfileBirthdayCard({ id: "owner", isGuestPreview: false }, owner(), now)).toEqual({ kind: "own" });
-    expect(queries()).toBe(0);
+  it("greets the owner with the wishes received so far, and no audience query", async () => {
+    wishFindMany.mockResolvedValue([
+      {
+        id: "w1",
+        senderId: "ada",
+        sender: { name: "Ada", avatarUrl: null, status: "ACTIVE" },
+        message: {
+          conversationId: "c1",
+          content: "Happy birthday!",
+          moderationStatus: "PUBLISHED",
+          deletedForEveryoneAt: null,
+          deletedForUserIds: [],
+          viewOnce: false,
+        },
+      },
+    ]);
+    expect(await loadProfileBirthdayCard({ id: "owner", isGuestPreview: false }, owner(), now)).toEqual({
+      kind: "own",
+      wishes: [{ id: "w1", fromName: "Ada", avatarUrl: null, text: "Happy birthday!" }],
+    });
+    expect(wishFindMany.mock.calls[0][0].where).toMatchObject({ celebrantId: "owner" });
+    expect(connectionFindMany).not.toHaveBeenCalled();
+    expect(reminderFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("leaves out a wish from a chat the owner hid, or across a block", async () => {
+    const row = (id: string, senderId: string, conversationId: string) => ({
+      id,
+      senderId,
+      sender: { name: senderId, avatarUrl: null, status: "ACTIVE" },
+      message: {
+        conversationId,
+        content: "🎂",
+        moderationStatus: "PUBLISHED",
+        deletedForEveryoneAt: null,
+        deletedForUserIds: [],
+        viewOnce: false,
+      },
+    });
+    wishFindMany.mockResolvedValue([row("w1", "a", "c1"), row("w2", "b", "c2"), row("w3", "c", "c3")]);
+    memberFindMany.mockResolvedValue([{ conversationId: "c2" }]);
+    blockFindMany.mockResolvedValue([{ blockerId: "owner", blockedId: "c" }]);
+    const card = await loadProfileBirthdayCard({ id: "owner", isGuestPreview: false }, owner(), now);
+    expect(card).toEqual({ kind: "own", wishes: [{ id: "w1", fromName: "a", avatarUrl: null, text: "🎂" }] });
+    expect(memberFindMany.mock.calls[0][0].where).toMatchObject({ userId: "owner", hiddenAt: { not: null } });
+  });
+
+  it("still greets the owner when the wishes can't be read", async () => {
+    wishFindMany.mockRejectedValue(new Error("db down"));
+    expect(await loadProfileBirthdayCard({ id: "owner", isGuestPreview: false }, owner(), now)).toEqual({
+      kind: "own",
+      wishes: [],
+    });
   });
 
   it("never shows it to a guest preview session", async () => {
@@ -205,14 +269,14 @@ describe("ProfileBirthdayCard (server render)", () => {
     renderToStaticMarkup(createElement(ProfileBirthdayCard, { card, person: { id: "owner", name } }));
 
   it("is a region labelled by its heading", () => {
-    const html = render({ kind: "own" });
+    const html = render({ kind: "own", wishes: [] });
     const labelledBy = html.match(/role="region" aria-labelledby="([^"]+)"/)?.[1];
     expect(labelledBy).toBeTruthy();
     expect(html).toContain(`<h2 id="${labelledBy}"`);
   });
 
   it("greets the owner from YuKon3t, with a link to the setting", () => {
-    const html = render({ kind: "own" });
+    const html = render({ kind: "own", wishes: [] });
     expect(html).toContain("Happy birthday from YuKon3t!");
     expect(html).toContain('href="/settings#birthdays"');
     expect(html).not.toContain("Send a wish");
@@ -237,12 +301,20 @@ describe("ProfileBirthdayCard (server render)", () => {
     expect(html.indexOf('data-gift="1"')).toBeGreaterThan(html.indexOf("Send a wish"));
     expect(render({ kind: "visitor", wish: "available" })).not.toContain("data-gift");
     // The owner's own card never offers a gift to themselves.
-    const own = renderToStaticMarkup(createElement(ProfileBirthdayCard, { card: { kind: "own" }, person: { id: "owner", name: "Ada" }, giftAction: gift }));
+    const own = renderToStaticMarkup(createElement(ProfileBirthdayCard, { card: { kind: "own", wishes: [] }, person: { id: "owner", name: "Ada" }, giftAction: gift }));
     expect(own).not.toContain("data-gift");
   });
 
-  it("is still: no animation or confetti, and never a year or an age", () => {
-    for (const card of [{ kind: "own" }, { kind: "visitor", wish: "available" }] as Card[]) {
+  it("offers the owner their birthday moment, which never renders on the server (it opens after mount)", () => {
+    const html = render({ kind: "own", wishes: [{ id: "w", fromName: "Bo", avatarUrl: null, text: "Hi" }] });
+    expect(html).toContain("Play your birthday moment");
+    expect(html).not.toContain("role=\"dialog\"");
+    expect(html).not.toContain("Hi</p>");
+    expect(render({ kind: "visitor", wish: "available" })).not.toContain("Play your birthday moment");
+  });
+
+  it("is still itself (the movement is in the moment): no animation or confetti, and never a year or an age", () => {
+    for (const card of [{ kind: "own", wishes: [] }, { kind: "visitor", wish: "available" }] as Card[]) {
       const html = render(card);
       expect(html).not.toMatch(/animate|transition|confetti/);
       const text = html.replace(/<[^>]*>/g, " ");
