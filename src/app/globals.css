@@ -1353,6 +1353,106 @@ img[data-press-highlight] {
   }
 }
 
+/* The gift reveal (src/components/gift-reveal.tsx): the marketplace preview and the recipient's open screen. Full screen
+   on a phone, an expanded stage on a tablet, a large panel on a desktop (the breakpoints are Tailwind classes on the
+   component). The words arrive one after another (--step-delay from giftRevealTimeline, --text-ms each) with a short
+   rise; Legendary's name gets a slow light sweep. Transform + opacity only, nothing overshoots or flashes. Reduced
+   motion (.gift-reveal-still, and the OS setting) leaves one gentle fade. */
+/* The 3D layer GiftStage puts over the art for Epic and Legendary (gift-scene-3d.tsx): same
+   layer as the art, under the Legendary bloom and letterbox bars. Its canvas is transparent, so the halo and rays show
+   through. */
+.gift-stage-scene {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.gift-reveal-backdrop {
+  background: rgba(4, 6, 8, 0.82);
+}
+.gift-reveal-panel {
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--gift-tier) 22%, transparent), transparent 70%),
+    #0e1113;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+.gift-tier-legendary .gift-reveal-panel {
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--gift-tier) 34%, transparent), transparent 70%),
+    radial-gradient(90% 50% at 50% 100%, color-mix(in srgb, var(--gift-tier) 16%, transparent), transparent 75%),
+    #0b0d0f;
+}
+.gift-reveal .gift-tier-badge {
+  color: color-mix(in srgb, var(--gift-tier) 70%, white);
+  background: color-mix(in srgb, var(--gift-tier) 22%, transparent);
+}
+.gift-reveal-name {
+  overflow: hidden;
+  padding-block: 0.1em;
+}
+.gift-tier-legendary .gift-reveal-name {
+  color: #f6dc9a;
+  text-shadow: 0 0 24px rgba(225, 169, 40, 0.35);
+}
+.gift-reveal-spark {
+  color: color-mix(in srgb, var(--gift-tier) 65%, white);
+}
+.gift-reveal-shine {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 248, 226, 0.5) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gift-reveal-full .gift-reveal-panel,
+  .gift-reveal-light .gift-reveal-panel {
+    animation: gift-reveal-panel-in 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .gift-reveal-full .gift-reveal-step,
+  .gift-reveal-light .gift-reveal-step {
+    animation: gift-reveal-rise var(--text-ms) cubic-bezier(0.22, 1, 0.36, 1) var(--step-delay) backwards;
+  }
+  .gift-reveal-full .gift-reveal-shine {
+    animation: gift-light-sweep 4.5s ease-in-out calc(var(--step-delay) + var(--text-ms)) infinite;
+  }
+  .gift-reveal-full.gift-tier-epic .gift-reveal-spark,
+  .gift-reveal-full.gift-tier-legendary .gift-reveal-spark {
+    animation: gift-reveal-glint 1.6s ease-in-out infinite alternate;
+  }
+}
+.gift-reveal-still .gift-reveal-step {
+  animation: gift-fx-fade var(--text-ms) ease-out backwards;
+}
+@keyframes gift-reveal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes gift-reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes gift-reveal-glint {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* The hearts that float up a post, a Muse or a Story when it is liked (heart-burst-layer.tsx in PostCard, MuseCard and
    StoryViewer; src/lib/heart-burst.ts + like-heart-art.tsx). The layer
    is absolute, clipped to the media container (overflow hidden), pointer-events none and takes no layout space; each

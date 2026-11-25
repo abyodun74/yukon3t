@@ -130,7 +130,11 @@ export function GiftChatCard({ giftSendId }: { giftSendId: string }) {
           </span>
         )}
       </span>
-      <GiftOpenOverlay gift={opened} onClose={() => setOpened(null)} />
+      <GiftOpenOverlay
+        gift={opened}
+        onClose={() => setOpened(null)}
+        onThanked={() => setCard((c) => (c ? { ...c, canThank: false } : c))}
+      />
     </div>
   );
 }

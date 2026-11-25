@@ -1,11 +1,32 @@
 "use client";
 
-import { Fragment, useSyncExternalStore, type CSSProperties } from "react";
+import { Component, Fragment, useCallback, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { GiftArt } from "@/components/gift-art";
 import { GiftLottie } from "@/components/gift-lottie";
 import { resolveGiftAnimation } from "@/lib/gift-assets";
+import { giftRenderer, resolveGiftModel } from "@/lib/gift-3d-assets";
 import { giftEffectPlan, isLowEndDevice, sparkleSpots } from "@/lib/gift-effect-plan";
+import { hasWebGL } from "@/lib/gift-render-capability";
 import type { GiftTierName } from "@/lib/gift-market";
+
+// The richer renderers are separate chunks, fetched only when a reveal actually renders one (never on the server, never
+// in the grid's compact cards): three.js + React Three Fiber for Epic / Legendary.
+const GiftScene3D = dynamic(() => import("@/components/gift-scene-3d"), { ssr: false, loading: () => null });
+
+/** A renderer that throws (a chunk that failed to load, a broken model) hands back to the plain stage. */
+class RendererBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch() {
+    this.props.onError();
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 type NavigatorHints = Parameters<typeof isLowEndDevice>[0];
 const noopSubscribe = () => () => {};
@@ -29,6 +50,12 @@ export function useLowEndDevice(): boolean {
  * frame); on a low-end device the plan drops to fewer sparkles, one ring and no cinematic bars. `compact` is the
  * grid's small card: halo only, nothing moves. Decorative: the name next to it is what screen readers get. `playKey`
  * restarts the whole sequence (Replay).
+ *
+ * Epic and Legendary gifts with a model (src/lib/gift-3d-assets.ts) play a small 3D scene over the stage's layers
+ * instead of the flat art, only with full motion (giftRenderer: never with reduce motion or on a low-end device),
+ * only where the browser has WebGL and never in a compact card.
+ * The static art stays underneath as the poster until the scene is ready, and is what remains if it fails or the
+ * WebGL context is lost. Replay restarts the scene without recreating its canvas.
  */
 export function GiftStage({
   tier,
@@ -55,8 +82,20 @@ export function GiftStage({
   const lowEnd = useLowEndDevice();
   const plan = giftEffectPlan(tier, { reduce, lowEnd });
   const single = items.length === 1 ? items[0] : null;
-  const animated = playAnimation && single && resolveGiftAnimation(single.assetKey) ? single : null;
   const rich = !compact;
+  const model = rich && playAnimation ? resolveGiftModel(items) : null;
+  const webgl = useSyncExternalStore(noopSubscribe, () => model !== null && plan.motion === "full" && hasWebGL(), () => false);
+  const [failed, setFailed] = useState(false);
+  const [sceneReady, setSceneReady] = useState(false);
+  const onSceneReady = useCallback(() => setSceneReady(true), []);
+  const onSceneFailed = useCallback(() => {
+    setFailed(true);
+    setSceneReady(false);
+  }, []);
+  const renderer = failed
+    ? "stage"
+    : giftRenderer({ tier, motion: plan.motion, webgl, hasModel: model !== null });
+  const animated = renderer === "stage" && playAnimation && single && resolveGiftAnimation(single.assetKey) ? single : null;
   const particles = (tier === "EPIC" || tier === "LEGENDARY") && (compact || plan.motion !== "light");
   const sweep = tier === "LEGENDARY" && (compact || plan.motion !== "light");
   const spots = rich ? sparkleSpots(plan.sparkles) : [];
@@ -94,7 +133,9 @@ export function GiftStage({
             style={{ left: `${s.x}%`, top: `${s.y}%`, width: s.size, height: s.size, "--d": `${s.delayMs}ms` } as CSSProperties}
           />
         ))}
-        <span className="gift-stage-art flex flex-wrap items-center justify-center gap-2">
+        <span
+          className={`gift-stage-art flex flex-wrap items-center justify-center gap-2 transition-opacity duration-300 ${sceneReady && renderer !== "stage" ? "opacity-0" : ""}`}
+        >
           <span className={`gift-fx-tilt flex flex-wrap items-center justify-center gap-2 ${rich && plan.depthLayers > 0 ? "gift-fx-tilt-on" : ""}`}>
             {animated ? (
               <GiftLottie assetKey={animated.assetKey} name={name} size={size} reduce={reduce} />
@@ -106,6 +147,21 @@ export function GiftStage({
           </span>
         </span>
       </Fragment>
+      {renderer === "three" && model && (
+        <span className="gift-stage-scene">
+          <RendererBoundary onError={onSceneFailed}>
+            <GiftScene3D
+              src={model.src}
+              tier={tier}
+              durationMs={plan.durationMs}
+              playKey={playKey}
+              lowEnd={lowEnd}
+              onReady={onSceneReady}
+              onFallback={onSceneFailed}
+            />
+          </RendererBoundary>
+        </span>
+      )}
     </div>
   );
 }

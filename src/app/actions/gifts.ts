@@ -692,13 +692,20 @@ export type OpenedGift = {
   isBox: boolean;
   /** The marketplace rarity tier (null for a gift that has none): picks the reveal GiftStage plays. */
   tier: GiftTierName | null;
+  /** The sender's note. Null, like the sender's name, once either of them has blocked the other. */
   message: string | null;
   senderName: string | null;
+  /** The sender's @username, only while their account is active and neither has blocked the other. */
+  senderUsername: string | null;
   /** Phase B: an award the app gave (a challenge win's Champion badge): there is no sender. */
   isAward: boolean;
   items: ItemView[];
   /** The copy numbers of any numbered (EDITION) items in it, for its recipient only. */
   editions: { slug: string; number: number }[];
+  /** The recipient may still send one free Thank You for it (sendThankYouGift decides again). */
+  canThank: boolean;
+  /** A Thank You was already sent for it. */
+  thanked: boolean;
 };
 
 const giftViewSelect = {
@@ -710,7 +717,7 @@ const giftViewSelect = {
   conversationId: true,
   thanksForSendId: true,
   thankedBy: { select: { id: true } },
-  sender: { select: { name: true } },
+  sender: { select: { name: true, username: true, status: true } },
   purchase: {
     select: {
       provider: true,
@@ -734,7 +741,9 @@ function itemsOf(product: { items: { item: ItemView & { sortOrder: number } }[] 
 
 /**
  * The recipient opens a delivered gift: it becomes OPENED (shown on their profile from now on) and its contents come
- * back for the open animation. Idempotent: opening an already-opened gift just shows it again.
+ * back for the reveal (GiftReveal). Idempotent: opening an already-opened gift just shows it again (Replay). Only the
+ * recipient is ever answered; the sender's name, @username and note are left out across a block either way, as in
+ * the gift history.
  */
 export async function openGift(sendId: string): Promise<{ error: "disabled" | "not_found" | "rate_limited" } | { error: null; gift: OpenedGift }> {
   const user = await requireVerifiedUser();
@@ -757,6 +766,21 @@ export async function openGift(sendId: string): Promise<{ error: "disabled" | "n
     select: { editionNumber: true, item: { select: { slug: true } } },
     orderBy: { editionNumber: "asc" },
   });
+  const blocked = send.senderId ? await isBlockedEitherWay(user.id, send.senderId) : false;
+  const sender = blocked ? null : send.sender;
+  const thanked = send.thankedBy !== null;
+  const canThank =
+    !blocked &&
+    thankYouRefusal({
+      userId: user.id,
+      received: {
+        recipientId: send.recipientId,
+        senderId: send.senderId,
+        status: send.status,
+        thanksForSendId: send.thanksForSendId,
+        thanked,
+      },
+    }) === null;
   return {
     error: null,
     gift: {
@@ -764,11 +788,14 @@ export async function openGift(sendId: string): Promise<{ error: "disabled" | "n
       productSku: product.sku,
       isBox: product.isBox,
       tier: product.tier ?? null,
-      message: send.message,
-      senderName: send.sender?.name ?? null,
+      message: blocked ? null : send.message,
+      senderName: sender?.name ?? null,
+      senderUsername: sender?.status === "ACTIVE" ? (sender.username ?? null) : null,
       isAward: send.purchase.provider === "SYSTEM_AWARD",
       items: itemsOf(product),
       editions: (numbered ?? []).map((row) => ({ slug: row.item.slug, number: row.editionNumber! })),
+      canThank,
+      thanked,
     },
   };
 }

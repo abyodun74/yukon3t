@@ -62,6 +62,13 @@ export const giftsEn = {
     fromAward: "An award for winning a challenge",
     announce: "Gift opened: {items}",
     done: "Done",
+    congrats: "Congratulations",
+    senderLine: "{name} sent you a special gift!",
+    senderLineSomeone: "Someone sent you a special gift!",
+    messageHeading: "Their message",
+    sendThankYou: "Send thank you",
+    thanked: "You've said thank you for this gift.",
+    replay: "Replay",
   },
   card: {
     received: "Sent you a gift",
@@ -275,6 +282,10 @@ export const giftsEn = {
       reducedMotion: "Reduced motion is on, so the preview shows the final look with a gentle fade instead of movement.",
       lowEnd: "Your device looks low-powered, so the preview uses a lighter version of the effect.",
       stageLabel: "Animation preview of {name}",
+      previewBadge: "Preview",
+      sampleSender: "A friend",
+      sampleMessage: "Happy birthday! I hope this makes you smile.",
+      sampleNote: "Sample sender and message: this is how the person you choose will see it.",
       effects: {
         COMMON: "Simple: the gift rises in.",
         RARE: "Adds a soft glow and sparkles.",
@@ -343,6 +354,7 @@ export const giftsEn = {
       },
       open: "Open",
       opened: "Opened",
+      replay: "Replay",
     },
   },
   boxes: {

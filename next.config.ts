@@ -78,6 +78,12 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
+      // The gift reveal's self-hosted 3D models: fetched only when a reveal opens, then reused from
+      // the browser cache for a day (names are stable, so not immutable: a replaced model arrives within a day).
+      {
+        source: "/gifts/models/:file*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
     ];
   },
 };

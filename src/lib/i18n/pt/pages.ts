@@ -145,6 +145,7 @@ export const pages: typeof pagesEn = {
       birthdayWishesOne: "e mais 1 pessoa te desejaram feliz aniversário",
       birthdayWishesMany: "e mais {count} pessoas te desejaram feliz aniversário",
       holidayToday: "Hoje é {holiday} ({country})",
+      giftReceived: "te enviou um presente: {gift}",
       categories: {
         sexual: "conteúdo sexual explícito",
         "sexual/minors": "conteúdo sexual envolvendo menores",

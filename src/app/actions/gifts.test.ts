@@ -100,8 +100,11 @@ const giftView = (status: string) => ({
   recipientId: ME,
   senderId: BOB,
   conversationId: CHAT,
-  sender: { name: "Bob" },
+  thanksForSendId: null,
+  thankedBy: null,
+  sender: { name: "Bob", username: "bob", status: "ACTIVE" },
   purchase: {
+    provider: "COINS",
     product: {
       sku: "box.say-hi",
       isBox: true,
@@ -362,6 +365,36 @@ describe("openGift", () => {
     const second = await openGift(SEND);
     expect(second).toEqual(first);
     expect(sendUpdateMany).toHaveBeenCalledTimes(1);
+  });
+  it("names the sender by @username and offers one Thank You", async () => {
+    const result = await openGift(SEND);
+    expect(result).toMatchObject({
+      error: null,
+      gift: { senderName: "Bob", senderUsername: "bob", message: "Enjoy", canThank: true, thanked: false, isAward: false },
+    });
+  });
+  it("never offers a second Thank You, or one for a Thank You", async () => {
+    send = { ...giftView("OPENED"), thankedBy: { id: "cthanks0000001" } };
+    expect(await openGift(SEND)).toMatchObject({ gift: { canThank: false, thanked: true } });
+    send = { ...giftView("OPENED"), thanksForSendId: "cother00000001" };
+    expect(await openGift(SEND)).toMatchObject({ gift: { canThank: false, thanked: false } });
+  });
+  it("withholds the sender's name, @username and note across a block, and offers no Thank You", async () => {
+    blocked = true;
+    const result = await openGift(SEND);
+    expect(result).toMatchObject({
+      error: null,
+      gift: { senderName: null, senderUsername: null, message: null, canThank: false },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/Bob|bob|Enjoy/);
+  });
+  it("leaves out the @username of an account that is no longer active", async () => {
+    send = { ...giftView("OPENED"), sender: { name: "Bob", username: "bob", status: "DEACTIVATED" } };
+    expect(await openGift(SEND)).toMatchObject({ gift: { senderName: "Bob", senderUsername: null } });
+  });
+  it("an award has no sender and no Thank You", async () => {
+    send = { ...giftView("OPENED"), senderId: null, sender: null, purchase: { ...giftView("OPENED").purchase, provider: "SYSTEM_AWARD" } };
+    expect(await openGift(SEND)).toMatchObject({ gift: { isAward: true, senderUsername: null, canThank: false } });
   });
   it("finds nothing that isn't the caller's delivered gift", async () => {
     send = null;

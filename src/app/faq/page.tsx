@@ -3047,6 +3047,22 @@ const sections: Section[] = [
             <strong>report</strong> a gift: only its recipient can, and our
             moderators can remove a gift that breaks the rules, which also takes
             off any frame or badge it gave you.
+            <br />
+            <br />
+            Opening a gift plays a short reveal, full screen on a phone and in a
+            larger window on a tablet or computer: the gift&apos;s name and
+            rarity, who sent it, and their note if they added one. You can{" "}
+            <strong>replay</strong> it, and send your free Thank You straight
+            from there. Close it with the X, Esc or Back. The preview in the
+            gift marketplace plays the same reveal with a sample sender and
+            note, and buys or sends nothing.
+            <br />
+            <br />
+            <strong>Gift history</strong> (in the gift marketplace, and linked
+            from the Gifts area of your profile) lists the gifts you&apos;ve
+            sent and received; from there you can open a new gift or replay one
+            you&apos;ve opened. The notification for a new gift says who sent
+            it and which gift it is.
           </>
         ),
       },

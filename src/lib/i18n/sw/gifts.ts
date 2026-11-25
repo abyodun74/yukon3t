@@ -59,6 +59,13 @@ export const gifts: typeof giftsEn = {
     fromAward: "Tuzo ya kushinda changamoto",
     announce: "Zawadi imefunguliwa: {items}",
     done: "Imekamilika",
+    congrats: "Hongera",
+    senderLine: "{name} amekutumia zawadi maalum!",
+    senderLineSomeone: "Mtu amekutumia zawadi maalum!",
+    messageHeading: "Ujumbe wake",
+    sendThankYou: "Tuma shukrani",
+    thanked: "Umeshatoa shukrani kwa zawadi hii.",
+    replay: "Cheza tena",
   },
   card: {
     received: "Amekutumia zawadi",
@@ -271,6 +278,10 @@ export const gifts: typeof giftsEn = {
       reducedMotion: "Mwendo uliopunguzwa umewashwa, kwa hiyo uhakiki unaonyesha mwonekano wa mwisho kwa kufifia taratibu badala ya mwendo.",
       lowEnd: "Kifaa chako kinaonekana kuwa na nguvu ndogo, kwa hiyo uhakiki unatumia toleo jepesi la madoido.",
       stageLabel: "Uhakiki wa uhuishaji wa {name}",
+      previewBadge: "Onyesho la awali",
+      sampleSender: "Rafiki",
+      sampleMessage: "Heri ya siku ya kuzaliwa! Natumaini hii itakufanya utabasamu.",
+      sampleNote: "Mtumaji na ujumbe wa mfano: hivi ndivyo mtu utakayemchagua atakavyoiona.",
       effects: {
         COMMON: "Rahisi: zawadi inapanda na kuonekana.",
         RARE: "Huongeza mng'ao laini na cheche.",
@@ -339,6 +350,7 @@ export const gifts: typeof giftsEn = {
       },
       open: "Fungua",
       opened: "Imefunguliwa",
+      replay: "Cheza tena",
     },
   },
   boxes: {

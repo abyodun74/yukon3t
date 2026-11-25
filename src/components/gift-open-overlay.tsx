@@ -1,156 +1,154 @@
 "use client";
 
-import { useState } from "react";
-import { useReducedMotion } from "motion/react";
-import * as m from "motion/react-m";
-import { Sheet } from "@/components/sheet";
-import { GiftArt } from "@/components/gift-art";
-import { GiftLottie } from "@/components/gift-lottie";
-import { GiftStage } from "@/components/gift-stage";
+import { useState, useTransition } from "react";
+import { GiftReveal, useGiftRevealClose } from "@/components/gift-reveal";
 import { useGiftsText } from "@/components/gifts-text";
-import { resolveGiftAnimation, resolveGiftArt } from "@/lib/gift-assets";
+import { sendThankYouGift, type OpenedGift } from "@/app/actions/gifts";
+import { giftRevealSender } from "@/lib/gift-effect-plan";
 import { giftPieceNumber } from "@/lib/gifts-data";
 import { giftItemName, giftProductName } from "@/lib/gift-names";
-import { format } from "@/lib/i18n/locales";
-import type { OpenedGift } from "@/app/actions/gifts";
+import { byCode, format } from "@/lib/i18n/locales";
 
 /**
- * Opening a gift: the box's lid lifts and what was inside rises out of it, one item after another. With "reduce
- * motion" on (the OS setting, which MotionConfig also honours app-wide) the contents are simply shown, with no
- * movement at all. What was opened is announced to screen readers through a polite live region; there is no sound.
- * Only the recipient ever sees this, so it may say who sent the gift.
+ * Opening a gift: the recipient's reveal (GiftReveal, the same screen the marketplace previews), with the real sender
+ * (@username, else their name; nobody for an award), the gift's name and tier, and the sender's note. Only the
+ * recipient ever gets an OpenedGift (openGift), so only they see who sent it and what they wrote.
  *
- * Phase A: a single gift with a Lottie animation (gift-lottie.tsx) plays it, large; with reduce motion it shows the
- * animation's poster still. A numbered (EDITION) item shows its copy number, a Luxury atelier piece its piece number,
- * both to the recipient only. The Birthday Candle can be blown out with a tap (a still change, no animation).
+ * Replay plays it again. "Send thank you" sends the one free Thank You for it through the existing sendThankYouGift
+ * (recipient only, once per gift, rate-limited, block and send rules checked on the server); it is offered only while
+ * openGift says it still can be. Box contents, edition and piece numbers (recipient only) and the Birthday Candle (a
+ * tap blows it out, a still change) sit under the note. What was opened is announced through a polite live region.
  */
-export function GiftOpenOverlay({ gift, onClose }: { gift: OpenedGift | null; onClose: () => void }) {
-  const { locale, dir, t } = useGiftsText();
-  const reduce = useReducedMotion();
-  const names = gift ? gift.items.map((item) => giftItemName(t, item.slug)) : [];
+export function GiftOpenOverlay({
+  gift,
+  onClose,
+  onThanked,
+}: {
+  gift: OpenedGift | null;
+  onClose: () => void;
+  /** After a Thank You went out from the reveal (a chat card hides its own Thank You button). */
+  onThanked?: () => void;
+}) {
+  if (!gift) return null;
+  return <GiftOpenReveal key={gift.sendId} gift={gift} onClose={onClose} onThanked={onThanked} />;
+}
+
+function GiftOpenReveal({ gift, onClose, onThanked }: { gift: OpenedGift; onClose: () => void; onThanked?: () => void }) {
+  const { locale, t } = useGiftsText();
+  const names = gift.items.map((item) => giftItemName(t, item.slug));
   const listFormat = new Intl.ListFormat(locale, { style: "long", type: "conjunction" });
-  // A single gift whose art is a picture (a photo, not a small drawing) is shown large enough to see.
-  const single = gift?.items.length === 1 ? gift.items[0] : null;
-  const animated = single && resolveGiftAnimation(single.assetKey) ? single : null;
-  const artSize = single && (resolveGiftArt(single.assetKey).type === "image" || animated) ? 160 : 56;
-  const [blown, setBlown] = useState<string | null>(null);
-  const hasCandle = gift?.items.some((item) => item.slug === "birthday-candle") ?? false;
+  const [blown, setBlown] = useState(false);
+  const [thanks, setThanks] = useState<{ kind: "idle" | "sent" | "thanked" } | { kind: "error"; code: string }>(() => ({
+    kind: gift.thanked ? "thanked" : "idle",
+  }));
+  const [isPending, startTransition] = useTransition();
+  const hasCandle = gift.items.some((item) => item.slug === "birthday-candle");
   // The Birthday Candle, once blown out, is drawn without its flame.
-  const artKey = (item: { slug: string; assetKey: string }) =>
-    item.slug === "birthday-candle" && gift && blown === gift.sendId ? "birthday-candle-out" : item.assetKey;
+  const items = gift.items.map((item) => ({
+    slug: item.slug,
+    assetKey: item.slug === "birthday-candle" && blown ? "birthday-candle-out" : item.assetKey,
+  }));
+  const canThank = gift.canThank && thanks.kind !== "sent" && thanks.kind !== "thanked";
+  const numbered = gift.items.some((item) => giftPieceNumber(item.slug) !== null) || gift.editions.length > 0;
+
+  function thank() {
+    startTransition(async () => {
+      try {
+        const result = await sendThankYouGift(gift.sendId);
+        if (result.error) {
+          setThanks(result.error === "already_thanked" ? { kind: "thanked" } : { kind: "error", code: result.error });
+          return;
+        }
+        setThanks({ kind: "sent" });
+        onThanked?.();
+      } catch {
+        setThanks({ kind: "error", code: "other" });
+      }
+    });
+  }
 
   return (
-    <Sheet open={gift !== null} onClose={onClose} title={t.open.title} lang={locale} dir={dir} panelClassName="max-w-sm">
-      {gift && (
-        <div className="mt-2 flex flex-col items-center text-center">
-          <p className="sr-only" aria-live="polite">
-            {format(t.open.announce, { items: listFormat.format(names) })}
-          </p>
-          <p className="text-sm font-semibold">{giftProductName(t, { sku: gift.productSku, isBox: gift.isBox, items: gift.items })}</p>
-          <p className="text-xs text-foreground-soft">
-            {gift.isAward
-              ? t.open.fromAward
-              : gift.senderName
-                ? format(t.open.from, { name: gift.senderName })
-                : t.open.fromSomeone}
-          </p>
-
-          {gift.tier ? (
-            <GiftStage
-              tier={gift.tier}
-              items={gift.items.map((item) => ({ slug: item.slug, assetKey: artKey(item) }))}
-              name={names.join(", ")}
-              size={artSize}
-              reduce={Boolean(reduce)}
-              className="mt-4 aspect-[4/3] w-full rounded-2xl"
-            />
-          ) : (
-          <div className="relative mt-4 flex min-h-28 w-full items-end justify-center" aria-hidden>
-            {!reduce && (
-              <m.div
-                className="absolute bottom-0 h-16 w-24 rounded-lg bg-accent/80"
-                initial={{ opacity: 1, scaleY: 1 }}
-                animate={{ opacity: 0, scaleY: 0.6 }}
-                transition={{ delay: 0.5, duration: 0.35, ease: "easeIn" }}
-              >
-                <m.div
-                  className="absolute -top-3 left-1/2 h-4 w-28 -translate-x-1/2 rounded-md bg-accent"
-                  initial={{ y: 0, rotate: 0 }}
-                  animate={{ y: -36, rotate: -14, opacity: 0 }}
-                  transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                />
-              </m.div>
-            )}
-            <div className="relative flex flex-wrap items-end justify-center gap-3">
-              {animated ? (
-                <GiftLottie assetKey={animated.assetKey} name={names[0]} size={artSize} reduce={Boolean(reduce)} />
-              ) : (
-                gift.items.map((item, i) =>
-                reduce ? (
-                  <GiftArt key={`${item.slug}-${i}`} assetKey={artKey(item)} name={names[i]} size={artSize} eager />
-                ) : (
-                  <m.div
-                    key={`${item.slug}-${i}`}
-                    initial={{ y: 28, scale: 0.6, opacity: 0 }}
-                    animate={{ y: 0, scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.55 + i * 0.12, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  >
-                    <GiftArt
-                      assetKey={artKey(item)}
-                      name={names[i]}
-                      size={artSize}
-                      eager
-                    />
-                  </m.div>
-                ),
-                )
-              )}
-            </div>
-          </div>
+    <GiftReveal
+      mode="recipient"
+      tier={gift.tier}
+      items={items}
+      giftName={giftProductName(t, { sku: gift.productSku, isBox: gift.isBox, items: gift.items })}
+      sender={giftRevealSender({ isAward: gift.isAward, username: gift.senderUsername, name: gift.senderName })}
+      message={gift.message}
+      announcement={format(t.open.announce, { items: listFormat.format(names) })}
+      onClose={onClose}
+      details={
+        <>
+          {(gift.items.length > 1 || numbered) && (
+            <ul className="space-y-0.5 text-xs text-white/75">
+              {gift.items.map((item, i) => {
+                const piece = giftPieceNumber(item.slug);
+                const edition = gift.editions.find((e) => e.slug === item.slug);
+                return (
+                  <li key={`${item.slug}-${i}`}>
+                    {names[i]} <span className="text-white/55">· {t.kinds[item.kind]}</span>
+                    {piece !== null && <span className="text-white/55"> · {format(t.pieceLabel, { number: piece })}</span>}
+                    {edition && <span className="font-semibold"> · {format(t.editionLabel, { number: edition.number })}</span>}
+                  </li>
+                );
+              })}
+            </ul>
           )}
-
-          <ul className="mt-4 space-y-0.5 text-sm">
-            {gift.items.map((item, i) => {
-              const piece = giftPieceNumber(item.slug);
-              const edition = gift.editions.find((e) => e.slug === item.slug);
-              return (
-                <li key={`${item.slug}-${i}`}>
-                  {names[i]} <span className="text-xs text-foreground-soft">· {t.kinds[item.kind]}</span>
-                  {piece !== null && (
-                    <span className="text-xs text-foreground-soft"> · {format(t.pieceLabel, { number: piece })}</span>
-                  )}
-                  {edition && (
-                    <span className="text-xs font-semibold"> · {format(t.editionLabel, { number: edition.number })}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          {gift.editions.length > 0 && <p className="mt-1 text-xs text-foreground-soft">{t.editionNote}</p>}
+          {gift.editions.length > 0 && <p className="text-[11px] text-white/55">{t.editionNote}</p>}
           {hasCandle && (
             <button
               type="button"
-              onClick={() => setBlown(gift.sendId)}
-              disabled={blown === gift.sendId}
-              className="mt-3 rounded-full border border-line px-3 py-1 text-xs font-semibold hover:border-accent disabled:opacity-70"
+              onClick={() => setBlown(true)}
+              disabled={blown}
+              className="rounded-full border border-white/30 px-3 py-1 text-xs font-semibold text-white hover:border-white/60 disabled:opacity-70"
             >
-              <span aria-live="polite">{blown === gift.sendId ? t.candle.blown : t.candle.blow}</span>
+              <span aria-live="polite">{blown ? t.candle.blown : t.candle.blow}</span>
             </button>
           )}
-          {gift.message && (
-            <p dir="auto" className="mt-3 w-full break-words rounded-lg bg-surface px-3 py-2 text-sm ph-no-capture">
-              {gift.message}
+        </>
+      }
+      primary={
+        <>
+          {canThank ? (
+            <button
+              type="button"
+              onClick={thank}
+              disabled={isPending}
+              className="w-full rounded-full bg-accent px-4 py-3 text-sm font-semibold uppercase tracking-wider text-accent-ink disabled:opacity-60"
+            >
+              {isPending ? t.thankYou.sending : t.open.sendThankYou}
+            </button>
+          ) : (
+            <DoneButton className="w-full rounded-full bg-accent px-4 py-3 text-sm font-semibold text-accent-ink" />
+          )}
+          {thanks.kind === "sent" && (
+            <p role="status" className="text-sm text-white/85">
+              {t.thankYou.sent}
             </p>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="mt-5 w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink"
-          >
-            {t.open.done}
-          </button>
-        </div>
-      )}
-    </Sheet>
+          {thanks.kind === "thanked" && <p className="text-xs text-white/65">{t.open.thanked}</p>}
+          {thanks.kind === "error" && (
+            <p role="alert" className="text-sm text-red-200">
+              {byCode(t.errors, thanks.code)}
+            </p>
+          )}
+        </>
+      }
+      secondary={
+        canThank ? (
+          <DoneButton className="flex h-10 items-center rounded-full border border-white/30 px-4 text-sm font-medium text-white hover:border-white/60" />
+        ) : null
+      }
+    />
+  );
+}
+
+function DoneButton({ className }: { className: string }) {
+  const { t } = useGiftsText();
+  const close = useGiftRevealClose();
+  return (
+    <button type="button" onClick={() => close()} className={className}>
+      {t.open.done}
+    </button>
   );
 }

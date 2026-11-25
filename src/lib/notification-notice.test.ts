@@ -17,6 +17,8 @@ describe("encodeNotice / decodeNotice", () => {
       { kind: "new_members", others: 42 },
       { kind: "birthday_wishes", others: 1 },
       { kind: "birthday_wishes", others: 12 },
+      { kind: "gift_received", gift: "Diamond Heart" },
+      { kind: "gift_received", gift: "Rose, \"red\": a:b" },
     ];
     for (const notice of notices) expect(decodeNotice(encodeNotice(notice))).toEqual(notice);
   });
@@ -33,6 +35,11 @@ describe("encodeNotice / decodeNotice", () => {
     expect(decodeNotice("new_members:1.5")).toBeNull();
     expect(decodeNotice("birthday_wishes")).toBeNull();
     expect(decodeNotice("birthday_wishes:0")).toBeNull();
+    expect(decodeNotice("gift_received")).toBeNull();
+    expect(decodeNotice("gift_received:not json")).toBeNull();
+    expect(decodeNotice('gift_received:[""]')).toBeNull();
+    expect(decodeNotice('gift_received:["a","b"]')).toBeNull();
+    expect(decodeNotice("gift_received:[3]")).toBeNull();
   });
 });
 
@@ -60,5 +67,11 @@ describe("noticeText for a new-members digest", () => {
       "and 1 other person wished you a happy birthday",
     );
     expect(noticeText({ kind: "birthday_wishes", others: 3 }, t, ", ")).toBe("and 3 others wished you a happy birthday");
+  });
+});
+
+describe("noticeText for a received gift", () => {
+  it("names the gift after the sender's name", () => {
+    expect(noticeText({ kind: "gift_received", gift: "Diamond Heart" }, t, ", ")).toBe("sent you a gift: Diamond Heart");
   });
 });

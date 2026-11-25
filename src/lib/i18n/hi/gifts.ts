@@ -59,6 +59,13 @@ export const gifts: typeof giftsEn = {
     fromAward: "चैलेंज जीतने पर एक पुरस्कार",
     announce: "गिफ़्ट खुल गया: {items}",
     done: "हो गया",
+    congrats: "बधाई हो",
+    senderLine: "{name} ने आपको एक ख़ास गिफ़्ट भेजा!",
+    senderLineSomeone: "किसी ने आपको एक ख़ास गिफ़्ट भेजा!",
+    messageHeading: "उनका संदेश",
+    sendThankYou: "धन्यवाद भेजें",
+    thanked: "आप इस गिफ़्ट के लिए धन्यवाद कह चुके हैं।",
+    replay: "फिर से देखें",
   },
   card: {
     received: "ने आपको गिफ़्ट भेजा",
@@ -271,6 +278,10 @@ export const gifts: typeof giftsEn = {
       reducedMotion: "कम मोशन चालू है, इसलिए प्रीव्यू हलचल की जगह हल्के फ़ेड के साथ अंतिम रूप दिखाता है।",
       lowEnd: "आपका डिवाइस कम क्षमता वाला लगता है, इसलिए प्रीव्यू इफ़ेक्ट का हल्का संस्करण इस्तेमाल करता है।",
       stageLabel: "{name} के एनिमेशन का प्रीव्यू",
+      previewBadge: "प्रीव्यू",
+      sampleSender: "एक दोस्त",
+      sampleMessage: "जन्मदिन मुबारक! उम्मीद है इससे आपके चेहरे पर मुस्कान आएगी।",
+      sampleNote: "नमूना भेजने वाला और संदेश: आप जिसे चुनेंगे, उसे यह ऐसा दिखेगा।",
       effects: {
         COMMON: "साधारण: गिफ़्ट ऊपर उठकर आता है।",
         RARE: "हल्की चमक और चिंगारियाँ जोड़ता है।",
@@ -339,6 +350,7 @@ export const gifts: typeof giftsEn = {
       },
       open: "खोलें",
       opened: "खोला गया",
+      replay: "फिर से देखें",
     },
   },
   boxes: {

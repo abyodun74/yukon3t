@@ -59,6 +59,13 @@ export const gifts: typeof giftsEn = {
     fromAward: "Une récompense pour avoir remporté un défi",
     announce: "Cadeau ouvert : {items}",
     done: "Terminé",
+    congrats: "Félicitations",
+    senderLine: "{name} vous a envoyé un cadeau spécial !",
+    senderLineSomeone: "Quelqu'un vous a envoyé un cadeau spécial !",
+    messageHeading: "Son message",
+    sendThankYou: "Dire merci",
+    thanked: "Vous avez déjà dit merci pour ce cadeau.",
+    replay: "Revoir",
   },
   card: {
     received: "Vous a offert un cadeau",
@@ -272,6 +279,10 @@ export const gifts: typeof giftsEn = {
       reducedMotion: "Le mouvement réduit est activé : l'aperçu montre le rendu final avec un léger fondu au lieu d'un mouvement.",
       lowEnd: "Votre appareil semble peu puissant : l'aperçu utilise une version allégée de l'effet.",
       stageLabel: "Aperçu de l'animation de {name}",
+      previewBadge: "Aperçu",
+      sampleSender: "Un ami",
+      sampleMessage: "Joyeux anniversaire ! J'espère que ça te fera sourire.",
+      sampleNote: "Expéditeur et message d'exemple : c'est ainsi que la personne choisie le verra.",
       effects: {
         COMMON: "Simple : le cadeau apparaît en montant.",
         RARE: "Ajoute une lueur douce et des étincelles.",
@@ -340,6 +351,7 @@ export const gifts: typeof giftsEn = {
       },
       open: "Ouvrir",
       opened: "Ouvert",
+      replay: "Revoir",
     },
   },
   boxes: {

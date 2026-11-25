@@ -145,6 +145,7 @@ export const pages: typeof pagesEn = {
       birthdayWishesOne: "na mtu 1 zaidi wamekutakia heri ya siku ya kuzaliwa",
       birthdayWishesMany: "na watu {count} zaidi wamekutakia heri ya siku ya kuzaliwa",
       holidayToday: "Leo ni {holiday} nchini {country}",
+      giftReceived: "amekutumia zawadi: {gift}",
       categories: {
         sexual: "maudhui ya ngono waziwazi",
         "sexual/minors": "maudhui ya ngono yanayohusisha watoto",

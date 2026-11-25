@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { RotateCcw } from "lucide-react";
 import { GiftArt } from "@/components/gift-art";
 import { GiftOpenOverlay } from "@/components/gift-open-overlay";
 import { CoinAmount } from "@/components/coin-amount";
@@ -16,8 +17,9 @@ type Tab = "sent" | "received";
 
 /**
  * Gift history: the signed-in person's own sent and received gifts (most recent 50 each; the server's rules in
- * src/lib/gift-history.ts decide who is named). A received gift not opened yet can be opened here, which plays the
- * same open animation (and reduce-motion still) as the profile's Gifts area.
+ * src/lib/gift-history.ts decide who is named). A received gift not opened yet can be opened here, and an opened one
+ * replayed; both play the recipient's reveal (GiftReveal, reduce-motion still included) through openGift, which only
+ * ever answers the recipient.
  */
 export function GiftHistoryView() {
   const { locale, t } = useGiftsText();
@@ -175,7 +177,19 @@ export function GiftHistoryView() {
                     {m.history.open}
                   </button>
                 ) : (
-                  <span className="text-xs text-foreground-soft">{m.history.opened}</span>
+                  <span className="flex flex-col items-end gap-1">
+                    <span className="text-xs text-foreground-soft">{m.history.opened}</span>
+                    <button
+                      type="button"
+                      onClick={() => open(entry)}
+                      disabled={isOpening}
+                      className="flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:border-accent disabled:opacity-60"
+                    >
+                      <RotateCcw size={12} aria-hidden />
+                      {m.history.replay}
+                      <span className="sr-only">: {giftProductName(t, { sku: entry.productSku, isBox: entry.isBox, items: entry.items })}</span>
+                    </button>
+                  </span>
                 )}
               </li>
             ))}

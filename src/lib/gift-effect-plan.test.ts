@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { GIFT_TIERS } from "@/lib/gifts-data";
-import { giftEffectPlan, isLowEndDevice, sparkleSpots } from "@/lib/gift-effect-plan";
+import {
+  GIFT_REVEAL_STEPS,
+  giftEffectPlan,
+  giftRevealArtSize,
+  giftRevealSender,
+  giftRevealTimeline,
+  isLowEndDevice,
+  sparkleSpots,
+} from "@/lib/gift-effect-plan";
 
 const full = { reduce: false, lowEnd: false };
 
@@ -38,6 +46,73 @@ describe("giftEffectPlan", () => {
       expect(light.durationMs).toBeLessThanOrEqual(heavy.durationMs);
       expect(light.halo).toBe(heavy.halo);
     }
+  });
+});
+
+describe("giftRevealTimeline", () => {
+  it("shows the lines in the spec's order, the note only when there is one", () => {
+    const plan = giftEffectPlan("RARE", full);
+    expect(giftRevealTimeline(plan, { hasMessage: true }).steps.map((s) => s.step)).toEqual([...GIFT_REVEAL_STEPS]);
+    expect(giftRevealTimeline(plan, { hasMessage: false }).steps.map((s) => s.step)).toEqual([
+      "header",
+      "badge",
+      "name",
+      "sender",
+      "actions",
+    ]);
+  });
+
+  it("scales with the tier: Legendary starts last, unfolds slowest and is the only one with a name shine", () => {
+    const lines = GIFT_TIERS.map((t) => giftRevealTimeline(giftEffectPlan(t, full), { hasMessage: true }));
+    for (let i = 1; i < lines.length; i++) {
+      expect(lines[i].steps[0].delayMs).toBeGreaterThan(lines[i - 1].steps[0].delayMs);
+      expect(lines[i].doneMs).toBeGreaterThan(lines[i - 1].doneMs);
+    }
+    expect(lines.map((l) => l.nameShine)).toEqual([false, false, false, true]);
+    // Legendary's words wait for the art, which arrives about 1s into its cinematic sequence.
+    expect(lines[3].steps[0].delayMs).toBeGreaterThanOrEqual(1000);
+    for (const line of lines) {
+      const delays = line.steps.map((s) => s.delayMs);
+      expect([...delays].sort((a, b) => a - b)).toEqual(delays);
+    }
+  });
+
+  it("reduced motion: every line at once, one short fade, no shine", () => {
+    for (const tier of GIFT_TIERS) {
+      const line = giftRevealTimeline(giftEffectPlan(tier, { reduce: true, lowEnd: false }), { hasMessage: true });
+      expect(line.steps.every((s) => s.delayMs === 0)).toBe(true);
+      expect(line.textMs).toBeLessThanOrEqual(400);
+      expect(line.nameShine).toBe(false);
+    }
+  });
+
+  it("a low-end device: an earlier, tighter sequence, never longer than full motion, no shine", () => {
+    for (const tier of GIFT_TIERS) {
+      const heavy = giftRevealTimeline(giftEffectPlan(tier, full), { hasMessage: true });
+      const light = giftRevealTimeline(giftEffectPlan(tier, { reduce: false, lowEnd: true }), { hasMessage: true });
+      expect(light.steps[0].delayMs).toBeLessThanOrEqual(400);
+      expect(light.doneMs).toBeLessThanOrEqual(heavy.doneMs);
+      expect(light.nameShine).toBe(false);
+    }
+  });
+});
+
+describe("giftRevealSender", () => {
+  it("prefers @username, then the display name, then someone; an award has no sender", () => {
+    expect(giftRevealSender({ isAward: false, username: "ada", name: "Ada L." })).toEqual({ kind: "person", label: "@ada" });
+    expect(giftRevealSender({ isAward: false, username: null, name: "Ada L." })).toEqual({ kind: "person", label: "Ada L." });
+    expect(giftRevealSender({ isAward: false, username: "  ", name: " " })).toEqual({ kind: "someone" });
+    expect(giftRevealSender({ isAward: false, username: null, name: null })).toEqual({ kind: "someone" });
+    expect(giftRevealSender({ isAward: true, username: "ada", name: "Ada" })).toEqual({ kind: "award" });
+  });
+});
+
+describe("giftRevealArtSize", () => {
+  it("is large on a desktop, expanded on a tablet and smaller on a short phone", () => {
+    expect(giftRevealArtSize({ width: 1440, height: 900 })).toBe(280);
+    expect(giftRevealArtSize({ width: 820, height: 1180 })).toBe(240);
+    expect(giftRevealArtSize({ width: 390, height: 844 })).toBe(190);
+    expect(giftRevealArtSize({ width: 320, height: 568 })).toBe(150);
   });
 });
 

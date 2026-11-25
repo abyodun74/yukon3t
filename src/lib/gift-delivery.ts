@@ -15,7 +15,10 @@ import { getHiddenPeerIds, getMembersHidingConversation } from "@/lib/hidden-cha
 import { HIDDEN_PUSH_TYPE } from "@/lib/hidden-chats-rules";
 import { sendPushToUser } from "@/lib/push";
 import { sendFcmActivityToUser } from "@/lib/fcm";
-import { activityLine, hiddenPush, nameOrSomeone } from "@/lib/push-text";
+import { hiddenPush, nameOrSomeone, noticeLine, storedLocale } from "@/lib/push-text";
+import { encodeNotice } from "@/lib/notification-notice";
+import { dictionaryFor } from "@/lib/i18n/dictionaries";
+import { giftProductName } from "@/lib/gift-names";
 import { notifyBadgeChange, publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
 import { captureError } from "@/lib/error-tracking";
@@ -38,7 +41,15 @@ const partySelect = {
   isGuestPreview: true,
   birthDate: true,
   giftsFrom: true,
+  locale: true,
 } as const;
+
+/** What the notification calls a gift: its catalog name, in one language. */
+export type GiftNameSource = { sku: string; isBox: boolean; items: { slug: string }[] };
+
+export function giftNameFor(product: GiftNameSource, locale: Locale): string {
+  return giftProductName(dictionaryFor(locale).gifts, product);
+}
 
 /** Whether two people are accepted connections (either direction). */
 async function areConnected(aId: string, bId: string): Promise<boolean> {
@@ -77,11 +88,13 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
       quantity: true,
       product: {
         select: {
+          sku: true,
+          isBox: true,
           items: {
             select: {
               itemId: true,
               quantity: true,
-              item: { select: { kind: true, assetKey: true, rarity: true, editionSize: true } },
+              item: { select: { slug: true, sortOrder: true, kind: true, assetKey: true, rarity: true, editionSize: true } },
             },
           },
         },
@@ -196,6 +209,12 @@ export async function deliverGiftPurchase(purchaseId: string, now = new Date()):
       sendId: send.id,
       sender: send.sender,
       recipientId: send.recipient.id,
+      recipientLocale: storedLocale(send.recipient.locale),
+      gift: {
+        sku: purchase.product.sku,
+        isBox: purchase.product.isBox,
+        items: [...purchase.product.items].sort((a, b) => a.item.sortOrder - b.item.sortOrder).map((row) => ({ slug: row.item.slug })),
+      },
       context: send.context,
       conversationId: send.conversationId,
       liveStreamId: send.liveStreamId,
@@ -228,12 +247,14 @@ async function afterGiftDelivered(input: {
   sendId: string;
   sender: { id: string; name: string | null };
   recipientId: string;
+  recipientLocale: Locale;
+  gift: GiftNameSource;
   context: "DIRECT" | "CHAT" | "LIVE";
   conversationId: string | null;
   liveStreamId: string | null;
   effect: string;
 }) {
-  const { sendId, sender, recipientId, context, conversationId, liveStreamId } = input;
+  const { sendId, sender, recipientId, recipientLocale, gift, context, conversationId, liveStreamId } = input;
 
   // The gift card in the chat it was sent from. A chat that turned secret since can't take a message the server wrote
   // (createNonE2eeMessage refuses it): the gift is still in the recipient's Gifts area, just without a card in the chat.
@@ -268,19 +289,25 @@ async function afterGiftDelivered(input: {
     );
   }
 
-  await bestEffort("notification", sendId, () => notifyGiftRecipient({ sender, recipientId, conversationId }));
+  await bestEffort("notification", sendId, () =>
+    notifyGiftRecipient({ sender, recipientId, recipientLocale, gift, conversationId }),
+  );
 }
 
 /**
- * The recipient's bell row and push. A recipient who has hidden their chat with the sender (or the chat it came from)
- * gets what any message in a hidden chat gets: the neutral push and no named row.
+ * The recipient's bell row and push: who sent it and the gift's name ("Ada sent you a gift: Diamond Heart"), the name
+ * stored in the recipient's language for the bell row and worded per language for the push. A recipient who has hidden
+ * their chat with the sender (or the chat it came from) gets what any message in a hidden chat gets: the neutral push
+ * and no named row (no gift name either).
  */
 async function notifyGiftRecipient(input: {
   sender: { id: string; name: string | null };
   recipientId: string;
+  recipientLocale: Locale;
+  gift: GiftNameSource;
   conversationId: string | null;
 }) {
-  const { sender, recipientId, conversationId } = input;
+  const { sender, recipientId, recipientLocale, gift, conversationId } = input;
   const hiddenPeers = await getHiddenPeerIds(recipientId);
   const hiddenChat = conversationId
     ? (await getMembersHidingConversation(conversationId, [recipientId])).length > 0
@@ -291,13 +318,19 @@ async function notifyGiftRecipient(input: {
     return;
   }
   await prisma.notification.create({
-    data: { recipientId, actorId: sender.id, type: "GIFT_RECEIVED", conversationId },
+    data: {
+      recipientId,
+      actorId: sender.id,
+      type: "GIFT_RECEIVED",
+      conversationId,
+      messageData: encodeNotice({ kind: "gift_received", gift: giftNameFor(gift, recipientLocale) }),
+    },
     select: { id: true },
   });
   const url = giftsHref(recipientId);
   const payload = (locale: Locale) => ({
     title: nameOrSomeone(sender.name, locale),
-    body: activityLine("GIFT_RECEIVED", locale),
+    body: noticeLine({ kind: "gift_received", gift: giftNameFor(gift, locale) }, locale),
     url,
   });
   await sendPushToUser(recipientId, payload);

@@ -60,6 +60,13 @@ export const gifts: typeof giftsEn = {
     fromAward: "جائزة للفوز في تحدٍّ",
     announce: "تم فتح الهدية: {items}",
     done: "تم",
+    congrats: "تهانينا",
+    senderLine: "أرسل إليك {name} هدية مميزة!",
+    senderLineSomeone: "أرسل إليك أحدهم هدية مميزة!",
+    messageHeading: "رسالته",
+    sendThankYou: "إرسال شكر",
+    thanked: "لقد شكرته على هذه الهدية.",
+    replay: "إعادة التشغيل",
   },
   card: {
     received: "أرسل إليك هدية",
@@ -272,6 +279,10 @@ export const gifts: typeof giftsEn = {
       reducedMotion: "الحركة المخفّضة مفعّلة، لذا تعرض المعاينة الشكل النهائي مع تلاشٍ لطيف بدل الحركة.",
       lowEnd: "يبدو أن جهازك ضعيف الأداء، لذا تستخدم المعاينة نسخة أخف من التأثير.",
       stageLabel: "معاينة حركة {name}",
+      previewBadge: "معاينة",
+      sampleSender: "صديق",
+      sampleMessage: "عيد ميلاد سعيد! أتمنى أن يرسم هذا ابتسامة على وجهك.",
+      sampleNote: "مُرسِل ورسالة على سبيل المثال: هكذا سيراها الشخص الذي تختاره.",
       effects: {
         COMMON: "بسيط: ترتفع الهدية إلى مكانها.",
         RARE: "يضيف توهجًا ناعمًا وشرارات.",
@@ -340,6 +351,7 @@ export const gifts: typeof giftsEn = {
       },
       open: "افتح",
       opened: "مفتوحة",
+      replay: "إعادة التشغيل",
     },
   },
   boxes: {

@@ -39,7 +39,7 @@ const adult = new Date("1990-01-01T00:00:00Z");
 let users: Record<string, Party>;
 let purchases: Record<string, Purchase>;
 let sends: Record<string, Send>;
-let products: Record<string, { itemId: string; quantity: number; item: { kind: string; assetKey: string } }[]>;
+let products: Record<string, { itemId: string; quantity: number; item: { slug?: string; sortOrder?: number; kind: string; assetKey: string } }[]>;
 let owned: { ownerId: string; itemId: string; sendId: string }[];
 let notifications: Record<string, unknown>[];
 let connected: boolean;
@@ -84,7 +84,7 @@ vi.mock("@/lib/prisma", () => {
           buyerId: p.buyerId ?? null,
           amountMinor: p.amountMinor ?? 0,
           quantity: p.quantity ?? 1,
-          product: { items: products[p.productId] },
+          product: { sku: p.productId === "box" ? "box.celebration" : "sticker.wave", isBox: p.productId === "box", items: products[p.productId] },
           send: send
             ? {
                 id: send.id,
@@ -159,7 +159,7 @@ beforeEach(() => {
     bob: { id: "bob", name: "Bob", status: "ACTIVE", isAdmin: true, isGuestPreview: false, birthDate: adult, giftsFrom: "CONNECTIONS" },
   };
   products = {
-    single: [{ itemId: "gift_item_wave", quantity: 1, item: { kind: "STICKER", assetKey: "wave" } }],
+    single: [{ itemId: "gift_item_wave", quantity: 1, item: { slug: "wave", sortOrder: 10, kind: "STICKER", assetKey: "wave" } }],
     box: [
       { itemId: "gift_item_heart-burst", quantity: 1, item: { kind: "STICKER", assetKey: "heart-burst" } },
       { itemId: "gift_item_rose", quantity: 2, item: { kind: "STICKER", assetKey: "rose" } },
@@ -303,6 +303,23 @@ describe("deliverGiftPurchase", () => {
     expect(notifications).toEqual([]);
     expect(sendPushToUser).toHaveBeenCalledTimes(1);
     expect(sendFcmActivityToUser).toHaveBeenCalledTimes(1);
+    const neutral = (sendPushToUser.mock.calls[0][1] as (l: string) => { title: string; body: string })("en");
+    expect(JSON.stringify(neutral)).not.toMatch(/Alice|Wave/);
+  });
+
+  it("names the sender and the gift: the bell row in the recipient's language, the push per language", async () => {
+    (users.bob as Party & { locale?: string }).locale = "es";
+    expect(await deliverGiftPurchase("p1")).toBe("delivered");
+    expect(notifications[0]).toMatchObject({ type: "GIFT_RECEIVED", actorId: "alice", messageData: 'gift_received:["Saludo"]' });
+    const push = sendPushToUser.mock.calls[0][1] as (l: string) => { title: string; body: string };
+    expect(push("en")).toMatchObject({ title: "Alice", body: "sent you a gift: Wave" });
+    expect(push("es")).toMatchObject({ title: "Alice", body: "te envió un regalo: Saludo" });
+  });
+
+  it("names a box by its own name", async () => {
+    setup({}, "box");
+    expect(await deliverGiftPurchase("p1")).toBe("delivered");
+    expect(notifications[0]).toMatchObject({ messageData: 'gift_received:["Celebration"]' });
   });
 
   it("never fails a delivery over a notification error", async () => {

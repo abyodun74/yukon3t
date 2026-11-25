@@ -148,9 +148,14 @@ export function ProfileGiftsSection({ view, isOwner }: { view: ProfileGiftsView;
       </h2>
       {isOwner && <p className="mt-1 text-xs text-foreground-soft">{t.profile.ownerHint}</p>}
       {isOwner && (
-        <Link href="/gift-marketplace" className="mt-1 inline-block text-sm font-medium text-accent hover:underline">
-          {t.market.title}
-        </Link>
+        <span className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+          <Link href="/gift-marketplace" className="text-sm font-medium text-accent hover:underline">
+            {t.market.title}
+          </Link>
+          <Link href="/gift-marketplace/history" className="text-sm font-medium text-accent hover:underline">
+            {t.market.historyLink}
+          </Link>
+        </span>
       )}
       {error && (
         <p role="alert" className="mt-2 text-sm text-danger">

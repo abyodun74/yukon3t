@@ -92,7 +92,7 @@ describe("gift-marketplace structure", () => {
   });
 
   it("the preview effect code is pure presentation: no actions, DB, network, storage or sound", () => {
-    for (const f of ["src/components/gift-stage.tsx", "src/lib/gift-effect-plan.ts"]) {
+    for (const f of ["src/components/gift-stage.tsx", "src/components/gift-reveal.tsx", "src/lib/gift-effect-plan.ts"]) {
       const src = read(f);
       expect(src).not.toMatch(/@\/app\/actions|prisma|fetch\(|XMLHttpRequest|sendBeacon|localStorage|new Audio|AudioContext|\.play\(\)/);
     }
@@ -103,6 +103,25 @@ describe("gift-marketplace structure", () => {
     expect(src.match(/from "@\/app\/actions\/[^"]+"/g)).toEqual(['from "@/app/actions/gift-market"']);
     expect(src).toContain("setGiftFavorite");
     expect(src).not.toMatch(/createGiftIntent|purchase|notify/i);
+  });
+
+  it("the preview is the shared reveal with a labelled sample sender, never a real person's name or note", () => {
+    const src = read("src/components/gift-marketplace.tsx");
+    expect(src).toContain("<GiftReveal");
+    expect(src).toContain('mode="preview"');
+    expect(src).toContain('sender="sample"');
+    expect(src).toContain("message={m.preview.sampleMessage}");
+    expect(src).not.toMatch(/senderName|senderUsername|OpenedGift/);
+  });
+
+  it("the recipient's open screen is the same reveal, and only ever calls the existing Thank You action", () => {
+    const src = read("src/components/gift-open-overlay.tsx");
+    expect(src).toContain("<GiftReveal");
+    expect(src).toContain('mode="recipient"');
+    expect(src.match(/from "@\/app\/actions\/[^"]+"/g)).toEqual(['from "@/app/actions/gifts"']);
+    expect(src).toMatch(/import \{ sendThankYouGift, type OpenedGift \} from "@\/app\/actions\/gifts"/);
+    // Offered only while openGift says the recipient still can.
+    expect(src).toContain("gift.canThank");
   });
 
   it("no other gift-marketplace file reads the gifts dictionary", () => {

@@ -152,6 +152,7 @@ export const pagesEn = {
       birthdayWishesOne: "and 1 other person wished you a happy birthday",
       birthdayWishesMany: "and {count} others wished you a happy birthday",
       holidayToday: "Today is {holiday} in {country}",
+      giftReceived: "sent you a gift: {gift}",
       categories: {
         sexual: "sexually explicit content",
         "sexual/minors": "sexual content involving minors",

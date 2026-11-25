@@ -3,15 +3,16 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useReducedMotion } from "motion/react";
-import { Heart, History, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
-import { Sheet } from "@/components/sheet";
+import { Heart, History, Search, SlidersHorizontal, X } from "lucide-react";
 import { GiftStage, useLowEndDevice } from "@/components/gift-stage";
+import { GiftReveal, useGiftRevealClose } from "@/components/gift-reveal";
 import { CoinAmount, CoinMark } from "@/components/coin-amount";
 import { GiftMarketFilterSheet } from "@/components/gift-market-filter-sheet";
 import { GiftMarketSendSheet } from "@/components/gift-market-send-sheet";
 import { useGiftsText } from "@/components/gifts-text";
 import { setGiftFavorite } from "@/app/actions/gift-market";
 import { formatCoins } from "@/lib/coins";
+import { prefetchGiftReveal } from "@/lib/gift-render-capability";
 import { giftProductDescription, giftProductName } from "@/lib/gift-names";
 import {
   DEFAULT_MARKET_FILTERS,
@@ -29,7 +30,9 @@ import { format } from "@/lib/i18n/locales";
 /**
  * The gift marketplace (home and category pages): header with the coin balance, search, a banner, the category
  * row, featured gifts, the filter sheet and the grid (2 columns on phones, 3 on tablets, 4-5 on desktops). Tapping a
- * gift opens its preview; Send opens the recipient + checkout sheet. Search, filters and sort only change what is
+ * gift opens its preview: the recipient's own reveal (GiftReveal) with a labelled sample sender and note, full screen
+ * on a phone, an expanded stage on a tablet, a large panel on a desktop. Previewing buys, sends and charges nothing.
+ * Send (once the preview has closed) opens the recipient + checkout sheet. Search, filters and sort only change what is
  * shown (src/lib/gift-market.ts); prices and totals are always the server's at send time.
  */
 export function GiftMarketplace({
@@ -44,7 +47,7 @@ export function GiftMarketplace({
   /** A category page: only this category, no banner or featured row. */
   category: GiftCategoryName | null;
 }) {
-  const { locale, dir, t } = useGiftsText();
+  const { locale, t } = useGiftsText();
   const m = t.market;
   const reduce = useReducedMotion() ?? false;
   const lowEnd = useLowEndDevice();
@@ -57,10 +60,6 @@ export function GiftMarketplace({
   const [filterOpen, setFilterOpen] = useState(false);
   const [previewSku, setPreviewSku] = useState<string | null>(null);
   const [sendSku, setSendSku] = useState<string | null>(null);
-  // Send from the preview opens the send sheet only once the preview has finished closing (one overlay at a time:
-  // swapping two sheets in one render can leave the new one invisible on iPhone, see create-picker.ts).
-  const [sendAfterPreview, setSendAfterPreview] = useState<string | null>(null);
-  const [playKey, setPlayKey] = useState(0);
   const [, startTransition] = useTransition();
 
   const bySku = useMemo(() => new Map(gifts.map((g) => [g.sku, g])), [gifts]);
@@ -122,10 +121,11 @@ export function GiftMarketplace({
       <li key={gift.sku}>
         <button
           type="button"
-          onClick={() => {
-            setPlayKey((k) => k + 1);
-            setPreviewSku(gift.sku);
-          }}
+          onClick={() => setPreviewSku(gift.sku)}
+          // Intent only: warms an Epic / Legendary gift's 3D scene and model (nothing for the rest, nothing on scroll).
+          onPointerEnter={() => prefetchGiftReveal(gift)}
+          onFocus={() => prefetchGiftReveal(gift)}
+          onPointerDown={() => prefetchGiftReveal(gift)}
           className={`gift-tier-${gift.tier.toLowerCase()} gift-tier-edge flex h-full w-full flex-col overflow-hidden rounded-2xl border bg-surface text-start transition-colors hover:bg-accent-soft/40`}
         >
           <GiftStage tier={gift.tier} items={gift.items} name={name} size={72} reduce compact playAnimation={false} className="aspect-square w-full" />
@@ -299,104 +299,101 @@ export function GiftMarketplace({
         lockedCategory={category !== null}
       />
 
-      <Sheet
-        open={preview !== null}
-        onClose={() => setPreviewSku(null)}
-        onExitComplete={() => {
-          if (sendAfterPreview) {
-            setSendSku(sendAfterPreview);
-            setSendAfterPreview(null);
+      {preview && (
+        <GiftReveal
+          key={preview.sku}
+          mode="preview"
+          tier={preview.tier}
+          items={preview.items}
+          giftName={nameOf(preview)}
+          sender="sample"
+          message={m.preview.sampleMessage}
+          announcement={`${format(m.preview.stageLabel, { name: nameOf(preview) })}. ${m.preview.sampleNote}`}
+          onClose={() => setPreviewSku(null)}
+          details={
+            <>
+              <p className="text-xs text-white/65">
+                {m.categories[preview.category]} · {m.preview.effects[preview.tier]}
+              </p>
+              <p className="line-clamp-2 text-sm text-white/85">{descriptionOf(preview)}</p>
+              <p role="note" className="text-[11px] text-white/60">
+                {m.preview.sampleNote} {m.preview.previewOnly} {m.preview.noSound}
+              </p>
+              {reduce && (
+                <p role="note" className="text-[11px] text-white/60">
+                  {m.preview.reducedMotion}
+                </p>
+              )}
+              {!reduce && lowEnd && (
+                <p role="note" className="text-[11px] text-white/60">
+                  {m.preview.lowEnd}
+                </p>
+              )}
+              {favoriteError && (
+                <p role="alert" className="text-sm text-red-200">
+                  {favoriteError}
+                </p>
+              )}
+              {!preview.available && (
+                <p role="status" className="text-sm text-red-200">
+                  {m.preview.unavailable}
+                </p>
+              )}
+            </>
           }
-        }}
-        variant="bottom-sheet"
-        responsive
-        title={preview ? nameOf(preview) : ""}
-        lang={locale}
-        dir={dir}
-        panelClassName={preview?.tier === "LEGENDARY" ? "sm:max-w-2xl" : "sm:max-w-md"}
-      >
-        {preview && (
-          <div className="space-y-3">
-            <GiftStage
-              tier={preview.tier}
-              items={preview.items}
-              name={nameOf(preview)}
-              size={168}
-              playKey={playKey}
-              reduce={reduce}
-              className={`w-full rounded-2xl ${preview.tier === "LEGENDARY" ? "aspect-[3/4] max-h-[62dvh] sm:aspect-video" : "aspect-[4/3]"}`}
+          primary={
+            <PreviewSendButton
+              label={m.preview.send}
+              coinPrice={preview.coinPrice}
+              disabled={!preview.available}
+              onSend={() => setSendSku(preview.sku)}
             />
-            <p className="sr-only" role="status">
-              {format(m.preview.stageLabel, { name: nameOf(preview) })}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`gift-tier-${preview.tier.toLowerCase()} gift-tier-badge rounded-full px-2.5 py-0.5 text-xs font-semibold`}>
-                {format(m.preview.tierLabel, { tier: m.tiers[preview.tier] })}
-              </span>
-              <span className="text-xs text-foreground-soft">{m.categories[preview.category]}</span>
-              <span className="text-xs text-foreground-soft">
-                · {m.preview.effects[preview.tier]}
-              </span>
-            </div>
-            {reduce && (
-              <p role="note" className="rounded-lg bg-surface px-3 py-2 text-xs text-foreground-soft">
-                {m.preview.reducedMotion}
-              </p>
-            )}
-            {!reduce && lowEnd && (
-              <p role="note" className="rounded-lg bg-surface px-3 py-2 text-xs text-foreground-soft">
-                {m.preview.lowEnd}
-              </p>
-            )}
-            <p className="text-sm">{descriptionOf(preview)}</p>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-lg font-semibold">
-                <CoinAmount amount={preview.coinPrice} />
-              </span>
-              <span className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPlayKey((k) => k + 1)}
-                  className="flex h-10 items-center gap-1.5 rounded-full border border-line px-3 text-sm"
-                >
-                  <RotateCcw size={14} aria-hidden />
-                  {m.preview.replay}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleFavorite(preview.sku)}
-                  aria-pressed={favorites.has(preview.sku)}
-                  aria-label={favorites.has(preview.sku) ? m.preview.unfavorite : m.preview.favorite}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-line"
-                >
-                  <Heart size={16} aria-hidden className={favorites.has(preview.sku) ? "fill-current text-danger" : ""} />
-                </button>
-              </span>
-            </div>
-            <p className="text-xs text-foreground-soft">
-              {m.preview.previewOnly} {m.preview.noSound}
-            </p>
-            {!preview.available && (
-              <p role="status" className="text-sm text-danger">
-                {m.preview.unavailable}
-              </p>
-            )}
+          }
+          secondary={
             <button
               type="button"
-              disabled={!preview.available}
-              onClick={() => {
-                setSendAfterPreview(preview.sku);
-                setPreviewSku(null);
-              }}
-              className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-ink disabled:opacity-50"
+              onClick={() => toggleFavorite(preview.sku)}
+              aria-pressed={favorites.has(preview.sku)}
+              aria-label={favorites.has(preview.sku) ? m.preview.unfavorite : m.preview.favorite}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white hover:border-white/60"
             >
-              {m.preview.send}
+              <Heart size={16} aria-hidden className={favorites.has(preview.sku) ? "fill-current text-red-300" : ""} />
             </button>
-          </div>
-        )}
-      </Sheet>
+          }
+        />
+      )}
 
       <GiftMarketSendSheet gift={sending} onClose={() => setSendSku(null)} coinBalance={balance} onBalance={setBalance} />
     </div>
+  );
+}
+
+/**
+ * Send from the preview: the send sheet opens only once the preview has gone (one overlay at a time: swapping two in
+ * one render can leave the new one invisible on iPhone, see create-picker.ts).
+ */
+function PreviewSendButton({
+  label,
+  coinPrice,
+  disabled,
+  onSend,
+}: {
+  label: string;
+  coinPrice: number;
+  disabled: boolean;
+  onSend: () => void;
+}) {
+  const close = useGiftRevealClose();
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => close(onSend)}
+      className="flex w-full items-center justify-center gap-2 rounded-full bg-accent px-4 py-3 text-sm font-semibold text-accent-ink disabled:opacity-50"
+    >
+      {label}
+      <span aria-hidden>·</span>
+      <CoinAmount amount={coinPrice} />
+    </button>
   );
 }
