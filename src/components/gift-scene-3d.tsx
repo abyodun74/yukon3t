@@ -16,7 +16,7 @@ import type { GiftTierName } from "@/lib/gifts-data";
 // no Draco / Meshopt (useGLTF(src, false, false): no decoder from a CDN, no WebAssembly). On close the model's
 // geometries, materials and textures are disposed and it is dropped from the loader cache; React Three Fiber then
 // disposes the renderer and releases the WebGL context. A lost context, a failed load or a render error hands back to
-// the CSS/Lottie stage through onFallback. Motion: eased tweens only, nothing overshoots; there is no reduced-motion
+// the CSS stage through onFallback. Motion: eased tweens only, nothing overshoots; there is no reduced-motion
 // branch because reduce motion never reaches this renderer.
 
 const TIER_LIGHT: Record<GiftTierName, string> = {

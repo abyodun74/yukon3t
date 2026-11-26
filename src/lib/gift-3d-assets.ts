@@ -1,11 +1,11 @@
 import type { GiftTierName } from "@/lib/gifts-data";
 import type { GiftEffectMotion } from "@/lib/gift-effect-plan";
 
-// The richer renderers a gift reveal can use on top of the CSS/Lottie stage (GiftStage), and the one pure rule that
+// The richer renderers a gift reveal can use on top of the CSS stage (GiftStage), and the one pure rule that
 // picks between them. Client-safe, no I/O, unit-tested (gift-3d-assets.test.ts).
 //
 //   three  Epic and Legendary: a small React Three Fiber scene (gift-scene-3d.tsx) with a self-hosted GLB model.
-//   stage  everything else, and the fallback for all of the above: the CSS layers + static art or Lottie.
+//   stage  everything else, and the fallback for all of the above: the CSS layers + static art.
 //
 // Nothing here is loaded up front: GiftStage only asks for a renderer when a reveal is open, and the libraries are
 // dynamically imported from there (next/dynamic, ssr: false).

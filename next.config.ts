@@ -84,6 +84,12 @@ const nextConfig: NextConfig = {
         source: "/gifts/models/:file*",
         headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
       },
+      // The gift icons (scripts/slice-gift-art.py): every file name carries a hash of its bytes (gift-assets.test.ts
+      // checks it), so a changed picture is a new URL and these can be cached for good. Netlify: netlify.toml.
+      {
+        source: "/gifts/art/:file*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
     ];
   },
 };

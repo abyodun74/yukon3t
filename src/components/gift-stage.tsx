@@ -3,8 +3,6 @@
 import { Component, Fragment, useCallback, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { GiftArt } from "@/components/gift-art";
-import { GiftLottie } from "@/components/gift-lottie";
-import { resolveGiftAnimation } from "@/lib/gift-assets";
 import { giftRenderer, resolveGiftModel } from "@/lib/gift-3d-assets";
 import { giftEffectPlan, isLowEndDevice, sparkleSpots } from "@/lib/gift-effect-plan";
 import { hasWebGL } from "@/lib/gift-render-capability";
@@ -43,11 +41,9 @@ export function useLowEndDevice(): boolean {
  * (src/lib/gift-effect-plan.ts, unit-tested) from the rarity tier: Common the art rising in; Rare adds a halo and
  * sparkles; Epic adds layered depth (rings, floor shadow, slow tilt); Legendary adds a cinematic sequence (letterbox
  * bars, one soft light bloom, rotating rays, then the art). Transform and opacity only (globals.css "Gift marketplace
- * tiers"), no flashing, no sound, no network assets. A gift with a Lottie animation plays it (lottie-web's light
- * build, loaded only now, gift-lottie.tsx); until it is ready, and if it fails, the static art is shown.
+ * tiers"), no flashing, no sound, no network assets. The art is the gift's static picture (GiftArt).
  *
- * With reduce motion on, every layer is drawn in its final pose and the art only fades in (the Lottie shows its poster
- * frame); on a low-end device the plan drops to fewer sparkles, one ring and no cinematic bars. `compact` is the
+ * With reduce motion on, every layer is drawn in its final pose and the art only fades in; on a low-end device the plan drops to fewer sparkles, one ring and no cinematic bars. `compact` is the
  * grid's small card: halo only, nothing moves. Decorative: the name next to it is what screen readers get. `playKey`
  * restarts the whole sequence (Replay).
  *
@@ -74,14 +70,13 @@ export function GiftStage({
   size: number;
   playKey?: number;
   reduce: boolean;
-  /** false: never load the Lottie player (the grid's small cards); the static art only. */
+  /** false: never load the 3D renderer (the grid's small cards); the static art only. */
   playAnimation?: boolean;
   compact?: boolean;
   className?: string;
 }) {
   const lowEnd = useLowEndDevice();
   const plan = giftEffectPlan(tier, { reduce, lowEnd });
-  const single = items.length === 1 ? items[0] : null;
   const rich = !compact;
   const model = rich && playAnimation ? resolveGiftModel(items) : null;
   const webgl = useSyncExternalStore(noopSubscribe, () => model !== null && plan.motion === "full" && hasWebGL(), () => false);
@@ -95,7 +90,6 @@ export function GiftStage({
   const renderer = failed
     ? "stage"
     : giftRenderer({ tier, motion: plan.motion, webgl, hasModel: model !== null });
-  const animated = renderer === "stage" && playAnimation && single && resolveGiftAnimation(single.assetKey) ? single : null;
   const particles = (tier === "EPIC" || tier === "LEGENDARY") && (compact || plan.motion !== "light");
   const sweep = tier === "LEGENDARY" && (compact || plan.motion !== "light");
   const spots = rich ? sparkleSpots(plan.sparkles) : [];
@@ -137,13 +131,9 @@ export function GiftStage({
           className={`gift-stage-art flex flex-wrap items-center justify-center gap-2 transition-opacity duration-300 ${sceneReady && renderer !== "stage" ? "opacity-0" : ""}`}
         >
           <span className={`gift-fx-tilt flex flex-wrap items-center justify-center gap-2 ${rich && plan.depthLayers > 0 ? "gift-fx-tilt-on" : ""}`}>
-            {animated ? (
-              <GiftLottie assetKey={animated.assetKey} name={name} size={size} reduce={reduce} />
-            ) : (
-              items.map((item, i) => (
-                <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} name={name} size={items.length > 1 ? Math.round(size / 2) : size} eager />
-              ))
-            )}
+            {items.map((item, i) => (
+              <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} name={name} size={items.length > 1 ? Math.round(size / 2) : size} eager />
+            ))}
           </span>
         </span>
       </Fragment>

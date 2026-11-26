@@ -17,8 +17,7 @@
 //
 // Names and descriptions are in the `gifts` dictionary (src/lib/i18n/<lang>/gifts.ts) under `items.<slug>` and
 // `boxes.<sku>`, in every language. Art is resolved from `assetKey` by src/lib/gift-assets.ts (an SVG drawn by
-// src/components/gift-art.tsx, a raster picture in public/gifts/, and optionally a Lottie animation in
-// public/gifts/lottie/).
+// src/components/gift-art.tsx, or a raster picture in public/gifts/).
 
 /**
  * The migrations that seed this catalog, oldest first. Applied migrations are never edited: a new gift gets a new seed
@@ -127,7 +126,7 @@ export const GIFT_ITEMS = [
   { slug: "arena-champion", kind: "BADGE", assetKey: "arena-champion", sortOrder: 600, universe: "GAMING", collection: "arena", occasionTags: ["tournament_win"], rarity: "STANDARD" },
 
   // Gift marketplace (20261201120300_gift_marketplace_catalog_seed): eight new gifts so each of the nine marketplace
-  // categories has four. Hand-authored placeholder SVG art (gift-art.tsx), like every drawn gift.
+  // categories has four. Art from the owner's gift icon sheet (src/lib/gift-art-images.ts), like most gifts.
   { slug: "birthday-balloons", kind: "STICKER", assetKey: "birthday-balloons", sortOrder: 700, universe: "CELEBRATE", collection: "party", occasionTags: ["birthday"], rarity: "STANDARD" },
   { slug: "teddy-bear", kind: "STICKER", assetKey: "teddy-bear", sortOrder: 710, universe: "LOVE", collection: "tender", occasionTags: ["love", "appreciation"], rarity: "STANDARD" },
   { slug: "playful-kitten", kind: "STICKER", assetKey: "playful-kitten", sortOrder: 720, universe: "CELEBRATE", collection: "cute", occasionTags: ["appreciation"], rarity: "STANDARD" },

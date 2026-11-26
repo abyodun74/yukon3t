@@ -21,3 +21,16 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Netlify serves public/ itself, so the gift art caching in next.config.ts's headers() is repeated here. The gift icons'
+# file names carry a hash of their bytes (scripts/slice-gift-art.py), so they never change: immutable. The 3D models
+# keep stable names: a day.
+[[headers]]
+  for = "/gifts/art/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/gifts/models/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
