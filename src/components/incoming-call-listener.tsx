@@ -30,6 +30,9 @@ import { UserAvatar } from "@/components/user-link";
 import { OverlayPortal, useOverlayZ } from "@/components/overlay-root";
 import { CallQuickReplyPicker } from "@/components/call-quick-reply-picker";
 import { offersQuickReply, type CallQuickReplyChoice } from "@/lib/call-quick-reply";
+import { CALLKIT_YIELD_INTERVAL_MS, inAppRingOnScreen, systemRingFor } from "@/lib/incoming-call-surface";
+import { closeCallPushNotifications, usePageVisible } from "@/lib/system-ring-client";
+import { claimIncomingRingInApp, releaseIncomingRingInApp } from "@/lib/call-foreground-native";
 
 type IncomingCall = {
   id: string;
@@ -95,6 +98,9 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   const [replyingId, setReplyingId] = useState<string | null>(null);
   useReloadHold("call", replyingId !== null);
   const messageButtonRef = useRef<HTMLButtonElement>(null);
+  // Calls answered with the card's own Accept (not CallKit's or the notification's): on iOS, one whose CallKit ring
+  // gave way to the card is answered without a CallKit call.
+  const cardAcceptsRef = useRef(new Set<string>());
 
   const activeCallRef = useRef(activeCall);
   useEffect(() => {
@@ -346,9 +352,14 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     // and kept a moment past the reply, until that hold and the call
     // session's own have taken over.
     const release = holdReload("call");
+    // iOS: the card was the ring UI (CallKit's ring gave way to it, see incoming-call-surface.ts). End a CallKit ring
+    // that came back in the last moment, and tell the server this iPhone has no CallKit call for it, so the hang-up
+    // sends it no cancel.
+    const withoutCallKit = cardAcceptsRef.current.has(callId) && callKitRing.yieldedToApp(callId);
+    if (withoutCallKit) await callKitRing.yieldToApp(callId);
     let result: Awaited<ReturnType<typeof respondToCall>> | null;
     try {
-      result = await respondToCall(callId, true, currentCallDevice());
+      result = await respondToCall(callId, true, currentCallDevice({ callKitEnded: withoutCallKit }));
     } catch {
       result = null;
     } finally {
@@ -515,7 +526,9 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
   // ours there too would double up on top of it.
   async function accept() {
     hapticNotification("success");
-    if (incoming) await acceptCall(incoming.id);
+    if (!incoming) return;
+    cardAcceptsRef.current.add(incoming.id);
+    await acceptCall(incoming.id);
   }
 
   async function decline() {
@@ -539,9 +552,44 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
     if (incoming) await declineWithReply(incoming.id, reply);
   }
 
+  // The call whose ring card is drawn, and the one on screen (drawn and the page visible). One ring UI at a time
+  // (incoming-call-surface.ts): while the card is on screen the system ring gives way to it. Android: the native ring
+  // is silenced or never raised while the app is in the foreground (and comes back if the app is left while it still
+  // rings). iOS: CallKit's ring is ended, again every CALLKIT_YIELD_INTERVAL_MS in case its VoIP push comes after the
+  // card. Browser: the call's web push is closed.
+  const cardCallId =
+    !activeCall && incoming && incoming.id !== answeringId && incoming.id !== replyingId ? incoming.id : null;
+  const pageVisible = usePageVisible();
+  const onScreenCallId = inAppRingOnScreen({ cardCallId, pageVisible });
+  useEffect(() => {
+    if (!onScreenCallId) return undefined;
+    const ring = systemRingFor(Capacitor.getPlatform());
+    if (ring === "androidRing") {
+      claimIncomingRingInApp(onScreenCallId);
+      return undefined;
+    }
+    if (ring === "browserNotification") {
+      void closeCallPushNotifications(onScreenCallId);
+      return undefined;
+    }
+    void callKitRing.yieldToApp(onScreenCallId);
+    const timer = setInterval(() => void callKitRing.yieldToApp(onScreenCallId), CALLKIT_YIELD_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [onScreenCallId, callKitRing]);
+  // The card is gone (answered, declined, replied to, or the ring is over): Android never raises that ring again, and
+  // a browser closes its push.
+  useEffect(() => {
+    if (!cardCallId) return undefined;
+    return () => {
+      const ring = systemRingFor(Capacitor.getPlatform());
+      if (ring === "androidRing") releaseIncomingRingInApp(cardCallId);
+      else if (ring === "browserNotification") void closeCallPushNotifications(cardCallId);
+    };
+  }, [cardCallId]);
+
   // Native Android only: the incoming-call notification (CallMessagingService,
-  // native side) opens yukon3t://call?callId=...&action=accept|decline when
-  // its Accept/Decline actions are tapped — this is what lets a call raised
+  // native side) opens yukon3t://call?callId=...&action=accept|decline|reply when
+  // its Accept/Decline/Message actions are tapped — this is what lets a call raised
   // while the phone was asleep/backgrounded actually be answered/declined,
   // routed through the same respondToCall flow the in-app buttons use.
   useEffect(() => {
@@ -563,8 +611,8 @@ export function IncomingCallListener({ currentUserId }: { currentUserId: string 
       if (!callId) return;
       if (action === "accept") answeredOutOfApp(callId);
       else if (action === "decline") declinedOutOfApp(callId);
-      // A "Message" action on the ringing notification (needs a native build that adds it): opens the in-app ring
-      // with its reply panel, once that ring is loaded.
+      // The ringing notification's Message action: the native ring stops (MainActivity) and the call keeps ringing for
+      // the caller; this opens the in-app ring with its reply panel once that ring is loaded.
       else if (action === "reply") setReplyPickerId(callId);
       // No action (notification body tap) — just foregrounding the app is
       // enough; the mount-check above picks up the ringing banner.

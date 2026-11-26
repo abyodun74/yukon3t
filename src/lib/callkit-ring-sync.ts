@@ -22,6 +22,10 @@
 //  - A ring CallKit shows for the call this device is already in (its VoIP push arrived after the in-app answer):
 //    ended as answered elsewhere, from the ring check that runs during a call (reconcileDuringCall). Builds with that
 //    fix natively never show it (NativeCallManager.swift's staleRingReason).
+//  - The in-app ring card on screen (app in the foreground): CallKit's ring for that call is ended as answered
+//    elsewhere (yieldToApp), so its Accept / Decline banner is never shown on top of the card's Decline / Message /
+//    Accept (incoming-call-surface.ts). An Accept on the card then answers without a CallKit call, and tells the
+//    server so (callKitEnded on the answer), so no hang-up cancel is sent to this iPhone.
 
 export type CallKitRingEndReason = "declined" | "answeredElsewhere" | "declinedElsewhere" | "remoteEnded" | "unanswered";
 
@@ -92,6 +96,8 @@ export interface CallKitRingPort {
   ringing(): Promise<string[]>;
   /** Ends CallKit's active call for a call answered on this device (no-op if it has none). */
   endAnswered(callId: string): Promise<void>;
+  /** Whether this build can end a ring from the page (`end` does something); older builds can't. */
+  canEndRing(): boolean;
 }
 
 export interface CallKitRingSyncDeps {
@@ -103,6 +109,8 @@ export interface CallKitRingSyncDeps {
 
 export function createCallKitRingSync(port: CallKitRingPort, deps: CallKitRingSyncDeps) {
   const checking = new Set<string>();
+  // Calls whose CallKit ring gave way to the in-app card on this device (yieldToApp).
+  const yielded = new Set<string>();
 
   async function settle(callId: string) {
     if (checking.has(callId)) return;
@@ -130,6 +138,23 @@ export function createCallKitRingSync(port: CallKitRingPort, deps: CallKitRingSy
 
     /** An answer from this device was refused: the ring was resolved somewhere else. End it the way it ended. */
     settle,
+
+    /**
+     * The in-app ring card is on screen for this call: CallKit stops ringing it, so the card is the only ring UI.
+     * Called again while the card stays up (the VoIP push can come after the card) and once more right before an
+     * Accept on the card. A no-op natively when CallKit isn't ringing it; nothing at all on a build that can't end a
+     * ring from the page (CallKit then keeps ringing, as before).
+     */
+    async yieldToApp(callId: string) {
+      if (!port.canEndRing()) return;
+      yielded.add(callId);
+      await port.end(callId, "answeredElsewhere").catch(() => {});
+    },
+
+    /** Whether this call's CallKit ring gave way to the in-app card here, so an answer here has no CallKit call. */
+    yieldedToApp(callId: string) {
+      return yielded.has(callId);
+    },
 
     /**
      * The page left a call answered on this device (in-app hang-up, or the call was found over): CallKit's call ends

@@ -21,7 +21,11 @@ export type CallDevice =
       platform: "ios";
       /** This app's PushKit token, if the page knows it. */
       voipToken: string | null;
-      /** CallKit on this device already ended the call (its End button): it needs no cancel push. */
+      /**
+       * CallKit on this device has no call for it, so it needs no cancel push: at hang-up, its End button already
+       * ended it; at an answer, its ring had given way to the in-app ring card (incoming-call-surface.ts), so the call
+       * is answered in the app without a CallKit call.
+       */
       callKitEnded: boolean;
     }
   | { platform: "other" };
@@ -50,7 +54,9 @@ export const NO_VOIP_ANSWER_RECORD: VoipAnswerRecord = { voipOthersCleared: fals
  * An answer or decline: which of the responder's iPhones to send the cancel to now, and what to store with an answer.
  * - No device (an older page): nobody. The answering iPhone can't be told apart from the rest.
  * - Not an iPhone app (Android, a browser): every iPhone.
- * - An iPhone app whose token is one of the user's own: every other iPhone.
+ * - An iPhone app whose token is one of the user's own: every other iPhone. If CallKit there has no call for it
+ *   (`callKitEnded`: its ring gave way to the in-app card), the answer records no answering iPhone, so the hang-up
+ *   sends no cancel at all (a cancel for a call CallKit isn't showing makes the app report a throwaway call).
  * - An iPhone app with no token, or one that isn't the user's: nobody, for the first reason.
  */
 export function planResponderVoipCancel(
@@ -65,7 +71,7 @@ export function planResponderVoipCancel(
   if (!own) return { cancel: [], record: NO_VOIP_ANSWER_RECORD };
   return {
     cancel: tokens.filter((t) => t.id !== own.id),
-    record: { voipOthersCleared: true, answerVoipTokenId: own.id },
+    record: { voipOthersCleared: true, answerVoipTokenId: device.callKitEnded ? null : own.id },
   };
 }
 

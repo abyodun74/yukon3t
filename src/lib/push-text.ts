@@ -5,6 +5,7 @@ import { DEFAULT_LOCALE, format, intlLocale, isLocale, type Locale } from "@/lib
 import { HIDDEN_CALLER_NAME, hiddenPushPayload } from "@/lib/hidden-chats-rules";
 import { pushPreview } from "@/lib/e2ee/secret-chat";
 import { noticeText, type Notice } from "@/lib/notification-notice";
+import { callPushTag } from "@/lib/incoming-call-surface";
 import type { MessageMediaType as MediaType } from "@/generated/prisma/enums";
 
 // Text written for someone who isn't looking at the app (web push, FCM, VoIP), in the language stored on their account
@@ -71,7 +72,11 @@ export function ringCallerName(maskedName: string | null, locale: Locale): strin
 }
 
 /** The web push for an incoming call. `maskedName` is what maskHiddenCallerName returned. */
-export function incomingCallPush(type: "AUDIO" | "VIDEO", maskedName: string | null): Localized<PushPayload> {
+export function incomingCallPush(
+  type: "AUDIO" | "VIDEO",
+  maskedName: string | null,
+  callId: string,
+): Localized<PushPayload> {
   return (locale) => {
     const t = pushText(locale).call;
     return {
@@ -81,11 +86,13 @@ export function incomingCallPush(type: "AUDIO" | "VIDEO", maskedName: string | n
           ? t.callingPrivate
           : format(t.calling, { name: nameOrSomeone(maskedName, locale) }),
       url: "/",
+      // The in-app ring card closes it once it is on screen and when the ring is over (incoming-call-surface.ts).
+      tag: callPushTag(callId),
     };
   };
 }
 
-type PushPayload = { title: string; body: string; url?: string };
+type PushPayload = { title: string; body: string; url?: string; tag?: string };
 
 /**
  * A new message's push, for a recipient who doesn't hide the chat. Never the text of a secret chat (pushPreview). A

@@ -30,12 +30,17 @@ export function missedCallApns(input: { callerId: string; title: string; body: s
   };
 }
 
-/** `incoming_call`: starts the native ring. `callerAvatarUrl` only when the server has a usable one (call-avatar-server.ts). */
+/**
+ * `incoming_call`: starts the native ring. `callerAvatarUrl` only when the server has a usable one (call-avatar-server.ts).
+ * `canReply` ("1", else left out): the ring offers Message (decline with a quick reply, offersQuickReply), so the
+ * Android notification shows a Message action beside Decline and Accept. Builds without that action ignore it.
+ */
 export function incomingCallData(input: {
   callId: string;
   callerName: string;
   callType: "AUDIO" | "VIDEO";
   callerAvatarUrl?: string | null;
+  canReply?: boolean;
 }): Record<string, string> {
   return {
     type: "incoming_call",
@@ -43,6 +48,7 @@ export function incomingCallData(input: {
     callerName: input.callerName,
     callType: input.callType,
     ...(input.callerAvatarUrl ? { callerAvatarUrl: input.callerAvatarUrl } : {}),
+    ...(input.canReply ? { canReply: "1" } : {}),
   };
 }
 

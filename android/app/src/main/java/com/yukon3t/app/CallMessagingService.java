@@ -31,8 +31,10 @@ import java.util.Map;
  * instead of relying on the WebView's JS polling (incoming-call-listener.tsx),
  * which is throttled/frozen in that state. Actually building/showing the
  * ring notification is CallForegroundService's job (it needs to be the one
- * holding the foreground-service-backed notification anyway), so this class
- * only decides *whether* to start/stop it.
+ * holding the foreground-service-backed notification anyway), and whether it
+ * is shown right now is IncomingRing's (one ring UI at a time: not while the
+ * app is in the foreground showing its own ring card), so this class only
+ * reports what arrived.
  *
  * Every other message (a new message, like, comment, Story repost...) is an
  * FCM *notification* message (sendFcmActivityToUser and friends in fcm.ts).
@@ -102,11 +104,13 @@ public class CallMessagingService extends FirebaseMessagingService {
         if ("incoming_call".equals(type)) {
             String callerName = data.get("callerName");
             String callType = data.get("callType");
-            CallForegroundService.startRinging(
+            IncomingRing.arrived(
                 this,
                 callId,
                 callerName != null ? callerName : "Someone",
-                "VIDEO".equals(callType)
+                "VIDEO".equals(callType),
+                // The ring offers Message (src/lib/call-push-data.ts incomingCallData).
+                "1".equals(data.get("canReply"))
             );
             // The caller's picture, if the server sent one (never for a
             // "Private call"): fetched in the background AFTER the ring has
@@ -119,6 +123,7 @@ public class CallMessagingService extends FirebaseMessagingService {
             // somehow isn't running for this call (e.g. process was killed
             // and restarted between the two pushes). Goes through the
             // service's lock so a picture still downloading can't re-post it.
+            IncomingRing.resolved(callId);
             CallForegroundService.cancelRingingNotification(this, callId);
             CallForegroundService.stopRinging(this, callId);
         } else if ("missed_call".equals(type)) {
@@ -127,6 +132,7 @@ public class CallMessagingService extends FirebaseMessagingService {
             // tap-to-dismiss) "Missed call" notification behind, same as a
             // real phone app — see CallForegroundService.showMissedCallNotification.
             String callerName = data.get("callerName");
+            IncomingRing.resolved(callId);
             CallForegroundService.showMissedCallNotification(
                 this,
                 callId,

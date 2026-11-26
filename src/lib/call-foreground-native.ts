@@ -6,6 +6,8 @@ interface CallForegroundPlugin {
   startActiveCall(options: { callId: string; label: string; isVideo: boolean }): Promise<void>;
   stopActiveCall(): Promise<void>;
   requestIgnoreBatteryOptimizations(): Promise<{ alreadyIgnoring: boolean }>;
+  claimIncomingRing(options: { callId: string }): Promise<void>;
+  releaseIncomingRing(options: { callId: string }): Promise<void>;
 }
 
 // Ask at most once ever per install, not once per call — Play policy expects
@@ -35,6 +37,22 @@ export function startActiveCallForeground(callId: string, label: string, isVideo
 export function stopActiveCallForeground() {
   if (Capacitor.getPlatform() !== "android") return;
   CallForeground.stopActiveCall().catch(() => {});
+}
+
+/**
+ * The in-app ring card for this call is on screen: the native ring (notification + ringtone) is silenced, or never
+ * raised, while the app stays in the foreground, and comes back if the app is left while the call still rings
+ * (IncomingRingState.java). Builds without the method reject, which is ignored: they keep ringing natively.
+ */
+export function claimIncomingRingInApp(callId: string) {
+  if (Capacitor.getPlatform() !== "android") return;
+  CallForeground.claimIncomingRing({ callId }).catch(() => {});
+}
+
+/** The in-app ring for this call is over (answered, declined, replied to, or no longer ringing): never raise it again. */
+export function releaseIncomingRingInApp(callId: string) {
+  if (Capacitor.getPlatform() !== "android") return;
+  CallForeground.releaseIncomingRing({ callId }).catch(() => {});
 }
 
 /**

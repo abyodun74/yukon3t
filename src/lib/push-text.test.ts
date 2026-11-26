@@ -77,14 +77,15 @@ describe("English output is unchanged", () => {
   });
 
   it("incoming call", () => {
-    expect(resolve(incomingCallPush("VIDEO", "Ana"))).toEqual({
+    expect(resolve(incomingCallPush("VIDEO", "Ana", "call1"))).toEqual({
       title: "Incoming video call",
       body: "Ana is calling you",
       url: "/",
+      tag: "call-call1",
     });
-    expect(resolve(incomingCallPush("AUDIO", HIDDEN_CALLER_NAME)).body).toBe("Private call is calling you");
-    expect(resolve(incomingCallPush("AUDIO", null)).body).toBe("Someone is calling you");
-    expect(resolve(incomingCallPush("AUDIO", null)).title).toBe("Incoming voice call");
+    expect(resolve(incomingCallPush("AUDIO", HIDDEN_CALLER_NAME, "call1")).body).toBe("Private call is calling you");
+    expect(resolve(incomingCallPush("AUDIO", null, "call1")).body).toBe("Someone is calling you");
+    expect(resolve(incomingCallPush("AUDIO", null, "call1")).title).toBe("Incoming voice call");
   });
 
   it("message", () => {
@@ -138,8 +139,8 @@ describe.each(SUPPORTED_LOCALES)("%s", (locale) => {
   });
 
   it("the incoming-call push for a hidden caller carries no name and nothing else that differs", () => {
-    const hidden = (incomingCallPush("VIDEO", HIDDEN_CALLER_NAME) as (l: typeof locale) => { title: string; body: string; url: string })(locale);
-    const named = (incomingCallPush("VIDEO", "Ana") as (l: typeof locale) => { title: string; body: string; url: string })(locale);
+    const hidden = (incomingCallPush("VIDEO", HIDDEN_CALLER_NAME, "call1") as (l: typeof locale) => { title: string; body: string; url: string })(locale);
+    const named = (incomingCallPush("VIDEO", "Ana", "call1") as (l: typeof locale) => { title: string; body: string; url: string })(locale);
     expect(hidden.body).toBe(t.call.callingPrivate);
     expect(hidden.body).not.toContain("Ana");
     expect(hidden.title).toBe(named.title);

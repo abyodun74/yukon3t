@@ -44,7 +44,8 @@ import {
   wasRungForCall,
 } from "@/lib/call-participants";
 import { callQuickReplySchema } from "@/lib/validations";
-import { callQuickReplyContent, callQuickReplyRefusal } from "@/lib/call-quick-reply";
+import { callQuickReplyContent, callQuickReplyRefusal, offersQuickReply } from "@/lib/call-quick-reply";
+import { isPrivateCaller } from "@/lib/call-names";
 import { callReplyConversation, deliverCallReply } from "@/lib/call-quick-reply-server";
 import { getDictionary } from "@/lib/i18n/server";
 
@@ -166,7 +167,7 @@ export async function startCall(formData: FormData) {
     // below words the caller in the callee's language (ringCallerName: the stand-in, or "Someone" for no name).
     const maskedName = await maskHiddenCallerName(calleeId, user.id, user.name);
     const callerName = (locale: Locale) => ringCallerName(maskedName, locale);
-    await sendPushToUser(calleeId, incomingCallPush(call.type, maskedName));
+    await sendPushToUser(calleeId, incomingCallPush(call.type, maskedName, call.id));
     // Separate from the Web Push above: this is a data-only message the
     // native Android app's own notification code turns into a proper
     // call-style ring (system ringtone, full-screen), rather than a
@@ -177,6 +178,8 @@ export async function startCall(formData: FormData) {
       callType: call.type,
       // The Android ring's picture: none for a "Private call" (call-avatar-server.ts). Never throws.
       callerAvatarUrl: await nativeRingCallerAvatarUrl(maskedName, user.avatarUrl),
+      // The Android ring's Message action, on the same rule as the in-app card's.
+      canReply: offersQuickReply({ invite: false, privateCaller: isPrivateCaller(maskedName) }),
     });
     // iOS-only: wakes a fully terminated/backgrounded app via PushKit and
     // shows the system-level CallKit incoming-call UI (Accept/Decline),
@@ -727,7 +730,7 @@ export async function inviteToCall(callId: string, inviteeId: string) {
     // inviter as the caller — see the comments there.
     const maskedName = await maskHiddenCallerName(inviteeId, user.id, user.name);
     const callerName = (locale: Locale) => ringCallerName(maskedName, locale);
-    await sendPushToUser(inviteeId, incomingCallPush(call.type, maskedName));
+    await sendPushToUser(inviteeId, incomingCallPush(call.type, maskedName, callId));
     await sendFcmCallToUser(inviteeId, {
       callId,
       callerName,

@@ -70,6 +70,7 @@ const noop: CallKitRingPort = {
   end: async () => {},
   ringing: async () => [],
   endAnswered: async () => {},
+  canEndRing: () => false,
 };
 
 /**
@@ -92,5 +93,6 @@ export function createNativeCallKitRingPort(): CallKitRingPort {
     endAnswered: async (callId) => {
       if (hasMethod("endAnsweredCall")) await NativeCallKit.endAnsweredCall({ callId });
     },
+    canEndRing: () => hasMethod("endRingingCall"),
   };
 }

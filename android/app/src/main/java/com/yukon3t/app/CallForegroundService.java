@@ -29,11 +29,12 @@ import androidx.core.content.ContextCompat;
  * Keeps the process alive and Doze-exempt while a call is ringing, so the
  * ring isn't silently delayed/killed if the phone is asleep — foreground
  * services with a declared type get their own Doze/App Standby exemption.
- * Owns the actual incoming-call notification (full-screen intent + Accept/
- * Decline actions) since a foreground service must post one anyway; started
- * by CallMessagingService.startRinging() when an "incoming_call" push
- * arrives, stopped on decline/cancel/timeout — see stopRinging() and the
- * no-answer timeout below.
+ * Owns the actual incoming-call notification (full-screen intent + Decline/
+ * Message/Accept actions) since a foreground service must post one anyway;
+ * started through IncomingRing when an "incoming_call" push arrives while the
+ * app is out of sight (or the app is left while the call still rings),
+ * stopped on decline/cancel/timeout, or when the app's own ring card takes
+ * over — see stopRinging(), IncomingRingState and the no-answer timeout below.
  *
  * Also covers the full duration of an accepted/joined call, not just the
  * ringing window: CallForegroundPlugin.startActiveCall()/stopActiveCall()
@@ -61,7 +62,7 @@ public class CallForegroundService extends Service {
     // rather than holding the foreground service/wake indefinitely. The
     // in-app call UI (call-button.tsx) treats an unanswered call similarly
     // on its own timeline; this just bounds the native side.
-    private static final long RING_TIMEOUT_MS = 55_000;
+    private static final long RING_TIMEOUT_MS = IncomingRingState.RING_WINDOW_MS;
 
     private static final String ACTION_START_RINGING = "com.yukon3t.app.action.START_RINGING";
     private static final String ACTION_STOP_RINGING = "com.yukon3t.app.action.STOP_RINGING";
@@ -71,6 +72,7 @@ public class CallForegroundService extends Service {
     private static final String EXTRA_CALLER_NAME = "callerName";
     private static final String EXTRA_LABEL = "label";
     private static final String EXTRA_IS_VIDEO = "isVideo";
+    private static final String EXTRA_CAN_REPLY = "canReply";
 
     // Which of the two notifications (they're mutually exclusive in
     // practice — a call is either ringing or answered, never both) is
@@ -99,16 +101,19 @@ public class CallForegroundService extends Service {
     private static String ringingCallId;
     private static String ringingCallerName;
     private static boolean ringingIsVideo;
+    private static boolean ringingCanReply;
     private static String activeCallKey;
     private static String activeLabel;
     private static boolean activeIsVideo;
 
-    public static void startRinging(Context context, String callId, String callerName, boolean isVideo) {
+    /** Only IncomingRing calls this: it decides whether the native ring is the ring UI right now. */
+    static void startRinging(Context context, String callId, String callerName, boolean isVideo, boolean canReply) {
         Intent intent = new Intent(context, CallForegroundService.class)
             .setAction(ACTION_START_RINGING)
             .putExtra(EXTRA_CALL_ID, callId)
             .putExtra(EXTRA_CALLER_NAME, callerName)
-            .putExtra(EXTRA_IS_VIDEO, isVideo);
+            .putExtra(EXTRA_IS_VIDEO, isVideo)
+            .putExtra(EXTRA_CAN_REPLY, canReply);
         ContextCompat.startForegroundService(context, intent);
     }
 
@@ -228,7 +233,7 @@ public class CallForegroundService extends Service {
                 NotificationManagerCompat manager = NotificationManagerCompat.from(context);
                 if (callId.equals(ringingCallId)) {
                     Notification updated = buildRingingNotification(
-                        context, callId, ringingCallerName, ringingIsVideo, avatar, true
+                        context, callId, ringingCallerName, ringingIsVideo, ringingCanReply, avatar, true
                     );
                     manager.notify(FOREGROUND_NOTIFICATION_ID, updated);
                     manager.notify(notificationId(callId), updated);
@@ -338,6 +343,10 @@ public class CallForegroundService extends Service {
             handler.removeCallbacks(timeoutRunnable);
             mode = Mode.ACTIVE_CALL;
             activeCallId = callId;
+            // The ring for the call being joined is over: never raised again when the app is left.
+            if (callId != null && callId.startsWith("call:")) {
+                IncomingRing.resolved(callId.substring("call:".length()));
+            }
             String label = intent.getStringExtra(EXTRA_LABEL);
             boolean isVideo = intent.getBooleanExtra(EXTRA_IS_VIDEO, false);
             synchronized (NOTIFICATION_LOCK) {
@@ -370,14 +379,16 @@ public class CallForegroundService extends Service {
         activeCallId = callId;
         String callerName = intent.getStringExtra(EXTRA_CALLER_NAME);
         boolean isVideo = intent.getBooleanExtra(EXTRA_IS_VIDEO, false);
+        boolean canReply = intent.getBooleanExtra(EXTRA_CAN_REPLY, false);
         String shownName = callerName != null ? callerName : "Someone";
         synchronized (NOTIFICATION_LOCK) {
             ringingCallId = callId;
             ringingCallerName = shownName;
             ringingIsVideo = isVideo;
+            ringingCanReply = canReply;
             activeCallKey = null;
         }
-        showRingingNotification(callId, shownName, isVideo);
+        showRingingNotification(callId, shownName, isVideo, canReply);
         startRingtone();
 
         handler.removeCallbacks(timeoutRunnable);
@@ -386,14 +397,14 @@ public class CallForegroundService extends Service {
         return START_NOT_STICKY;
     }
 
-    private void showRingingNotification(String callId, String callerName, boolean isVideo) {
+    private void showRingingNotification(String callId, String callerName, boolean isVideo, boolean canReply) {
         ensureChannel();
 
         // No picture yet on a first ring: CallAvatarLoader adds it in place
         // once downloaded (onCallerAvatarReady), so the ring is never held up
         // waiting for the network.
         Notification notification = buildRingingNotification(
-            this, callId, callerName, isVideo, CallAvatarLoader.cached(callId), false
+            this, callId, callerName, isVideo, canReply, CallAvatarLoader.cached(callId), false
         );
 
         startForegroundSafely(FOREGROUND_NOTIFICATION_ID, notification);
@@ -409,7 +420,11 @@ public class CallForegroundService extends Service {
     }
 
     /**
-     * The ringing notification. `avatar` (the caller's circular picture, or
+     * The ringing notification: Decline, Message (only when `canReply`: a 1:1
+     * ring that isn't a "Private call", the in-app card's rule) and Accept,
+     * the same three actions as the in-app ring card. Message opens the app on
+     * the card's quick-reply panel (action=reply) and leaves the call ringing
+     * until a reply is picked. `avatar` (the caller's circular picture, or
      * null) becomes the large icon. `isUpdate` marks a re-post of the same
      * call's notification to add the picture: setOnlyAlertOnce keeps that
      * re-post silent (no second sound/vibration/heads-up), the ringtone loop
@@ -420,6 +435,7 @@ public class CallForegroundService extends Service {
         String callId,
         String callerName,
         boolean isVideo,
+        boolean canReply,
         @Nullable Bitmap avatar,
         boolean isUpdate
     ) {
@@ -453,8 +469,9 @@ public class CallForegroundService extends Service {
             .setOnlyAlertOnce(isUpdate)
             .setContentIntent(contentIntent)
             .setFullScreenIntent(contentIntent, true)
-            .addAction(0, "Decline", declineIntent)
-            .addAction(0, "Accept", acceptIntent);
+            .addAction(0, "Decline", declineIntent);
+        if (canReply) builder.addAction(0, "Message", actionIntent(app, callId, "reply"));
+        builder.addAction(0, "Accept", acceptIntent);
         if (avatar != null) builder.setLargeIcon(avatar);
         return builder.build();
     }
@@ -547,7 +564,7 @@ public class CallForegroundService extends Service {
     }
 
     /**
-     * Launches MainActivity directly with the accept/decline deep link,
+     * Launches MainActivity directly with the accept/decline/reply deep link,
      * rather than routing through a BroadcastReceiver that then calls
      * context.startActivity() itself (the previous CallActionReceiver
      * design). That indirection is a known-flaky pattern on Android:

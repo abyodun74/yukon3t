@@ -27,8 +27,22 @@ describe("incomingCallData", () => {
     }
   });
 
+  it("says when the ring offers Message, and leaves the field out otherwise", () => {
+    expect(incomingCallData({ callId: "c1", callerName: "Ada", callType: "AUDIO", canReply: true }).canReply).toBe("1");
+    expect("canReply" in incomingCallData({ callId: "c1", callerName: "Ada", callType: "AUDIO", canReply: false })).toBe(
+      false,
+    );
+    expect("canReply" in incomingCallData({ callId: "c1", callerName: "Ada", callType: "AUDIO" })).toBe(false);
+  });
+
   it("only ever has string values (an FCM data message requirement)", () => {
-    const data = incomingCallData({ callId: "c1", callerName: "Ada", callType: "AUDIO", callerAvatarUrl: "https://x/y" });
+    const data = incomingCallData({
+      callId: "c1",
+      callerName: "Ada",
+      callType: "AUDIO",
+      callerAvatarUrl: "https://x/y",
+      canReply: true,
+    });
     expect(Object.values(data).every((v) => typeof v === "string")).toBe(true);
   });
 });

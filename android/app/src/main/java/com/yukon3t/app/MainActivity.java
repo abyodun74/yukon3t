@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.service.notification.StatusBarNotification;
 import android.view.KeyEvent;
 import android.view.WindowManager;
@@ -140,6 +141,8 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         inForeground = true;
+        // One ring UI at a time: back in the app, its own ring card is the ring again (IncomingRingState).
+        IncomingRing.appReturned(this);
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
         for (StatusBarNotification sbn : manager.getActiveNotifications()) {
@@ -164,6 +167,10 @@ public class MainActivity extends BridgeActivity {
     public void onPause() {
         super.onPause();
         inForeground = false;
+        // Left the app while a call it was showing still rings: the native ring takes over, unless the screen just
+        // went off (the power button silences a ringing phone). See IncomingRingState.
+        PowerManager power = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        IncomingRing.appLeft(this, power == null || power.isInteractive());
         CookieManager.getInstance().flush();
     }
 
@@ -185,7 +192,7 @@ public class MainActivity extends BridgeActivity {
 
     /**
      * Stops the native ring (service + sound) and dismisses its notification
-     * the instant the incoming-call notification's Accept/Decline action
+     * the instant the incoming-call notification's Accept/Decline/Message action
      * opens this Activity — previously done by CallActionReceiver, a
      * BroadcastReceiver that called context.startActivity() itself. That
      * indirection turned out to be unreliable on-device (Samsung/Android
@@ -195,6 +202,12 @@ public class MainActivity extends BridgeActivity {
      * this Activity directly (CallForegroundService.actionIntent), the same
      * always-allowed path a plain notification-body tap already used, and
      * this replicates the rest of what the receiver used to do.
+     *
+     * Message (action=reply) stops the ring the same way but declines
+     * nothing: the call keeps ringing for the caller, the app opens on the
+     * in-app card's quick-reply panel (incoming-call-listener.tsx), and the
+     * card's Decline / Accept still work. Leaving the app before a reply is
+     * picked brings the native ring back (IncomingRingState).
      */
     private void handleCallDeepLink(Intent intent) {
         // Data is only still present here for a signed link from this app's
@@ -218,7 +231,13 @@ public class MainActivity extends BridgeActivity {
 
         String action = uri.getQueryParameter("action");
         if (action == null) return;
-        if (!"accept".equals(action) && !"decline".equals(action)) return;
+        if ("reply".equals(action)) {
+            IncomingRing.replyOpened(callId);
+        } else if ("accept".equals(action) || "decline".equals(action)) {
+            IncomingRing.resolved(callId);
+        } else {
+            return;
+        }
 
         CallForegroundService.cancelRingingNotification(this, callId);
         CallForegroundService.stopRinging(this, callId);

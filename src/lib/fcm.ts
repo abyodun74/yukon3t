@@ -25,6 +25,8 @@ type IncomingCallPayload = {
   // Absolute, short-lived https link to the caller's thumbnail for the Android ring's large icon, or null for no
   // picture (none set, or announced as "Private call"). See call-avatar-server.ts.
   callerAvatarUrl?: string | null;
+  // The ring offers Message (decline with a quick reply): a 1:1 ring that isn't a "Private call" (offersQuickReply).
+  canReply?: boolean;
 };
 
 /**
@@ -107,6 +109,7 @@ export async function sendFcmCallToUser(userId: string, payload: IncomingCallPay
       callerName: callerName(locale),
       callType: payload.callType,
       callerAvatarUrl: payload.callerAvatarUrl,
+      canReply: payload.canReply,
     }),
   );
 }

@@ -29,6 +29,8 @@ public class DeepLinkPolicyTest {
         assertTrue(allowed("call", params("callId", "cmh1abc2d0000xyz")));
         assertTrue(allowed("call", params("callId", "cmh1abc2d0000xyz", "action", "accept")));
         assertTrue(allowed("call", params("callId", "cmh1abc2d0000xyz", "action", "decline")));
+        // The ringing notification's Message action (decline with a quick reply, picked in the app).
+        assertTrue(allowed("call", params("callId", "cmh1abc2d0000xyz", "action", "reply")));
     }
 
     @Test
@@ -39,6 +41,9 @@ public class DeepLinkPolicyTest {
         assertFalse(allowed("call", params("callId", "https://evil.example")));
         assertFalse(allowed("call", params("callId", "c1", "action", "join")));
         assertFalse(allowed("call", params("callId", "c1", "action", "accept", "action", "decline")));
+        assertFalse(allowed("call", params("callId", "c1", "action", "reply", "action", "reply")));
+        assertFalse(allowed("call", params("callId", "c1", "action", "REPLY")));
+        assertFalse(allowed("call", params("callId", "c1", "action", "reply", "text", "hi")));
         assertFalse(allowed("call", params("callId", "c1", "callId", "c2")));
         assertFalse(allowed("call", params("callId", "c1", "url", "https://evil.example")));
         StringBuilder tooLong = new StringBuilder();

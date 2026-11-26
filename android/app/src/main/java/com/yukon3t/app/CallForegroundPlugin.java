@@ -54,6 +54,35 @@ public class CallForegroundPlugin extends Plugin {
     }
 
     /**
+     * The page's incoming-call card for this call is on screen
+     * (src/lib/call-foreground-native.ts claimIncomingRingInApp): the native
+     * ring gives way to it while the app is in the foreground. See
+     * IncomingRingState.
+     */
+    @PluginMethod
+    public void claimIncomingRing(PluginCall call) {
+        try {
+            String callId = call.getString("callId");
+            if (callId != null) IncomingRing.claimed(getContext(), callId);
+        } catch (Throwable t) {
+            // Best-effort: the native ring stays as it was.
+        }
+        call.resolve();
+    }
+
+    /** The page's card for this call is gone (answered, declined, replied to, or no longer ringing). */
+    @PluginMethod
+    public void releaseIncomingRing(PluginCall call) {
+        try {
+            String callId = call.getString("callId");
+            if (callId != null) IncomingRing.resolved(callId);
+        } catch (Throwable t) {
+            // Best-effort.
+        }
+        call.resolve();
+    }
+
+    /**
      * Surfaces the system "allow app to ignore battery optimizations?"
      * dialog — the phoneCall foreground service alone isn't always enough on
      * OEMs with their own separate background-process freezer on top of

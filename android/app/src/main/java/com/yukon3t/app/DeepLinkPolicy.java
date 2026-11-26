@@ -47,9 +47,9 @@ final class DeepLinkPolicy {
 
     /**
      * True only for the exact links this app's own notifications build:
-     *  - yukon3t://call?callId=<id>[&action=accept|decline]
+     *  - yukon3t://call?callId=<id>[&action=accept|decline|reply]
      *    (CallForegroundService ringing notification body / full-screen
-     *    intent, and its Accept/Decline actions);
+     *    intent, and its Accept/Decline/Message actions);
      *  - yukon3t://open?path=<in-app path>[&n=<id>]
      *    (CallForegroundService.showMissedCallNotification).
      * No other host, no unknown or repeated parameter, no user/port/fragment
@@ -75,7 +75,7 @@ final class DeepLinkPolicy {
             if (callId == null || !ID.matcher(callId).matches()) return false;
             if (p.containsKey("action")) {
                 String action = single(p, "action");
-                return "accept".equals(action) || "decline".equals(action);
+                return "accept".equals(action) || "decline".equals(action) || "reply".equals(action);
             }
             return true;
         }
