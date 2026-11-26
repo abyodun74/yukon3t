@@ -234,33 +234,6 @@ describe("createCallKitRingSync", () => {
       await expect(sync().left("c1")).resolves.toBeUndefined();
     });
   });
-
-  describe("yieldToApp (the in-app ring card is on screen)", () => {
-    it("ends CallKit's ring as answered elsewhere and remembers it, even while an answer is starting", async () => {
-      Object.assign(port, { canEndRing: () => true });
-      answering.add("c1");
-      const s = sync();
-      expect(s.yieldedToApp("c1")).toBe(false);
-      await s.yieldToApp("c1");
-      expect(port.end).toHaveBeenCalledWith("c1", "answeredElsewhere");
-      expect(s.yieldedToApp("c1")).toBe(true);
-      expect(s.yieldedToApp("c2")).toBe(false);
-    });
-
-    it("does nothing, and remembers nothing, on a build that can't end a ring from the page", async () => {
-      Object.assign(port, { canEndRing: () => false });
-      const s = sync();
-      await s.yieldToApp("c1");
-      expect(port.end).not.toHaveBeenCalled();
-      expect(s.yieldedToApp("c1")).toBe(false);
-    });
-
-    it("swallows a native failure", async () => {
-      Object.assign(port, { canEndRing: () => true });
-      port.end.mockRejectedValue(new Error("UNIMPLEMENTED"));
-      await expect(sync().yieldToApp("c1")).resolves.toBeUndefined();
-    });
-  });
 });
 
 describe("planCallKitEnd", () => {

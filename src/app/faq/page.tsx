@@ -1930,14 +1930,13 @@ const sections: Section[] = [
             reply on the call screen, but no chat message is sent, because
             YuKon3t can&apos;t write into a secret chat. Decline, Message and
             Accept each take one tap; Message opens the quick replies, and
-            picking one sends it. While YuKon3t is open on your screen, its own
-            incoming-call screen is the only one you see: on an iPhone with an
-            up-to-date YuKon3t, the iPhone&apos;s call banner closes as soon as
-            YuKon3t&apos;s appears (if you leave YuKon3t while it rings, the
-            iPhone doesn&apos;t ring again for that call: open YuKon3t to answer
-            it), and in a web browser the call&apos;s notification closes. When
-            the app is closed or the phone is locked, the phone&apos;s own call
-            screen rings instead. The iPhone&apos;s call screen has only Accept
+            picking one sends it. In a web browser, the call&apos;s notification
+            closes as soon as YuKon3t&apos;s own incoming-call screen appears. On
+            an iPhone, the iPhone&apos;s call banner keeps ringing alongside
+            YuKon3t&apos;s while the app is open: answering or declining on
+            either one answers or declines the call. When the app is closed or
+            the phone is locked, the phone&apos;s own call screen rings
+            instead. The iPhone&apos;s call screen has only Accept
             and Decline (Apple&apos;s call screen can&apos;t show other
             buttons): open YuKon3t while it rings to reply with a message. On
             Android, the incoming-call notification has Accept and Decline and

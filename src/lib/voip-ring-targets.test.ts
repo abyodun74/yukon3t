@@ -79,11 +79,10 @@ describe("planResponderVoipCancel", () => {
     expect(planResponderVoipCancel(tokens, null)).toEqual({ cancel: [], record: NO_VOIP_ANSWER_RECORD });
   });
 
-  it("an answer in the app after CallKit's ring gave way to the in-app card records no answering iPhone", () => {
+  it("an answer always records the answering iPhone (its CallKit ring is never ended for the in-app card)", () => {
     const plan = planResponderVoipCancel(tokens, { platform: "ios", voipToken: "aaaa", callKitEnded: true });
     expect(plan.cancel).toEqual([phoneB, phoneC]);
-    expect(plan.record).toEqual({ voipOthersCleared: true, answerVoipTokenId: null });
-    expect(planHangUpVoipCancel(tokens, plan.record, null)).toEqual([]);
+    expect(plan.record).toEqual({ voipOthersCleared: true, answerVoipTokenId: phoneA.id });
   });
 
   it("an only iPhone that answered gets nothing", () => {

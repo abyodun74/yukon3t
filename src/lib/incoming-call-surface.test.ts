@@ -2,10 +2,10 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  CALLKIT_YIELD_INTERVAL_MS,
   callPushTag,
   inAppRingOnScreen,
   systemRingFor,
+  systemRingGivesWay,
 } from "@/lib/incoming-call-surface";
 import { safeReplaceKey } from "@/lib/push-replace";
 
@@ -41,9 +41,38 @@ describe("callPushTag", () => {
   });
 });
 
-it("re-ends CallKit's ring often enough that a late VoIP push is gone within a moment", () => {
-  expect(CALLKIT_YIELD_INTERVAL_MS).toBeGreaterThan(0);
-  expect(CALLKIT_YIELD_INTERVAL_MS).toBeLessThanOrEqual(1_000);
+describe("systemRingGivesWay", () => {
+  it("never ends CallKit's ring for the card: its Accept / Decline must keep answering / declining the call", () => {
+    expect(systemRingGivesWay("callKit")).toBe(false);
+  });
+
+  it("lets the Android ring and the browser push give way to the card", () => {
+    expect(systemRingGivesWay("androidRing")).toBe(true);
+    expect(systemRingGivesWay("browserNotification")).toBe(true);
+  });
+});
+
+// The iOS half of the fix for 64b5d61: CallKit's ring is never ended because the card is on screen, and CallKit's own
+// Accept / Decline (live events and the native queue) go through the same answer / decline paths as before.
+describe("CallKit taps drive the call", () => {
+  const listener = readFileSync(join(process.cwd(), "src/components/incoming-call-listener.tsx"), "utf8");
+  const ringSync = readFileSync(join(process.cwd(), "src/lib/callkit-ring-sync.ts"), "utf8");
+
+  it("has no page-side end of a CallKit ring just because the card is showing", () => {
+    expect(listener).not.toMatch(/yieldToApp|yieldedToApp|CALLKIT_YIELD/);
+    expect(ringSync).not.toMatch(/yieldToApp|yieldedToApp|canEndRing/);
+  });
+
+  it("answers on CallKit's Accept and declines on its Decline, live and from the native queue", () => {
+    expect(listener).toMatch(/addListener\("callAnswered",[\s\S]*?answeredOutOfApp\(event\.callId\)/);
+    expect(listener).toMatch(/addListener\("callDeclined",[\s\S]*?declinedOutOfApp\(event\.callId\)/);
+    expect(listener).toMatch(/pending\?\.answered\.forEach\(answeredOutOfApp\)/);
+    expect(listener).toMatch(/pending\?\.declined\.forEach\(declinedOutOfApp\)/);
+  });
+
+  it("answers from the card without telling the server CallKit has no call (its ring is still CallKit's)", () => {
+    expect(listener).toMatch(/respondToCall\(callId, true, currentCallDevice\(\)\)/);
+  });
 });
 
 // One ring card app-wide: IncomingCallListener is mounted in exactly one place, and the quick-reply panel is only ever
