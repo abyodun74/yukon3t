@@ -934,6 +934,10 @@ model Post {
   // unlike embedProvider/embedId above) — protocol-checked at write time in
   // normalizeLinkUrl().
   linkUrl             String?
+  // A colored-background text post: a preset key from src/lib/post-backgrounds.ts (allow-listed by createPost/editPost,
+  // never a color or CSS). Only on a text-only post (mediaType NONE, no event, not a repost/share) of at most
+  // STYLED_POST_MAX_CHARS. Null = an ordinary post.
+  backgroundStyle     String?
   intentTag           IntentTag?
   // Everyone/Friends only/Private, chosen at compose time — see
   // PostVisibility above and getVisiblePostsWhere for enforcement.

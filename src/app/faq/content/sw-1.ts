@@ -104,7 +104,11 @@ export const sw1 = {
 
   post: {
     q: "Naweza kuchapisha nini?",
-    a: "Maandishi, picha na video kutoka kwenye kifaa chako au kamera, picha iliyochukuliwa kutoka kwenye URL au kiungo kilichopachikwa cha YouTube au Vimeo. Gusa ikoni za kamera na picha kwenye kihariri: kila moja hufungua menyu ndogo yenye kifaa, kamera au kiungo, kwa hiyo kuna kitufe kimoja cha picha na kimoja cha video badala ya safu ya vitufe tofauti.",
+    a: "Maandishi, picha na video kutoka kwenye kifaa chako au kamera, picha iliyochukuliwa kutoka kwenye URL au kiungo kilichopachikwa cha YouTube au Vimeo. Gusa ikoni za kamera na picha kwenye kihariri: kila moja hufungua menyu ndogo yenye kifaa, kamera au kiungo, kwa hiyo kuna kitufe kimoja cha picha na kimoja cha video badala ya safu ya vitufe tofauti. Chapisho fupi la maandishi pekee linaweza pia kuwa na mandharinyuma ya rangi.",
+  },
+  "post-colored-background": {
+    q: "Je, naweza kuchapisha maandishi kwenye mandharinyuma ya rangi?",
+    a: "Ndiyo. Chapisho likiwa na maandishi pekee, gusa ikoni ya paleti kwenye kihariri na uchague mandharinyuma: rangi moja, rangi zinazofifiana na michanganyiko michache ya rangi nyingi. Kisanduku cha kuandikia kinakuwa onyesho la awali la chapisho, chenye maandishi makubwa yaliyo katikati ambayo hupungua ukubwa kadiri unavyoandika zaidi. Chapisho lenye mandharinyuma linaweza kuwa na herufi hadi 220, na kihesabu kilicho chini yake kinaonyesha umetumia ngapi. Chagua «Bila mandharinyuma» kurudi kwenye chapisho la kawaida.\n\nMandharinyuma ni ya maandishi pekee: ukiongeza picha, video, kiungo, GIF au maelezo ya tukio, yanaondolewa (ukiondoa kiambatisho, yanarudi). Unaweza kuyabadilisha au kuyaondoa baadaye kwa kuhariri chapisho. Kila mandharinyuma imechaguliwa ili maandishi yasomeke kwa urahisi katika hali ya mwanga na ya giza, na viungo vilivyo kwenye maandishi vinapigiwa mstari kwa rangi ile ile. Maandishi hukaguliwa, huonyeshwa na yanaweza kuripotiwa kama chapisho lingine lolote.",
   },
   "which-video-formats-upload-everyone": {
     q: "Ni miundo ipi ya video ninayoweza kupakia? Je, kila mtu anaweza kuziona?",
@@ -168,7 +172,7 @@ export const sw1 = {
   },
   "long-post-get-cut-off": {
     q: "Kwa nini chapisho refu hukatwa na kiungo cha «Onyesha zaidi»?",
-    a: "Machapisho yanayozidi urefu fulani hufupishwa kwenye mitiririko ili chapisho moja refu lisisukume kila kitu kingine chini. Gusa «Onyesha zaidi» ili usome kilichobaki papo hapo na «Onyesha pungufu» ili ulikunje tena. Hii inatumika kila mahali machapisho yanapoorodheshwa, na pia kwa maandishi ya mtu mwenyewe kwenye chapisho lililochapishwa tena. Hakuna kikomo kinachojalisha kwa urefu wa chapisho: andika kila unachohitaji, na msomaji ataweza daima kulipanua.",
+    a: "Machapisho yanayozidi urefu fulani hufupishwa kwenye mitiririko ili chapisho moja refu lisisukume kila kitu kingine chini. Gusa «Onyesha zaidi» ili usome kilichobaki papo hapo na «Onyesha pungufu» ili ulikunje tena. Hii inatumika kila mahali machapisho yanapoorodheshwa, na pia kwa maandishi ya mtu mwenyewe kwenye chapisho lililochapishwa tena. Hakuna kikomo kinachojalisha kwa urefu wa chapisho: andika kila unachohitaji, na msomaji ataweza daima kulipanua. Isipokuwa chapisho lenye mandharinyuma ya rangi: linaweza kuwa na herufi hadi 220, na kwenye mlisho «Onyesha zaidi» yake hufungua chapisho lenyewe.",
   },
   "got-message-saying-new-version": {
     q: "Nilipochapisha nilipata ujumbe unaosema kuna toleo jipya la programu na nionyeshe upya ukurasa ili niendelee.",

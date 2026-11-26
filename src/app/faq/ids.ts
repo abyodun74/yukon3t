@@ -58,6 +58,7 @@ export const FAQ_IDS = [
   "turning-up-phones-volume-unmutes",
   // Posts and media
   "post",
+  "post-colored-background",
   "which-video-formats-upload-everyone",
   "was-photo-video-rejected",
   "photo-video-upload-failed",

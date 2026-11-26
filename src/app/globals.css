@@ -781,6 +781,23 @@ button:not(:disabled):active {
   animation: rise-in 380ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* A colored-background text post (styled-post-text.tsx) and the composer's live preview of one: a short fade and a
+   barely-there settle, transform/opacity only, no overshoot. Off with reduced motion (below). */
+@keyframes styled-post-in {
+  from {
+    opacity: 0.4;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-styled-post-in {
+  animation: styled-post-in 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
 /* Sentinel "Loading more..." text at the bottom of an auto-loading list —
    a gentle pulse instead of static text, so it reads as active work
    happening rather than a stalled/frozen list. */
@@ -922,6 +939,7 @@ img[data-press-highlight] {
   .story-media-in,
   .reaction-float,
   .animate-rise-in,
+  .animate-styled-post-in,
   .animate-loading-pulse,
   .animate-modal-backdrop-in,
   .animate-modal-panel-in,

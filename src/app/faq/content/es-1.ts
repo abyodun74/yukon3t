@@ -104,7 +104,11 @@ export const es1 = {
 
   post: {
     q: "¿Qué puedo publicar?",
-    a: "Texto, fotos y videos de tu dispositivo o de la cámara, una imagen tomada de una URL o un enlace incrustado de YouTube o Vimeo. Toca los íconos de cámara y de foto del editor: cada uno abre un pequeño menú con dispositivo, cámara o enlace, de modo que hay un botón para fotos y otro para videos en lugar de una fila de botones separados.",
+    a: "Texto, fotos y videos de tu dispositivo o de la cámara, una imagen tomada de una URL o un enlace incrustado de YouTube o Vimeo. Toca los íconos de cámara y de foto del editor: cada uno abre un pequeño menú con dispositivo, cámara o enlace, de modo que hay un botón para fotos y otro para videos en lugar de una fila de botones separados. Una publicación corta de solo texto también puede llevar un fondo de color.",
+  },
+  "post-colored-background": {
+    q: "¿Puedo publicar texto sobre un fondo de color?",
+    a: "Sí. Cuando una publicación es solo texto, toca el ícono de la paleta en el editor y elige un fondo: colores lisos, degradados y algunas mezclas de varios colores. El cuadro de escritura se convierte en una vista previa de la publicación, con texto grande y centrado que se hace más pequeño a medida que escribes más. Una publicación con fondo puede tener hasta 220 caracteres, y el contador debajo muestra cuántos llevas. Elige «Sin fondo» para volver a una publicación normal.\n\nUn fondo es solo para texto: si añades una foto, un video, un enlace, un GIF o los datos de un evento, el fondo se quita (si quitas el adjunto, vuelve). Puedes cambiarlo o quitarlo más tarde editando la publicación. Cada fondo está elegido para que el texto se lea con facilidad en modo claro y oscuro, y los enlaces del texto se subrayan en el mismo color. El texto se revisa, se muestra y se puede reportar exactamente igual que cualquier otra publicación.",
   },
   "which-video-formats-upload-everyone": {
     q: "¿Qué formatos de video puedo subir? ¿Todo el mundo puede verlos?",
@@ -168,7 +172,7 @@ export const es1 = {
   },
   "long-post-get-cut-off": {
     q: "¿Por qué una publicación larga se corta con un enlace «Ver más»?",
-    a: "Las publicaciones que pasan de cierta longitud se acortan en los feeds para que una sola publicación larga no empuje todo lo demás hacia abajo. Toca «Ver más» para leer el resto ahí mismo y «Ver menos» para volver a contraerla. Esto se aplica en todos los lugares donde se listan publicaciones, y también al texto propio de una republicación. No hay un límite relevante para la longitud de una publicación: escribe todo lo que necesites, que quien la lea siempre podrá expandirla.",
+    a: "Las publicaciones que pasan de cierta longitud se acortan en los feeds para que una sola publicación larga no empuje todo lo demás hacia abajo. Toca «Ver más» para leer el resto ahí mismo y «Ver menos» para volver a contraerla. Esto se aplica en todos los lugares donde se listan publicaciones, y también al texto propio de una republicación. No hay un límite relevante para la longitud de una publicación: escribe todo lo que necesites, que quien la lea siempre podrá expandirla. La excepción es una publicación con fondo de color: puede tener hasta 220 caracteres, y en un feed su «Ver más» abre la propia publicación.",
   },
   "got-message-saying-new-version": {
     q: "Al publicar me apareció un mensaje que dice que hay una versión nueva de la aplicación y que actualice la página para continuar.",

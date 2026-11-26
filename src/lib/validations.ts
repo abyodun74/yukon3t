@@ -28,6 +28,7 @@ import {
 } from "@/lib/announcement-translations";
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 import { FORWARD_MAX_RECIPIENTS } from "@/lib/message-forward";
+import { POST_BACKGROUND_KEYS } from "@/lib/post-backgrounds";
 import { SHOPPING_LIST_ITEM_MAX, SHOPPING_LIST_MAX_ITEMS } from "@/lib/shopping-list";
 import {
   BIRTHDAY_AUDIENCE_VALUES,
@@ -464,6 +465,9 @@ export const updateChannelSchema = z.object({
   visibility: z.enum(["PUBLIC", "PRIVATE"]),
 });
 
+// A colored-background text post's preset (src/lib/post-backgrounds.ts): only a catalogue key, never a color or CSS.
+export const postBackgroundKeySchema = z.enum(POST_BACKGROUND_KEYS);
+
 export const postSchema = z
   .object({
     circleId: z.string().cuid().optional(),
@@ -508,6 +512,8 @@ export const postSchema = z
     embedUrl: z.string().trim().max(2000).optional(),
     eventAt: z.coerce.date().optional(),
     eventLocation: z.string().trim().min(2).max(200).optional(),
+    // Text-only posts only, up to STYLED_POST_MAX_CHARS: createPost checks that with styledPostRefusal.
+    backgroundStyle: postBackgroundKeySchema.optional(),
   })
   // A post needs a caption, media, or event details — never all three empty.
   .refine((data) => data.content.length > 0 || data.mediaType !== "NONE" || Boolean(data.eventAt), {

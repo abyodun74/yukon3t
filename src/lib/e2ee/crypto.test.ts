@@ -84,7 +84,10 @@ describe("message encryption", () => {
     const { a, b } = await pair();
     const key = await deriveConversationKey(a.privateKey, b.publicJwk, "c");
     const ct = await encryptText(key, "transfer 100", "c", "u");
-    const flipLast = ct.slice(0, -2) + (ct.endsWith("A") ? "B" : "A") + ct.slice(-1);
+    // Change the second-to-last character (fully significant bits; the last one carries ignored padding bits), always
+    // to a different value: deciding by the last character instead made this a no-op about 1 run in 64.
+    const i = ct.length - 2;
+    const flipLast = ct.slice(0, i) + (ct[i] === "A" ? "B" : "A") + ct.slice(i + 1);
     await expect(decryptText(key, flipLast, "c", "u")).rejects.toThrow("decrypt_failed");
     await expect(decryptText(key, ct.slice(0, -4), "c", "u")).rejects.toThrow("decrypt_failed"); // truncated
     await expect(decryptText(key, "e2ee:v1:AAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAA", "c", "u")).rejects.toThrow("decrypt_failed");

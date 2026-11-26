@@ -104,7 +104,11 @@ export const pt1 = {
 
   post: {
     q: "O que posso publicar?",
-    a: "Texto, fotos e vídeos do seu dispositivo ou da câmera, uma imagem obtida de uma URL ou um link incorporado do YouTube/Vimeo. Toque nos ícones de câmera e de foto no editor: cada um abre um pequeno menu com dispositivo, câmera ou link, então há um botão para fotos e outro para vídeos, em vez de uma fileira de botões separados.",
+    a: "Texto, fotos e vídeos do seu dispositivo ou da câmera, uma imagem obtida de uma URL ou um link incorporado do YouTube/Vimeo. Toque nos ícones de câmera e de foto no editor: cada um abre um pequeno menu com dispositivo, câmera ou link, então há um botão para fotos e outro para vídeos, em vez de uma fileira de botões separados. Uma publicação curta só de texto também pode ter um fundo colorido.",
+  },
+  "post-colored-background": {
+    q: "Posso publicar texto sobre um fundo colorido?",
+    a: "Sim. Quando uma publicação é só texto, toque no ícone de paleta no editor e escolha um fundo: cores sólidas, degradês e algumas misturas de várias cores. A caixa de texto vira uma prévia da publicação, com texto grande e centralizado que diminui à medida que você escreve mais. Uma publicação com fundo pode ter até 220 caracteres, e o contador abaixo mostra quantos você já usou. Escolha «Sem fundo» para voltar a uma publicação comum.\n\nUm fundo é só para texto: adicionar uma foto, vídeo, link, GIF ou detalhes de evento tira o fundo (remova o anexo e ele volta). Você pode trocá-lo ou removê-lo depois editando a publicação. Cada fundo foi escolhido para que o texto continue fácil de ler nos modos claro e escuro, e os links no texto ficam sublinhados na mesma cor. O texto é verificado, exibido e pode ser denunciado exatamente como qualquer outra publicação.",
   },
   "which-video-formats-upload-everyone": {
     q: "Quais formatos de vídeo posso enviar? Todo mundo consegue assistir?",
@@ -168,7 +172,7 @@ export const pt1 = {
   },
   "long-post-get-cut-off": {
     q: "Por que uma publicação longa é cortada com um link «Ver mais»?",
-    a: "Publicações acima de certo tamanho são encurtadas nos feeds para que uma única publicação longa não empurre todo o resto para baixo. Toque em «Ver mais» para ler o restante ali mesmo e em «Ver menos» para recolher de novo. Isso vale em todo lugar onde publicações são listadas, e também para o texto próprio de uma republicação. Não há um limite relevante para o tamanho de uma publicação: escreva o quanto precisar, e quem lê sempre pode expandir.",
+    a: "Publicações acima de certo tamanho são encurtadas nos feeds para que uma única publicação longa não empurre todo o resto para baixo. Toque em «Ver mais» para ler o restante ali mesmo e em «Ver menos» para recolher de novo. Isso vale em todo lugar onde publicações são listadas, e também para o texto próprio de uma republicação. Não há um limite relevante para o tamanho de uma publicação: escreva o quanto precisar, e quem lê sempre pode expandir. A exceção é uma publicação com fundo colorido: ela pode ter até 220 caracteres, e num feed o seu «Ver mais» abre a própria publicação.",
   },
   "got-message-saying-new-version": {
     q: "Ao publicar, apareceu uma mensagem dizendo que há uma nova versão do aplicativo e que é preciso atualizar a página para continuar.",

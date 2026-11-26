@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, useTransition, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Upload, Video, X } from "lucide-react";
+import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Palette, Upload, Video, X } from "lucide-react";
 import { confirmPostDeviceChallenge } from "@/app/actions/circles";
 import { abortMultipartUpload, addImageFromUrl, completeMultipartUpload, startNativeVideoUpload } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
@@ -69,6 +69,14 @@ import { useFeedText } from "@/components/feed-text";
 import { format, plural, byCode } from "@/lib/i18n/locales";
 import { EVENT_SERIES_MAX_OCCURRENCES, EVENT_SERIES_MIN_OCCURRENCES, type EventRepeatFrequency } from "@/lib/event-recurrence";
 import { normalizeVideoFile } from "@/lib/video-file";
+import {
+  STYLED_POST_MAX_CHARS,
+  postBackgroundStyle,
+  styledPostTextSize,
+  type PostBackgroundKey,
+} from "@/lib/post-backgrounds";
+import { PostBackgroundPicker } from "@/components/post-background-picker";
+import { STYLED_POST_BOX } from "@/components/styled-post-text";
 
 const MAX_IMAGES = 10;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -238,6 +246,11 @@ export function PostComposer({
   // the textarea's own onChange plus the two spots below that mutate
   // contentRef.current directly (insertEmoji, appendDictatedText).
   const [suggestionText, setSuggestionText] = useState("");
+  // A colored background for a text-only post (src/lib/post-backgrounds.ts), and whether its picker row is open (closing
+  // the row keeps the background; "No background" in it takes it off).
+  const [background, setBackground] = useState<PostBackgroundKey | null>(null);
+  const [showBackgrounds, setShowBackgrounds] = useState(false);
+  const counterId = useId();
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -262,9 +275,25 @@ export function PostComposer({
   const hasOtherMedia =
     Boolean(video) || Boolean(nativeVideoUpload) || nativeVideoUploading || Boolean(embedUrl) || Boolean(pendingGif);
   const parsedEmbed = useMemo(() => (embedUrl ? parseVideoEmbedUrl(embedUrl) : null), [embedUrl]);
+  // A styled post is text only: any attachment or event details hide the background (and its picker) again, and the
+  // post goes out without it; removing the attachment brings the chosen background back.
+  const canStyle = imageCount === 0 && !hasOtherMedia && !isEvent;
+  const activeBackground = canStyle ? background : null;
+  const activeBackgroundStyle = postBackgroundStyle(activeBackground);
+  const styledSize = styledPostTextSize(suggestionText);
+  const styledLength = suggestionText.trim().length;
   // Attached media lives only in this component's state — a stale-build
   // reload (lib/stale-build-client.ts) would silently empty the composer.
   useReloadHold("work", imageCount > 0 || hasOtherMedia || isPending || status === "uploading");
+
+  // The styled preview centres the text vertically, so the textarea is as tall as its text (the box scrolls past
+  // that); back to its own rows when the background is taken off.
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.style.height = "";
+    if (activeBackground) el.style.height = `${el.scrollHeight}px`;
+  }, [activeBackground, suggestionText]);
 
   useEffect(() => {
     composerEmptyRef.current =
@@ -300,6 +329,8 @@ export function PostComposer({
     setNativeVideoUpload(draft.nativeVideoUpload);
     setEmbedUrl(draft.embedUrl);
     setPendingGif(draft.pendingGif);
+    setBackground(draft.backgroundStyle);
+    setShowBackgrounds(draft.backgroundStyle !== null);
     setStatus("error");
     setErrorText(draft.message);
     setFailureAdvice(draft.advice);
@@ -326,6 +357,8 @@ export function PostComposer({
         return postUpload.unauthorized;
       case "rate_limited":
         return attempt >= 2 ? postUpload.rateLimitedRetry : t.composer.errors.rate_limited;
+      case "background_too_long":
+        return format(t.composer.errors.background_too_long, { max: STYLED_POST_MAX_CHARS });
       default:
         return byCode(t.composer.errors, failure.code);
     }
@@ -827,6 +860,8 @@ export function PostComposer({
     setRepeatCount("4");
     setRepeatUntil("");
     setSuggestionText("");
+    setBackground(null);
+    setShowBackgrounds(false);
     formRef.current?.reset();
     router.refresh();
     return { ok: true, value: answer.held ? "held" : "posted" };
@@ -890,6 +925,15 @@ export function PostComposer({
           setFailureAdvice(null);
           return;
         }
+        const backgroundStyle = activeBackground;
+        if (backgroundStyle && content.length > STYLED_POST_MAX_CHARS) {
+          setStatus("error");
+          setErrorText(format(t.composer.errors.background_too_long, { max: STYLED_POST_MAX_CHARS }));
+          setFailureAdvice(null);
+          return;
+        }
+        if (backgroundStyle) fd.set("backgroundStyle", backgroundStyle);
+        else fd.delete("backgroundStyle");
         if (isEvent) {
           if (!eventAt || new Date(eventAt) <= new Date()) {
             setStatus("error");
@@ -950,6 +994,7 @@ export function PostComposer({
           nativeVideoUpload,
           embedUrl,
           pendingGif,
+          backgroundStyle,
         };
         const files = [...images, ...(video ? [video] : [])];
         // One idempotency key per draft: a new one for every new attempt, except a retry of the same draft after an
@@ -968,6 +1013,7 @@ export function PostComposer({
               eventRepeatCount: String(fd.get("eventRepeatCount") ?? ""),
               eventRepeatUntil: String(fd.get("eventRepeatUntil") ?? ""),
               nativeVideo: nativeVideoUpload?.videoUrl,
+              backgroundStyle,
             },
             files,
             urls: [...urlImages, embedUrl, pendingGif],
@@ -1001,6 +1047,7 @@ export function PostComposer({
             authorAvatarUrl: authorAvatarUrl ?? null,
             createdAt: new Date(),
             status: "sending",
+            backgroundStyle,
           });
           // Same reset the success path below used to wait for the whole
           // upload + createPost round trip before doing — the feed's own
@@ -1018,6 +1065,8 @@ export function PostComposer({
           setEmbedUrl(null);
           setPendingGif(null);
           setSuggestionText("");
+          setBackground(null);
+          setShowBackgrounds(false);
           formRef.current?.reset();
           setStatus("idle");
         } else {
@@ -1093,18 +1142,68 @@ export function PostComposer({
         }
       }}
     >
-      <textarea data-guest-block dir="auto"
-        ref={contentRef}
-        name="content"
-        maxLength={50000}
-        rows={3}
-        placeholder={placeholder}
-        aria-label={placeholder || t.composer.label}
-        onChange={(e) => setSuggestionText(e.target.value)}
-        onPaste={handlePaste}
-        className="w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-      />
+      {/* With a background picked this is the live preview of the styled post: the same box, colors and font size
+          the feed shows (styled-post-text.tsx), typed into directly. */}
+      <div
+        className={cn(
+          activeBackgroundStyle &&
+            "animate-styled-post-in flex max-h-[28rem] w-full overflow-y-auto rounded-xl focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent focus-within:outline-solid",
+          activeBackgroundStyle && STYLED_POST_BOX,
+        )}
+        style={activeBackgroundStyle ?? undefined}
+      >
+        <textarea data-guest-block dir="auto"
+          ref={contentRef}
+          name="content"
+          maxLength={activeBackground ? STYLED_POST_MAX_CHARS : 50000}
+          rows={activeBackground ? 1 : 3}
+          placeholder={placeholder}
+          aria-label={placeholder || t.composer.label}
+          aria-describedby={activeBackground ? counterId : undefined}
+          onChange={(e) => setSuggestionText(e.target.value)}
+          onPaste={handlePaste}
+          className={
+            activeBackgroundStyle
+              ? "m-auto block w-full resize-none overflow-hidden bg-transparent px-5 py-7 text-center font-semibold outline-none [overflow-wrap:anywhere] placeholder:text-current placeholder:opacity-70"
+              : "w-full rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          }
+          style={
+            activeBackgroundStyle
+              ? {
+                  color: activeBackgroundStyle.color,
+                  fontSize: `${styledSize.fontSizeRem}rem`,
+                  lineHeight: styledSize.lineHeight,
+                }
+              : undefined
+          }
+        />
+      </div>
+      {activeBackground && (
+        <p
+          id={counterId}
+          className={cn(
+            "mt-1 text-end text-xs",
+            styledLength > STYLED_POST_MAX_CHARS ? "text-danger" : "text-foreground-soft",
+          )}
+        >
+          <span aria-hidden>
+            {styledLength}/{STYLED_POST_MAX_CHARS}
+          </span>
+          <span className="sr-only">
+            {format(t.composer.background.count, { count: styledLength, max: STYLED_POST_MAX_CHARS })}
+          </span>
+        </p>
+      )}
       <EmojiTypeSuggestions text={suggestionText} onSelect={insertEmoji} />
+      {canStyle && showBackgrounds && (
+        <PostBackgroundPicker
+          value={background}
+          onChange={(next) => {
+            setBackground(next);
+            if (next === null) contentRef.current?.focus();
+          }}
+        />
+      )}
 
       {(images.length > 0 || urlImages.length > 0) && (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -1565,6 +1664,20 @@ export function PostComposer({
             aria-expanded={showEmbedInput}
           >
             <LinkIcon size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBackgrounds((v) => !v)}
+            disabled={!canStyle}
+            className={cn(
+              "rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40",
+              showBackgrounds || activeBackground ? "text-accent" : "text-foreground-soft",
+            )}
+            title={t.composer.background.label}
+            aria-label={t.composer.background.label}
+            aria-expanded={canStyle && showBackgrounds}
+          >
+            <Palette size={16} />
           </button>
           <button
             type="button"

@@ -45,6 +45,14 @@ import { UserLink } from "@/components/user-link";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { PostConnectPopover } from "@/components/post-connect-popover";
 import { TruncatedText } from "@/components/truncated-text";
+import { StyledPostText } from "@/components/styled-post-text";
+import { PostBackgroundPicker } from "@/components/post-background-picker";
+import {
+  STYLED_POST_MAX_CHARS,
+  isPostBackgroundKey,
+  postBackgroundStyle,
+  type PostBackgroundKey,
+} from "@/lib/post-backgrounds";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
@@ -123,6 +131,8 @@ type EmbeddedPost = {
   embedProvider: EmbedProvider | null;
   embedId: string | null;
   linkUrl: string | null;
+  /** A colored-background text post's preset key (src/lib/post-backgrounds.ts); null/absent on an ordinary post. */
+  backgroundStyle?: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
   // A Circle post's Circle (an event there gets "Event details"), and an organizer's cancel / reschedule of an event
@@ -540,6 +550,7 @@ function MediaBlock({
   onOpenInMuse,
   onDoubleTapLike,
   editing,
+  fullText,
 }: {
   post: EmbeddedPost;
   onOpenImage: (index: number) => void;
@@ -559,7 +570,11 @@ function MediaBlock({
     onCancel: () => void;
     error: string | null;
     isPending: boolean;
+    /** A text-only post's colored background, changeable while editing (absent where a post can't have one). */
+    background?: { value: PostBackgroundKey | null; onChange: (next: PostBackgroundKey | null) => void };
   };
+  /** The post's own page: a colored-background post shows all its text instead of a clamp with "Show more". */
+  fullText?: boolean;
 }) {
   const { t } = useFeedText();
   const { t: shell } = useShellText();
@@ -675,6 +690,9 @@ function MediaBlock({
   }, [muted, videoRef]);
   // On Home, tapping a short video opens it in the Muse viewer instead of pausing it (see opensInMuse).
   const openInMuse = onOpenInMuse && !editing && opensInMuse(post) ? () => onOpenInMuse(post) : null;
+  // A colored-background text post (src/lib/post-backgrounds.ts); an unknown key shows as ordinary text.
+  const styled = post.mediaType === "NONE" && postBackgroundStyle(post.backgroundStyle) !== null;
+  const editBackground = editing?.background?.value ?? null;
   return (
     <>
       {editing ? (
@@ -690,16 +708,34 @@ function MediaBlock({
                 editing.onCancel();
               }
             }}
-            maxLength={50000}
+            maxLength={editBackground ? STYLED_POST_MAX_CHARS : 50000}
             rows={3}
             autoFocus
             aria-label={t.post.editPost}
             className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
           />
+          {editBackground && (
+            <p
+              className={cn(
+                "text-end text-xs",
+                editing.draft.trim().length > STYLED_POST_MAX_CHARS ? "text-danger" : "text-foreground-soft",
+              )}
+            >
+              <span aria-hidden>
+                {editing.draft.trim().length}/{STYLED_POST_MAX_CHARS}
+              </span>
+              <span className="sr-only">
+                {format(t.composer.background.count, { count: editing.draft.trim().length, max: STYLED_POST_MAX_CHARS })}
+              </span>
+            </p>
+          )}
           <EmojiTypeSuggestions
             text={editing.draft}
             onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)}
           />
+          {editing.background && (
+            <PostBackgroundPicker value={editing.background.value} onChange={editing.background.onChange} />
+          )}
           <div className="mt-1 flex items-center justify-end gap-2 text-xs">
             {editing.error && <span role="alert" className="me-auto text-danger">{editing.error}</span>}
             <EmojiPickerButton onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)} />
@@ -721,6 +757,19 @@ function MediaBlock({
             </button>
           </div>
         </div>
+      ) : styled && post.content ? (
+        <>
+          {/* Double tap on the colored box likes, like on a photo (textDoubleTap ignores links, "Show more" and selected
+              text, so those stay tappable and selectable). */}
+          <StyledPostText
+            text={translation.displayText}
+            backgroundKey={post.backgroundStyle}
+            clamp={!fullText}
+            href={`/post/${post.id}`}
+            onClick={textDoubleTap}
+          />
+          {translation.control}
+        </>
       ) : (
         post.content && (
           <>
@@ -976,10 +1025,13 @@ export function PostCard({
   viewerIsAdmin = false,
   hideEventDetails = false,
   onOpenVideoInMuse,
+  fullText = false,
 }: {
   post: PostCardData;
   viewerId: string;
   viewerIsAdmin?: boolean;
+  /** /post/[id]: a colored-background post shows all of its text (no clamp). */
+  fullText?: boolean;
   /** Home only: a tap on a short video opens it in the Muse viewer. */
   onOpenVideoInMuse?: (post: MuseSeedPost) => void;
   /** /post/[id] already renders the event panel under the card, so the card doesn't offer "Event details" there. */
@@ -1085,6 +1137,9 @@ export function PostCard({
   // it's a repost, otherwise the post body) shadowed in local state so an
   // edit updates in place without a full server round-trip re-render.
   const [content, setContent] = useState(post.content);
+  // This row's own colored background (a text-only post's; src/lib/post-backgrounds.ts), changeable in the edit.
+  const [background, setBackground] = useState(post.backgroundStyle ?? null);
+  const [editBackground, setEditBackground] = useState<PostBackgroundKey | null>(null);
   const [editedAt, setEditedAt] = useState(post.editedAt);
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(post.content);
@@ -1094,6 +1149,7 @@ export function PostCard({
 
   function startEditing() {
     setEditDraft(content);
+    setEditBackground(isPostBackgroundKey(background) ? background : null);
     setEditError(null);
     setEditing(true);
   }
@@ -1104,6 +1160,15 @@ export function PostCard({
     setEditError(null);
   }
 
+  function editErrorText(error: string | null | undefined): string {
+    if (error === "under_review") return t.post.editUnderReview;
+    if (error === "background_too_long") {
+      return format(t.composer.errors.background_too_long, { max: STYLED_POST_MAX_CHARS });
+    }
+    if (error === "background_not_allowed") return t.composer.errors.background_not_allowed;
+    return t.post.editFailed;
+  }
+
   function insertEditEmoji(emoji: string) {
     setEditDraft((d) => d + emoji);
   }
@@ -1111,16 +1176,22 @@ export function PostCard({
   function saveEdit() {
     const text = editDraft.trim();
     if (!text || isEditPending) return;
+    if (canStyleOnEdit && editBackground && text.length > STYLED_POST_MAX_CHARS) {
+      setEditError(editErrorText("background_too_long"));
+      return;
+    }
     setEditError(null);
     startEditTransition(async () => {
       const fd = new FormData();
       fd.set("content", text);
+      if (canStyleOnEdit) fd.set("backgroundStyle", editBackground ?? "");
       const result = await editPost(post.id, fd);
       if (result.error || !result.post) {
-        setEditError(result.error === "under_review" ? t.post.editUnderReview : t.post.editFailed);
+        setEditError(editErrorText(result.error));
         return;
       }
       setContent(result.post.content);
+      setBackground(result.post.backgroundStyle);
       setEditedAt(result.post.editedAt);
       setEditing(false);
     });
@@ -1129,7 +1200,13 @@ export function PostCard({
   // The hearts rise over the media on a photo / GIF / video / embed post, and over the whole card otherwise (a text or
   // link post's text alone is often a single line, too short for them). The host's height is read once per burst and
   // becomes the layer's --hb-h (rise distance, see globals.css).
-  const heartOnMedia = HEART_ON_MEDIA_TYPES.has(displayPost.mediaType);
+  // Only the author's own text-only post (not a repost/share caption, not an event) can take a background.
+  const quotesAnother = Boolean(post.repostOf || post.sharedPost);
+  const canStyleOnEdit = !quotesAnother && post.mediaType === "NONE" && !post.eventAt;
+  const shownBackground = quotesAnother ? displayPost.backgroundStyle : background;
+  const heartOnMedia =
+    HEART_ON_MEDIA_TYPES.has(displayPost.mediaType) ||
+    (displayPost.mediaType === "NONE" && postBackgroundStyle(shownBackground) !== null);
   const cardRef = useRef<HTMLDivElement>(null);
   const mediaHostRef = useRef<HTMLDivElement>(null);
   function showHeart() {
@@ -1364,7 +1441,8 @@ export function PostCard({
 
       <div ref={mediaHostRef} className="relative">
       <MediaBlock
-        post={isQuoting ? displayPost : { ...displayPost, content }}
+        post={isQuoting ? displayPost : { ...displayPost, content, backgroundStyle: background }}
+        fullText={fullText}
         onOpenImage={(index) => setLightboxIndex(index)}
         onCloseImage={() => setLightboxIndex(null)}
         onOpenVideo={() => setLightboxVideo(true)}
@@ -1379,6 +1457,7 @@ export function PostCard({
                 onCancel: cancelEdit,
                 error: editError,
                 isPending: isEditPending,
+                background: canStyleOnEdit ? { value: editBackground, onChange: setEditBackground } : undefined,
               }
             : undefined
         }

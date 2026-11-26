@@ -7,6 +7,8 @@ import { removeOptimisticPost, type OptimisticPost } from "@/lib/optimistic-post
 import { dropFailedPostDraft } from "@/lib/failed-post-draft";
 import { useFeedText } from "@/components/feed-text";
 import { usePostUploadText } from "@/components/post-upload-text";
+import { StyledPostText } from "@/components/styled-post-text";
+import { postBackgroundStyle } from "@/lib/post-backgrounds";
 
 /**
  * The "still sending" placeholder PostFeedSection/ProfilePostsList render at
@@ -71,8 +73,12 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
         )}
       </div>
 
-      {post.content && (
-        <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground-soft">{post.content}</p>
+      {post.content && postBackgroundStyle(post.backgroundStyle) ? (
+        <div className="opacity-90">
+          <StyledPostText text={post.content} backgroundKey={post.backgroundStyle} clamp />
+        </div>
+      ) : (
+        post.content && <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground-soft">{post.content}</p>
       )}
 
       {post.previewUrl &&

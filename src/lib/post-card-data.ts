@@ -17,6 +17,8 @@ type EmbeddedPostRow = {
   embedProvider: EmbedProvider | null;
   embedId: string | null;
   linkUrl: string | null;
+  // A colored-background text post's preset key (src/lib/post-backgrounds.ts); null on an ordinary post.
+  backgroundStyle: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
   // Optional so a narrower select still fits; postCardInclude loads every scalar, so these are always present there.
@@ -86,6 +88,7 @@ const embeddedPostSelect = {
   embedProvider: true,
   embedId: true,
   linkUrl: true,
+  backgroundStyle: true,
   eventAt: true,
   eventLocation: true,
   circleId: true,
@@ -215,6 +218,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       embedProvider: post.embedProvider,
       embedId: post.embedId,
       linkUrl: post.linkUrl,
+      backgroundStyle: post.backgroundStyle,
       eventAt: post.eventAt,
       eventLocation: post.eventLocation,
       circleId: post.circleId ?? null,

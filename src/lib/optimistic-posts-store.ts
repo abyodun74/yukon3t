@@ -21,6 +21,8 @@ export type OptimisticPost = {
   authorName: string;
   authorAvatarUrl: string | null;
   createdAt: Date;
+  /** A text-only post's colored background (src/lib/post-backgrounds.ts): the placeholder shows it styled already. */
+  backgroundStyle?: string | null;
   /** "held": the post was stored but is hidden until an admin reviews it (createPost's `held`); not a failure. */
   status: "sending" | "error" | "held";
   errorMessage?: string;

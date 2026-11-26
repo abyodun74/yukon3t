@@ -2,6 +2,7 @@
 
 import { discardUpload, releaseUploads } from "@/lib/upload-client";
 import type { RetryAdvice } from "@/lib/post-submit-attempt";
+import type { PostBackgroundKey } from "@/lib/post-backgrounds";
 
 /**
  * A Home/profile post that couldn't be sent, kept so it goes back into the composer instead of being lost. The
@@ -23,6 +24,8 @@ export type FailedPostDraft = {
   nativeVideoUpload: { videoUrl: string; videoThumbnailUrl?: string; videoDurationSeconds?: number; name: string } | null;
   embedUrl: string | null;
   pendingGif: string | null;
+  /** The colored background a text-only draft had (src/lib/post-backgrounds.ts), or null. */
+  backgroundStyle: PostBackgroundKey | null;
   /** The specific sentence to show again in the composer. */
   message: string;
   advice: RetryAdvice;

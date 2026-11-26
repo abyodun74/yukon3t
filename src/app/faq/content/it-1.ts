@@ -104,7 +104,11 @@ export const it1 = {
 
   post: {
     q: "Cosa posso pubblicare?",
-    a: "Testo, foto e video dal tuo dispositivo o dalla fotocamera, un'immagine presa da un URL o un link incorporato di YouTube o Vimeo. Tocca le icone della fotocamera e della foto nell'editor: ognuna apre un piccolo menu con dispositivo, fotocamera o link, così c'è un pulsante per le foto e uno per i video invece di una fila di pulsanti separati.",
+    a: "Testo, foto e video dal tuo dispositivo o dalla fotocamera, un'immagine presa da un URL o un link incorporato di YouTube o Vimeo. Tocca le icone della fotocamera e della foto nell'editor: ognuna apre un piccolo menu con dispositivo, fotocamera o link, così c'è un pulsante per le foto e uno per i video invece di una fila di pulsanti separati. Un breve post di solo testo può anche avere uno sfondo colorato.",
+  },
+  "post-colored-background": {
+    q: "Posso pubblicare un testo su uno sfondo colorato?",
+    a: "Sì. Quando un post è solo testo, tocca l'icona della tavolozza nell'editor e scegli uno sfondo: tinte unite, sfumature e alcuni mix multicolore. Il riquadro di scrittura diventa un'anteprima del post, con un testo grande e centrato che si rimpicciolisce man mano che scrivi. Un post con sfondo può avere al massimo 220 caratteri, e il contatore sotto mostra quanti ne hai usati. Scegli «Nessuno sfondo» per tornare a un post normale.\n\nLo sfondo è solo per il testo: aggiungere una foto, un video, un link, una GIF o i dettagli di un evento lo toglie (rimuovi l'allegato e torna). Puoi cambiarlo o toglierlo in seguito modificando il post. Ogni sfondo è scelto perché il testo resti facile da leggere in modalità chiara e scura, e i link nel testo sono sottolineati nello stesso colore. Il testo viene controllato, mostrato e può essere segnalato esattamente come qualsiasi altro post.",
   },
   "which-video-formats-upload-everyone": {
     q: "Quali formati di video posso caricare? Tutti possono vederli?",
@@ -168,7 +172,7 @@ export const it1 = {
   },
   "long-post-get-cut-off": {
     q: "Perché un post lungo viene tagliato con un link «Mostra altro»?",
-    a: "I post che superano una certa lunghezza vengono accorciati nei feed così che un solo post lungo non spinga tutto il resto verso il basso. Tocca «Mostra altro» per leggere il resto lì e «Mostra meno» per richiuderlo. Questo vale ovunque siano elencati dei post, e anche per il testo proprio di un repost. Non c'è un limite rilevante alla lunghezza di un post: scrivi tutto ciò che ti serve, chi lo legge potrà sempre espanderlo.",
+    a: "I post che superano una certa lunghezza vengono accorciati nei feed così che un solo post lungo non spinga tutto il resto verso il basso. Tocca «Mostra altro» per leggere il resto lì e «Mostra meno» per richiuderlo. Questo vale ovunque siano elencati dei post, e anche per il testo proprio di un repost. Non c'è un limite rilevante alla lunghezza di un post: scrivi tutto ciò che ti serve, chi lo legge potrà sempre espanderlo. L'eccezione è un post con sfondo colorato: può avere al massimo 220 caratteri, e nel feed il suo «Mostra altro» apre il post stesso.",
   },
   "got-message-saying-new-version": {
     q: "Pubblicando mi è comparso un messaggio che dice che c'è una nuova versione dell'app e di aggiornare la pagina per continuare.",

@@ -7,14 +7,19 @@ import { prisma } from "@/lib/prisma";
 import { deleteTranslationsOf } from "@/lib/translation-server";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { likeGroupIdsOf, recomputeLikeGroups } from "@/lib/like-groups";
-import { postSchema } from "@/lib/validations";
+import { postBackgroundKeySchema, postSchema } from "@/lib/validations";
+import { styledPostRefusal } from "@/lib/post-backgrounds";
 import { moderateText } from "@/lib/moderation";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere, LEAD_POST_ONLY } from "@/lib/post-visibility";
 
 const POSTS_PAGE_SIZE = 20;
 
-/** Author-only: updates a post's text content and stamps editedAt. Media/type/event fields are immutable after posting. */
+/**
+ * Author-only: updates a post's text content and stamps editedAt. Media/type/event fields are immutable after posting.
+ * A `backgroundStyle` field, when sent, sets ("sunset", ...) or removes ("") a text-only post's colored background
+ * (src/lib/post-backgrounds.ts); without it the background stays as it is.
+ */
 export async function editPost(postId: string, formData: FormData) {
   const user = await requireVerifiedUser();
 
@@ -23,6 +28,16 @@ export async function editPost(postId: string, formData: FormData) {
     return { error: "invalid" as const };
   }
   const { content } = parsed.data;
+  const backgroundField = formData.get("backgroundStyle");
+  let newBackground: string | null | undefined;
+  if (backgroundField !== null) {
+    if (backgroundField === "") newBackground = null;
+    else {
+      const key = postBackgroundKeySchema.safeParse(backgroundField);
+      if (!key.success) return { error: "invalid" as const };
+      newBackground = key.data;
+    }
+  }
 
   const post = await prisma.post.findUnique({ where: { id: postId } });
   if (!post) {
@@ -37,21 +52,32 @@ export async function editPost(postId: string, formData: FormData) {
   if (post.moderationStatus !== "PUBLISHED") {
     return { error: "under_review" as const };
   }
+  // The background the post will have after this edit: a new text must still fit it, and a new one needs a text post.
+  const backgroundStyle = newBackground === undefined ? (post.backgroundStyle ?? null) : newBackground;
+  if (backgroundStyle) {
+    const refusal = styledPostRefusal({
+      mediaType: post.mediaType,
+      hasEvent: Boolean(post.eventAt),
+      isRepostOrShare: Boolean(post.repostOfId || post.sharedPostId),
+      content,
+    });
+    if (refusal) return { error: refusal };
+  }
 
   const modResult = await moderateText(content);
   const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
 
   // Guarded on PUBLISHED: a hold that lands between the read above and this write (the Hive cron, an admin) must
-  // stay a hold. Only content/editedAt go back — post-card.tsx's saveEdit reads nothing else.
+  // stay a hold. Only content/editedAt/backgroundStyle go back — post-card.tsx's saveEdit reads nothing else.
   const editedAt = new Date();
   const written = await prisma.post.updateMany({
     where: { id: postId, authorId: user.id, moderationStatus: "PUBLISHED" },
-    data: { content, moderationStatus, editedAt },
+    data: { content, moderationStatus, editedAt, ...(newBackground === undefined ? {} : { backgroundStyle }) },
   });
   if (written.count === 0) {
     return { error: "under_review" as const };
   }
-  const updated = { content, editedAt };
+  const updated = { content, editedAt, backgroundStyle };
   // Translations of the old wording are never served again (keyed by a hash of the text); drop them now too.
   await deleteTranslationsOf("post", postId);
 

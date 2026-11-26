@@ -43,6 +43,7 @@ import {
 import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { isCircleCoverKey, isOwnedUploadKey } from "@/lib/media-keys";
 import { parseVideoEmbedUrl, fetchEmbedTitle, type ParsedEmbed } from "@/lib/video-embed";
+import { styledPostRefusal } from "@/lib/post-backgrounds";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
@@ -1054,6 +1055,7 @@ export async function createPost(formData: FormData) {
     embedUrl: formData.get("embedUrl") || undefined,
     eventAt: formData.get("eventAt") || undefined,
     eventLocation: formData.get("eventLocation") || undefined,
+    backgroundStyle: formData.get("backgroundStyle") || undefined,
   });
   if (!parsed.success) {
     // Was a bare { error: "invalid" } with nothing else — the client-side
@@ -1068,6 +1070,19 @@ export async function createPost(formData: FormData) {
   }
   const { mediaType, mediaUrls, videoUrl, videoThumbnailUrl, videoDurationSeconds, eventAt, eventLocation } =
     parsed.data;
+
+  // A colored background (src/lib/post-backgrounds.ts; the key is already allow-listed by postSchema) only on a
+  // text-only post of at most STYLED_POST_MAX_CHARS: no photo, video, embed, link, GIF or event.
+  const backgroundStyle = parsed.data.backgroundStyle ?? null;
+  if (backgroundStyle) {
+    const refusal = styledPostRefusal({
+      mediaType,
+      hasEvent: Boolean(eventAt),
+      isRepostOrShare: false,
+      content: parsed.data.content,
+    });
+    if (refusal) return { error: refusal };
+  }
 
   // A repeating Circle event (lib/event-recurrence.ts): only for an event in a Circle. The first occurrence is this
   // post; the event-series cron posts each next one, without notifying anyone.
@@ -1366,6 +1381,7 @@ export async function createPost(formData: FormData) {
           ...sharedPostData,
           content: parsed.data.content,
           mediaUrls: mediaType === "IMAGE" || mediaType === "GIF" ? mediaUrls : [],
+          backgroundStyle,
           clientRequestId,
         },
       });

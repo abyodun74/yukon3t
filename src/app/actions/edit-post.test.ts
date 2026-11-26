@@ -80,3 +80,68 @@ describe("editPost", () => {
     expect(await editPost(POST, form())).toEqual({ error: "forbidden" });
   });
 });
+
+// A text-only post's colored background (src/lib/post-backgrounds.ts) can be set, changed or removed in the edit; a
+// text edit alone leaves it as it is but must still fit it.
+describe("editPost: colored backgrounds", () => {
+  const textPost = (over: Record<string, unknown> = {}) => ({
+    id: POST,
+    authorId: ME,
+    moderationStatus: "PUBLISHED",
+    mediaType: "NONE",
+    eventAt: null,
+    repostOfId: null,
+    sharedPostId: null,
+    backgroundStyle: null,
+    ...over,
+  });
+  function styledForm(content: string, backgroundStyle?: string) {
+    const fd = form(content);
+    if (backgroundStyle !== undefined) fd.set("backgroundStyle", backgroundStyle);
+    return fd;
+  }
+
+  it("sets a background on a text post and returns it", async () => {
+    postFindUnique.mockResolvedValue(textPost());
+    const result = await editPost(POST, styledForm("hello", "aurora"));
+    expect(result).toMatchObject({ error: null, post: { content: "hello", backgroundStyle: "aurora" } });
+    expect(postUpdateMany.mock.calls[0][0].data).toMatchObject({ content: "hello", backgroundStyle: "aurora" });
+  });
+
+  it("removes the background with an empty value", async () => {
+    postFindUnique.mockResolvedValue(textPost({ backgroundStyle: "sunset" }));
+    const result = await editPost(POST, styledForm("hello", ""));
+    expect(result).toMatchObject({ error: null, post: { backgroundStyle: null } });
+    expect(postUpdateMany.mock.calls[0][0].data.backgroundStyle).toBeNull();
+  });
+
+  it("leaves the background alone when the field isn't sent", async () => {
+    postFindUnique.mockResolvedValue(textPost({ backgroundStyle: "sunset" }));
+    const result = await editPost(POST, styledForm("new words"));
+    expect(result).toMatchObject({ error: null, post: { backgroundStyle: "sunset" } });
+    expect(postUpdateMany.mock.calls[0][0].data).not.toHaveProperty("backgroundStyle");
+  });
+
+  it("refuses an unknown key", async () => {
+    postFindUnique.mockResolvedValue(textPost());
+    expect(await editPost(POST, styledForm("hello", "#ff00ff"))).toEqual({ error: "invalid" });
+    expect(postUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses longer text than a styled post can hold, also on a text-only edit", async () => {
+    postFindUnique.mockResolvedValue(textPost({ backgroundStyle: "sunset" }));
+    expect(await editPost(POST, styledForm("x".repeat(221)))).toEqual({ error: "background_too_long" });
+    expect(postUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a photo post", { mediaType: "IMAGE" }],
+    ["an event", { eventAt: new Date("2030-01-01T10:00:00Z") }],
+    ["a repost", { repostOfId: "cpost000000002" }],
+    ["a share", { sharedPostId: "cpost000000002" }],
+  ])("refuses a background on %s", async (_label, over) => {
+    postFindUnique.mockResolvedValue(textPost(over));
+    expect(await editPost(POST, styledForm("hello", "ocean"))).toEqual({ error: "background_not_allowed" });
+    expect(postUpdateMany).not.toHaveBeenCalled();
+  });
+});

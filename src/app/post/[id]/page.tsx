@@ -95,7 +95,13 @@ export default async function PostDetailPage({
       <BackButton />
       <ScreenshotContextTracker context={{ type: "post", id }} />
 
-      <PostCard post={postWithState} viewerId={me.id} viewerIsAdmin={me.isAdmin} hideEventDetails={!!eventPanel} />
+      <PostCard
+        post={postWithState}
+        viewerId={me.id}
+        viewerIsAdmin={me.isAdmin}
+        hideEventDetails={!!eventPanel}
+        fullText
+      />
       {eventPanel && <CircleEventPanel data={eventPanel} />}
 
       <div className="mt-6">

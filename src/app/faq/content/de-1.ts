@@ -104,7 +104,11 @@ export const de1 = {
 
   post: {
     q: "Was kann ich posten?",
-    a: "Text, Fotos und Videos von deinem Gerät oder der Kamera, ein Bild von einer URL oder einen eingebetteten Link von YouTube oder Vimeo. Tippe im Editor auf die Kamera- und Fotosymbole: Jedes öffnet ein kleines Menü mit Gerät, Kamera oder Link, sodass es eine Schaltfläche für Fotos und eine für Videos gibt statt einer Reihe einzelner Schaltflächen.",
+    a: "Text, Fotos und Videos von deinem Gerät oder der Kamera, ein Bild von einer URL oder einen eingebetteten Link von YouTube oder Vimeo. Tippe im Editor auf die Kamera- und Fotosymbole: Jedes öffnet ein kleines Menü mit Gerät, Kamera oder Link, sodass es eine Schaltfläche für Fotos und eine für Videos gibt statt einer Reihe einzelner Schaltflächen. Ein kurzer reiner Textbeitrag kann auch einen farbigen Hintergrund bekommen.",
+  },
+  "post-colored-background": {
+    q: "Kann ich Text auf einem farbigen Hintergrund posten?",
+    a: "Ja. Wenn ein Beitrag nur aus Text besteht, tippe im Editor auf das Palettensymbol und wähle einen Hintergrund: Volltöne, Verläufe und einige mehrfarbige Mischungen. Das Eingabefeld wird zur Vorschau des Beitrags, mit großem, zentriertem Text, der kleiner wird, je mehr du schreibst. Ein Beitrag mit Hintergrund kann bis zu 220 Zeichen lang sein, und der Zähler darunter zeigt, wie viele du schon verwendet hast. Wähle „Kein Hintergrund“, um zu einem normalen Beitrag zurückzukehren.\n\nEin Hintergrund gilt nur für Text: Fügst du ein Foto, ein Video, einen Link, ein GIF oder Termindetails hinzu, verschwindet er (entfernst du den Anhang, ist er wieder da). Du kannst ihn später ändern oder entfernen, indem du den Beitrag bearbeitest. Jeder Hintergrund ist so gewählt, dass der Text im hellen und im dunklen Modus gut lesbar bleibt, und Links im Text werden in derselben Farbe unterstrichen. Der Text wird genauso geprüft und angezeigt und kann genauso gemeldet werden wie jeder andere Beitrag.",
   },
   "which-video-formats-upload-everyone": {
     q: "Welche Videoformate kann ich hochladen? Können alle sie sehen?",
@@ -168,7 +172,7 @@ export const de1 = {
   },
   "long-post-get-cut-off": {
     q: "Warum wird ein langer Beitrag mit einem Link „Mehr anzeigen“ abgeschnitten?",
-    a: "Beiträge, die eine bestimmte Länge überschreiten, werden in den Feeds gekürzt, damit ein einzelner langer Beitrag nicht alles andere nach unten schiebt. Tippe auf „Mehr anzeigen“, um den Rest direkt dort zu lesen, und auf „Weniger anzeigen“, um ihn wieder einzuklappen. Das gilt überall, wo Beiträge aufgelistet werden, und auch für den eigenen Text eines erneut geposteten Beitrags. Für die Länge eines Beitrags gibt es keine nennenswerte Grenze: Schreib so viel, wie du brauchst, wer ihn liest, kann ihn immer aufklappen.",
+    a: "Beiträge, die eine bestimmte Länge überschreiten, werden in den Feeds gekürzt, damit ein einzelner langer Beitrag nicht alles andere nach unten schiebt. Tippe auf „Mehr anzeigen“, um den Rest direkt dort zu lesen, und auf „Weniger anzeigen“, um ihn wieder einzuklappen. Das gilt überall, wo Beiträge aufgelistet werden, und auch für den eigenen Text eines erneut geposteten Beitrags. Für die Länge eines Beitrags gibt es keine nennenswerte Grenze: Schreib so viel, wie du brauchst, wer ihn liest, kann ihn immer aufklappen. Die Ausnahme ist ein Beitrag mit farbigem Hintergrund: Er kann bis zu 220 Zeichen lang sein, und im Feed öffnet sein „Mehr anzeigen“ den Beitrag selbst.",
   },
   "got-message-saying-new-version": {
     q: "Beim Posten wurde mir gesagt, es gebe eine neue Version der App und ich solle die Seite aktualisieren, um fortzufahren.",

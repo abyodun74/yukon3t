@@ -104,7 +104,11 @@ export const fr1 = {
 
   post: {
     q: "Que puis-je publier ?",
-    a: "Du texte, des photos et des vidéos provenant de votre appareil ou de votre appareil photo, une image récupérée à partir d'une URL ou un lien YouTube/Vimeo intégré. Touchez les icônes d'appareil photo et de photo dans l'éditeur : chacune ouvre un petit menu proposant l'appareil, l'appareil photo ou un lien. Il y a ainsi un bouton pour les photos et un pour les vidéos, plutôt qu'une rangée de boutons distincts.",
+    a: "Du texte, des photos et des vidéos provenant de votre appareil ou de votre appareil photo, une image récupérée à partir d'une URL ou un lien YouTube/Vimeo intégré. Touchez les icônes d'appareil photo et de photo dans l'éditeur : chacune ouvre un petit menu proposant l'appareil, l'appareil photo ou un lien. Il y a ainsi un bouton pour les photos et un pour les vidéos, plutôt qu'une rangée de boutons distincts. Une courte publication contenant uniquement du texte peut aussi avoir un arrière-plan coloré.",
+  },
+  "post-colored-background": {
+    q: "Puis-je publier du texte sur un arrière-plan coloré ?",
+    a: "Oui. Quand une publication ne contient que du texte, touchez l'icône de palette dans l'éditeur et choisissez un arrière-plan : couleurs unies, dégradés et quelques mélanges multicolores. La zone de saisie devient un aperçu de la publication, avec un grand texte centré qui rétrécit à mesure que vous écrivez. Une publication avec un arrière-plan peut contenir jusqu'à 220 caractères, et le compteur en dessous indique combien vous en avez utilisé. Choisissez « Sans arrière-plan » pour revenir à une publication normale.\n\nUn arrière-plan est réservé au texte : ajouter une photo, une vidéo, un lien, un GIF ou les détails d'un événement le retire (retirez la pièce jointe et il revient). Vous pouvez le changer ou le retirer plus tard en modifiant la publication. Chaque arrière-plan est choisi pour que le texte reste facile à lire en mode clair comme en mode sombre, et les liens du texte sont soulignés dans la même couleur. Le texte est vérifié, affiché et peut être signalé exactement comme n'importe quelle autre publication.",
   },
   "which-video-formats-upload-everyone": {
     q: "Quels formats vidéo puis-je importer, et tout le monde peut-il les regarder ?",
@@ -168,7 +172,7 @@ export const fr1 = {
   },
   "long-post-get-cut-off": {
     q: "Pourquoi une longue publication est-elle coupée par un lien « Voir plus » ?",
-    a: "Au-delà d'une certaine longueur, les publications sont tronquées dans les fils afin qu'une seule longue publication ne repousse pas tout le reste vers le bas de la page. Touchez « Voir plus » pour lire la suite sur place, et « Voir moins » pour la replier. Cela s'applique partout où des publications sont listées, ainsi qu'au texte propre d'une republication. Il n'y a pas de limite significative à la longueur d'une publication : écrivez autant que nécessaire, les lecteurs pourront toujours la déplier.",
+    a: "Au-delà d'une certaine longueur, les publications sont tronquées dans les fils afin qu'une seule longue publication ne repousse pas tout le reste vers le bas de la page. Touchez « Voir plus » pour lire la suite sur place, et « Voir moins » pour la replier. Cela s'applique partout où des publications sont listées, ainsi qu'au texte propre d'une republication. Il n'y a pas de limite significative à la longueur d'une publication : écrivez autant que nécessaire, les lecteurs pourront toujours la déplier. Seule exception : une publication sur un arrière-plan coloré peut contenir jusqu'à 220 caractères, et dans un fil, son lien « Voir plus » ouvre la publication elle-même.",
   },
   "got-message-saying-new-version": {
     q: "En publiant, j'ai reçu un message indiquant qu'une nouvelle version de l'application est disponible et qu'il faut actualiser la page pour continuer.",

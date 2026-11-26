@@ -632,7 +632,32 @@ const sections: Section[] = [
             pulled from a URL, or an embedded YouTube/Vimeo link. Tap the
             camera/photo icons in the composer — each opens a small menu for
             device, camera, or link, so there&apos;s one button for photos
-            and one for videos rather than a row of separate buttons.
+            and one for videos rather than a row of separate buttons. A short
+            text-only post can also go on a colored background.
+          </>
+        ),
+      },
+      {
+        id: "post-colored-background",
+        q: "Can I post text on a colored background?",
+        a: (
+          <>
+            Yes. When a post is only text, tap the palette icon in the
+            composer and pick a background: plain colors, gradients and a few
+            multicolor mixes. The writing box turns into a preview of the
+            post, with large centred text that gets smaller as you write
+            more. A post with a background can be up to 220 characters, and
+            the counter under it shows how many you have used. Pick &ldquo;No
+            background&rdquo; to go back to an ordinary post.
+            <br />
+            <br />
+            A background is for text only: adding a photo, video, link, GIF
+            or event details takes it off (remove the attachment and it comes
+            back). You can change or remove it later by editing the post.
+            Every background is chosen so the text stays easy to read in
+            light and dark mode, and links in the text are underlined in the
+            same color. The text is screened, shown and can be reported
+            exactly like any other post.
           </>
         ),
       },
@@ -949,7 +974,9 @@ const sections: Section[] = [
             less&rdquo; to collapse it again. This applies wherever posts are
             listed, and to a repost&apos;s own caption too. There&apos;s no
             meaningful limit on how long a post itself can be — write as much
-            as you need, and readers can always expand it.
+            as you need, and readers can always expand it. The exception is a
+            post on a colored background: it can be up to 220 characters, and
+            in a feed its &ldquo;Show more&rdquo; opens the post itself.
           </>
         ),
       },
