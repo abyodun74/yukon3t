@@ -245,6 +245,7 @@ export function GiftReveal({
               size={artSize}
               playKey={playKey}
               reduce={reduce}
+              climaxCount={sound.climaxCount}
               className="h-full w-full flex-1"
             />
           </div>

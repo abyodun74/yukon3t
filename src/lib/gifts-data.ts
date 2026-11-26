@@ -93,7 +93,7 @@ export const GIFT_ITEMS = [
   { slug: "gold-ring-frame", kind: "FRAME", assetKey: "gold-ring-frame", sortOrder: 100, universe: "LUXURY", collection: "atelier", occasionTags: ["anniversary", "love"], rarity: "PREMIUM", piece: 4 },
   { slug: "confetti", kind: "LIVE_EFFECT", assetKey: "confetti", sortOrder: 110, universe: "CELEBRATE", collection: "party", occasionTags: ["birthday", "achievement", "graduation"], rarity: "STANDARD" },
   { slug: "aurora-sweep", kind: "LIVE_EFFECT", assetKey: "aurora-sweep", sortOrder: 120, universe: "LUXURY", collection: "aurora", occasionTags: ["achievement", "anniversary"], rarity: "PREMIUM" },
-  // Raster art (public/gifts/luxury-red-rose*.webp); the most premium single gift, piece No. 1 of the Luxury atelier.
+  // Raster art (the owner's Legendary diptych, public/gifts/art/); the most premium single gift, piece No. 1 of the Luxury atelier.
   { slug: "luxury-red-rose", kind: "STICKER", assetKey: "luxury-red-rose", sortOrder: 130, universe: "LUXURY", collection: "atelier", occasionTags: ["love", "anniversary", "birthday"], rarity: "PREMIUM", piece: 1 },
 
   // Phase A (20261114120300_gift_universe_catalog_seed). Love & Emotion: soft lines, mostly private 1:1.

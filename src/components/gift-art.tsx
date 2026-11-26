@@ -2,7 +2,7 @@ import { useId } from "react";
 import { resolveGiftArt } from "@/lib/gift-assets";
 
 // The art for every digital gift (src/lib/gifts-data.ts `assetKey`), resolved by src/lib/gift-assets.ts to either a
-// raster picture served same-origin from public/gifts/ (most gifts: the owner's icon sheet, public/gifts/art/) or an
+// raster picture served same-origin from public/gifts/art/ (the owner's icon sheet and Legendary diptych) or an
 // SVG drawn here (no files, nothing from another server). The SVG drawings are decorative (aria-hidden): the name next
 // to them, or the caller's own label, is what a screen reader announces. A raster picture carries the item's localized
 // name as its alt text, so callers always pass `name`. Works in server and client components alike.
@@ -23,8 +23,8 @@ export function GiftArt({ assetKey, name, size = 48, className, eager = false }:
   const art = resolveGiftArt(assetKey);
 
   // Same-origin files, so the CSP's img-src 'self' covers them. Fixed width/height: no layout shift while loading.
-  if (art.type === "image" && art.kind === "icon") {
-    // A sheet icon on its own dark backdrop that fades out at the edges: drawn whole, no card around it.
+  if (art.type === "image") {
+    // Drawn whole on its own dark backdrop that fades out at the edges: no card around it.
     return (
       // eslint-disable-next-line @next/next/no-img-element -- static same-origin asset, sized by srcSet; the app renders images with plain <img>
       <img
@@ -40,31 +40,6 @@ export function GiftArt({ assetKey, name, size = 48, className, eager = false }:
         className={`inline-block shrink-0 object-contain ${className ?? ""}`}
         style={{ width: size, height: size }}
       />
-    );
-  }
-
-  if (art.type === "image") {
-    // An opaque photo: shown as a rounded square card with a hairline edge (the theme's own line colour, so it
-    // reads in light and dark mode alike), cropped to fill.
-    return (
-      <span
-        className={`inline-block shrink-0 overflow-hidden rounded-[22%] bg-surface shadow-sm ring-1 ring-line ${className ?? ""}`}
-        style={{ width: size, height: size }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element -- static same-origin asset, sized by srcSet; the app renders images with plain <img> */}
-        <img
-          src={art.thumbSrc}
-          srcSet={art.srcSet}
-          sizes={`${size}px`}
-          width={size}
-          height={size}
-          alt={name}
-          loading={eager ? "eager" : "lazy"}
-          decoding="async"
-          draggable={false}
-          className="block h-full w-full object-cover"
-        />
-      </span>
     );
   }
 

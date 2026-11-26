@@ -1,18 +1,18 @@
 "use client";
 
-import { Suspense, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Suspense, useEffect, useLayoutEffect, useRef } from "react";
+import { useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei/core/Gltf";
 import type { Group, Material, Mesh, Object3D, Texture } from "three";
-import { acquireGiftCanvas, giftCanvasDpr, giftCanvasHolder, subscribeGiftCanvas } from "@/lib/gift-3d-assets";
+import { GiftCanvas } from "@/components/gift-canvas";
 import type { GiftTierName } from "@/lib/gifts-data";
 
 // The Epic / Legendary 3D reveal: one small React Three Fiber scene with a self-hosted GLB (src/lib/gift-3d-assets.ts).
 // Only GiftStage loads this file, through next/dynamic (ssr: false), and only while a reveal is open and giftRenderer
 // chose "three"; intent prefetch (gift-render-capability.ts) imports it early. Nothing in the grid ever mounts it.
 //
-// Budget rules: one canvas app-wide (acquireGiftCanvas), frameloop "demand" (a frame is drawn only when the entrance or
-// the short idle turn asks for one, and never while the page is hidden), DPR capped at 2 (1.25 on a low-end device),
+// Budget rules: the shared GiftCanvas (one canvas app-wide, frameloop "demand": a frame is drawn only when the entrance
+// or the short idle turn asks for one, and never while the page is hidden, DPR capped at 2, 1.25 on a low-end device),
 // no Draco / Meshopt (useGLTF(src, false, false): no decoder from a CDN, no WebAssembly). On close the model's
 // geometries, materials and textures are disposed and it is dropped from the loader cache; React Three Fiber then
 // disposes the renderer and releases the WebGL context. A lost context, a failed load or a render error hands back to
@@ -130,49 +130,14 @@ export default function GiftScene3D({
   onReady: () => void;
   onFallback: () => void;
 }) {
-  const [token] = useState(() => Symbol("gift-canvas"));
-  const leased = useSyncExternalStore(subscribeGiftCanvas, () => giftCanvasHolder() === token, () => false);
-  const fallbackRef = useRef(onFallback);
-  useEffect(() => {
-    fallbackRef.current = onFallback;
-  });
-  const closingRef = useRef(false);
-
-  useEffect(() => {
-    closingRef.current = false;
-    const release = acquireGiftCanvas(token);
-    if (!release) {
-      fallbackRef.current();
-      return undefined;
-    }
-    return () => {
-      // React Three Fiber forces the context loss itself on unmount: that one is not a failure.
-      closingRef.current = true;
-      release();
-    };
-  }, [token]);
-
-  if (!leased) return null;
   return (
-    <Canvas
-      aria-hidden
-      frameloop="demand"
-      dpr={giftCanvasDpr(window.devicePixelRatio, lowEnd)}
-      gl={{ alpha: true, antialias: !lowEnd, powerPreference: "low-power", failIfMajorPerformanceCaveat: true }}
-      camera={{ position: [0, 0, 4.2], fov: 35 }}
-      onCreated={({ gl }) => {
-        gl.domElement.addEventListener("webglcontextlost", (event) => {
-          event.preventDefault();
-          if (!closingRef.current) fallbackRef.current();
-        });
-      }}
-    >
+    <GiftCanvas lowEnd={lowEnd} onFallback={onFallback}>
       <ambientLight intensity={0.65} />
       <directionalLight position={[2.5, 3, 4]} intensity={1.6} />
       <pointLight position={[-2, -1, 2.5]} intensity={18} color={TIER_LIGHT[tier]} />
       <Suspense fallback={null}>
         <Model src={src} durationMs={durationMs} playKey={playKey} onReady={onReady} />
       </Suspense>
-    </Canvas>
+    </GiftCanvas>
   );
 }

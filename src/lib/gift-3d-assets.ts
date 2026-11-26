@@ -1,10 +1,14 @@
 import type { GiftTierName } from "@/lib/gifts-data";
 import type { GiftEffectMotion } from "@/lib/gift-effect-plan";
+import { GIFT_LEGENDARY_ART_IMAGES } from "@/lib/gift-legendary-art-images";
+import type { LegendaryVariant } from "@/lib/gift-legendary-plan";
 
 // The richer renderers a gift reveal can use on top of the CSS stage (GiftStage), and the one pure rule that
 // picks between them. Client-safe, no I/O, unit-tested (gift-3d-assets.test.ts).
 //
-//   three  Epic and Legendary: a small React Three Fiber scene (gift-scene-3d.tsx) with a self-hosted GLB model.
+//   three  Epic and Legendary: a small React Three Fiber scene, either a self-hosted GLB model (gift-scene-3d.tsx) or,
+//          for the Luxury Red Rose and the Gold Orchid, the cinematic scene around the owner's artwork
+//          (gift-scene-legendary.tsx, plan in gift-legendary-plan.ts). resolveGiftScene says which.
 //   stage  everything else, and the fallback for all of the above: the CSS layers + static art.
 //
 // Nothing here is loaded up front: GiftStage only asks for a renderer when a reveal is open, and the libraries are
@@ -42,7 +46,6 @@ export type GiftModelKey = keyof typeof GIFT_MODEL_FILES;
 /** The model each Epic / Legendary marketplace gift's item is revealed with (by item slug). */
 export const GIFT_MODEL_FOR_ITEM: Readonly<Record<string, GiftModelKey>> = {
   "kindred-spirit": "heart",
-  "luxury-red-rose": "heart",
   "keepsake-locket": "heart",
   "birthday-balloons": "gift-box",
   "playful-kitten": "gift-box",
@@ -52,9 +55,14 @@ export const GIFT_MODEL_FOR_ITEM: Readonly<Record<string, GiftModelKey>> = {
   "level-up": "star",
   "trophy-frame": "star",
   "midnight-crystal-frame": "diamond",
-  "gold-orchid": "diamond",
   "aurora-sweep": "diamond",
   "aurora-frame": "diamond",
+};
+
+/** The gifts revealed with the cinematic scene around their artwork (gift-scene-legendary.tsx), by item slug. */
+export const GIFT_LEGENDARY_SCENE_FOR_ITEM: Readonly<Record<string, LegendaryVariant>> = {
+  "luxury-red-rose": "rose",
+  "gold-orchid": "orchid",
 };
 
 /** The model for a single-item gift, or null (boxes and unmapped items stay on the stage). */
@@ -64,22 +72,39 @@ export function resolveGiftModel(items: readonly { slug: string }[]): GiftModelA
   return key ? GIFT_MODEL_FILES[key] : null;
 }
 
+export type GiftScene =
+  | { kind: "model"; model: GiftModelAsset }
+  | { kind: "legendary"; variant: LegendaryVariant; artSrc: string };
+
+/** The 3D scene a single-item gift's reveal can play: its legendary scene, else its model, else none. */
+export function resolveGiftScene(items: readonly { slug: string }[]): GiftScene | null {
+  if (items.length !== 1) return null;
+  const slug = items[0].slug;
+  if (Object.prototype.hasOwnProperty.call(GIFT_LEGENDARY_SCENE_FOR_ITEM, slug)) {
+    const art = GIFT_LEGENDARY_ART_IMAGES[slug as keyof typeof GIFT_LEGENDARY_ART_IMAGES];
+    if (art) return { kind: "legendary", variant: GIFT_LEGENDARY_SCENE_FOR_ITEM[slug], artSrc: art.src };
+  }
+  const model = resolveGiftModel(items);
+  return model ? { kind: "model", model } : null;
+}
+
 export type GiftRenderer = "three" | "stage";
 
 /**
- * Which renderer a reveal uses. Only with full motion (never with reduce motion or on a low-end device); 3D only for Epic / Legendary with a model and WebGL.
+ * Which renderer a reveal uses. Only with full motion (never with reduce motion or on a low-end device); 3D only for
+ * Epic / Legendary with a scene (resolveGiftScene: a model or the legendary scene) and WebGL.
  * A gift with a signature motion (gift-signature-motion.ts, e.g. Birthday Balloons' release from the box) always uses
- * the stage: the signature is its reveal, and the 3D model would only cover it.
+ * the stage: the signature is its reveal, and the 3D scene would only cover it.
  */
 export function giftRenderer(input: {
   tier: GiftTierName;
   motion: GiftEffectMotion;
   webgl: boolean;
-  hasModel: boolean;
+  hasScene: boolean;
   hasSignature: boolean;
 }): GiftRenderer {
   if (input.motion !== "full" || input.hasSignature) return "stage";
-  if ((input.tier === "EPIC" || input.tier === "LEGENDARY") && input.hasModel && input.webgl) return "three";
+  if ((input.tier === "EPIC" || input.tier === "LEGENDARY") && input.hasScene && input.webgl) return "three";
   return "stage";
 }
 

@@ -108,6 +108,10 @@ describe("gift-marketplace structure", () => {
       "src/lib/gift-effect-plan.ts",
       "src/components/gift-signature-motion.tsx",
       "src/lib/gift-signature-motion.ts",
+      "src/lib/gift-legendary-plan.ts",
+      "src/components/gift-legendary-graph.ts",
+      "src/components/gift-scene-legendary.tsx",
+      "src/components/gift-canvas.tsx",
     ];
     for (const f of effectFiles) {
       const src = read(f);

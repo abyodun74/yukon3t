@@ -26,7 +26,6 @@ export const GIFT_ART_IMAGES = {
   "forget-me-not": { src: "/gifts/art/forget-me-not.333ddc5b25.webp", width: 384, height: 384, thumbSrc: "/gifts/art/forget-me-not-192.3ba99ad012.webp", thumbWidth: 192, thumbHeight: 192 },
   "frost-frame": { src: "/gifts/art/frost-frame.3c449b929e.webp", width: 384, height: 384, thumbSrc: "/gifts/art/frost-frame-192.692487b110.webp", thumbWidth: 192, thumbHeight: 192 },
   "gg-badge": { src: "/gifts/art/gg-badge.c84b2bf08b.webp", width: 384, height: 384, thumbSrc: "/gifts/art/gg-badge-192.ada87cd192.webp", thumbWidth: 192, thumbHeight: 192 },
-  "gold-orchid": { src: "/gifts/art/gold-orchid.27d9601372.webp", width: 384, height: 384, thumbSrc: "/gifts/art/gold-orchid-192.c191b4c2eb.webp", thumbWidth: 192, thumbHeight: 192 },
   "gold-ring-frame": { src: "/gifts/art/gold-ring-frame.f8d898c1b6.webp", width: 384, height: 384, thumbSrc: "/gifts/art/gold-ring-frame-192.be165d40d0.webp", thumbWidth: 192, thumbHeight: 192 },
   "gold-star": { src: "/gifts/art/gold-star.3cdef43e93.webp", width: 384, height: 384, thumbSrc: "/gifts/art/gold-star-192.6f757dc6fe.webp", thumbWidth: 192, thumbHeight: 192 },
   "grad-cap": { src: "/gifts/art/grad-cap.9fa95e5241.webp", width: 384, height: 384, thumbSrc: "/gifts/art/grad-cap-192.02fce4200b.webp", thumbWidth: 192, thumbHeight: 192 },

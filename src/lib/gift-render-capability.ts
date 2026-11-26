@@ -1,7 +1,7 @@
 "use client";
 
 import { giftEffectPlan, isLowEndDevice } from "@/lib/gift-effect-plan";
-import { giftRenderer, resolveGiftModel } from "@/lib/gift-3d-assets";
+import { giftRenderer, resolveGiftScene } from "@/lib/gift-3d-assets";
 import { giftSignatureFor } from "@/lib/gift-signature-motion";
 import type { GiftTierName } from "@/lib/gifts-data";
 
@@ -36,23 +36,29 @@ const prefetched = new Set<string>();
 
 /**
  * Warms what a reveal of this gift would load, on intent only (a hover, focus or press on its card): the 3D scene's
- * code and its model. Does nothing where the reveal would use the plain stage anyway.
+ * code and its model (the legendary scene's texture is the poster the reveal loads anyway). Does nothing where the
+ * reveal would use the plain stage anyway.
  */
 export function prefetchGiftReveal(gift: { tier: GiftTierName; items: readonly { slug: string }[] }): void {
   if (typeof window === "undefined") return;
   const lowEnd = isLowEndDevice(navigator as unknown as Parameters<typeof isLowEndDevice>[0]);
   const { motion } = giftEffectPlan(gift.tier, { reduce: prefersReducedMotion(), lowEnd });
   if (motion !== "full") return;
-  const model = resolveGiftModel(gift.items);
+  const scene = resolveGiftScene(gift.items);
   const renderer = giftRenderer({
     tier: gift.tier,
     motion,
-    hasModel: model !== null,
+    hasScene: scene !== null,
     hasSignature: giftSignatureFor(gift.items) !== null,
-    webgl: model !== null && hasWebGL(),
+    webgl: scene !== null && hasWebGL(),
   });
-  if (renderer === "three" && model && !prefetched.has(model.src)) {
-    prefetched.add(model.src);
-    import("@/components/gift-scene-3d").then((m) => m.preloadGiftModel(model.src)).catch(() => prefetched.delete(model.src));
-  }
+  if (renderer !== "three" || !scene) return;
+  const key = scene.kind === "model" ? scene.model.src : scene.artSrc;
+  if (prefetched.has(key)) return;
+  prefetched.add(key);
+  const warm =
+    scene.kind === "model"
+      ? import("@/components/gift-scene-3d").then((m) => m.preloadGiftModel(scene.model.src))
+      : import("@/components/gift-scene-legendary");
+  warm.catch(() => prefetched.delete(key));
 }

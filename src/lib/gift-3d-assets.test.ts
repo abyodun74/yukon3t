@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  GIFT_LEGENDARY_SCENE_FOR_ITEM,
   GIFT_MODEL_FILES,
   GIFT_MODEL_FOR_ITEM,
   GIFT_MODEL_MAX_BYTES,
@@ -10,7 +11,9 @@ import {
   giftCanvasHolder,
   giftRenderer,
   resolveGiftModel,
+  resolveGiftScene,
 } from "@/lib/gift-3d-assets";
+import { GIFT_LEGENDARY_ART_IMAGES } from "@/lib/gift-legendary-art-images";
 import { GIFT_MARKET, GIFT_PRODUCTS, GIFT_TIERS } from "@/lib/gifts-data";
 import { giftSignatureFor } from "@/lib/gift-signature-motion";
 
@@ -20,13 +23,24 @@ import { giftSignatureFor } from "@/lib/gift-signature-motion";
 
 const ROOT = process.cwd();
 const read = (file: string) => readFileSync(path.join(ROOT, file), "utf8");
-const full = { motion: "full" as const, webgl: true, hasModel: true, hasSignature: false };
+const full = { motion: "full" as const, webgl: true, hasScene: true, hasSignature: false };
 
 describe("giftRenderer", () => {
-  it("3D only for Epic and Legendary, with a model and WebGL", () => {
+  it("3D only for Epic and Legendary, with a scene and WebGL", () => {
     expect(GIFT_TIERS.map((tier) => giftRenderer({ ...full, tier }))).toEqual(["stage", "stage", "three", "three"]);
     expect(giftRenderer({ ...full, tier: "LEGENDARY", webgl: false })).toBe("stage");
-    expect(giftRenderer({ ...full, tier: "LEGENDARY", hasModel: false })).toBe("stage");
+    expect(giftRenderer({ ...full, tier: "LEGENDARY", hasScene: false })).toBe("stage");
+  });
+
+  it("the Luxury Red Rose and the Gold Orchid play their legendary scene (Legendary tier, no signature motion)", () => {
+    for (const slug of ["luxury-red-rose", "gold-orchid"]) {
+      const market = GIFT_MARKET.find((g) => GIFT_PRODUCTS.find((p) => p.sku === g.sku)?.items[0].slug === slug);
+      expect(market?.tier, slug).toBe("LEGENDARY");
+      const items = [{ slug }];
+      expect(giftSignatureFor(items), slug).toBeNull();
+      expect(giftRenderer({ ...full, tier: "LEGENDARY", hasScene: resolveGiftScene(items) !== null })).toBe("three");
+      for (const motion of ["still", "light"] as const) expect(giftRenderer({ ...full, tier: "LEGENDARY", motion })).toBe("stage");
+    }
   });
 
   it("never for a gift with a signature motion: Birthday Balloons' release from the box replaces its 3D scene", () => {
@@ -74,22 +88,49 @@ describe("one canvas at a time", () => {
   });
 });
 
-describe("the model registry", () => {
+describe("the scene registry", () => {
   const slugOf = new Map(GIFT_PRODUCTS.filter((p) => !p.isBox).map((p) => [p.sku, p.items[0].slug]));
 
-  it("every Epic and Legendary marketplace gift has a model", () => {
+  it("every Epic and Legendary marketplace gift has a 3D scene", () => {
     const rich = GIFT_MARKET.filter((g) => g.tier === "EPIC" || g.tier === "LEGENDARY");
     expect(rich.length).toBeGreaterThan(0);
     for (const gift of rich) {
       const slug = slugOf.get(gift.sku);
       expect(slug, gift.sku).toBeDefined();
-      expect(resolveGiftModel([{ slug: slug! }]), gift.sku).not.toBeNull();
+      expect(resolveGiftScene([{ slug: slug! }]), gift.sku).not.toBeNull();
     }
   });
 
   it("only single gifts get one", () => {
     expect(resolveGiftModel([{ slug: "fireworks" }, { slug: "fireworks" }])).toBeNull();
     expect(resolveGiftModel([{ slug: "wave" }])).toBeNull();
+    expect(resolveGiftScene([{ slug: "luxury-red-rose" }, { slug: "luxury-red-rose" }])).toBeNull();
+    expect(resolveGiftScene([{ slug: "wave" }])).toBeNull();
+    expect(resolveGiftScene([{ slug: "toString" }])).toBeNull();
+  });
+
+  it("the rose and the orchid get the legendary scene with their own artwork, and no placeholder model", () => {
+    expect(GIFT_LEGENDARY_SCENE_FOR_ITEM).toEqual({ "luxury-red-rose": "rose", "gold-orchid": "orchid" });
+    expect(resolveGiftScene([{ slug: "luxury-red-rose" }])).toEqual({
+      kind: "legendary",
+      variant: "rose",
+      artSrc: GIFT_LEGENDARY_ART_IMAGES["luxury-red-rose"].src,
+    });
+    expect(resolveGiftScene([{ slug: "gold-orchid" }])).toEqual({
+      kind: "legendary",
+      variant: "orchid",
+      artSrc: GIFT_LEGENDARY_ART_IMAGES["gold-orchid"].src,
+    });
+    for (const slug of Object.keys(GIFT_LEGENDARY_SCENE_FOR_ITEM)) {
+      expect(GIFT_MODEL_FOR_ITEM[slug], slug).toBeUndefined();
+      expect(resolveGiftModel([{ slug }]), slug).toBeNull();
+    }
+    expect(resolveGiftScene([{ slug: "kindred-spirit" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.heart });
+  });
+
+  it("every model file is still used by some gift", () => {
+    const used = new Set(Object.values(GIFT_MODEL_FOR_ITEM));
+    for (const key of Object.keys(GIFT_MODEL_FILES)) expect(used.has(key as keyof typeof GIFT_MODEL_FILES), key).toBe(true);
   });
 
   it.each(Object.entries(GIFT_MODEL_FILES))("%s.glb: same-origin, small, self-contained, uncompressed, marked", (_key, asset) => {
@@ -117,7 +158,9 @@ describe("the model registry", () => {
 
   it("every mapped item exists in the catalog and every model file is registered", () => {
     const slugs = new Set(GIFT_PRODUCTS.flatMap((p) => p.items.map((i) => i.slug)));
-    for (const slug of Object.keys(GIFT_MODEL_FOR_ITEM)) expect(slugs.has(slug), slug).toBe(true);
+    for (const slug of [...Object.keys(GIFT_MODEL_FOR_ITEM), ...Object.keys(GIFT_LEGENDARY_SCENE_FOR_ITEM)]) {
+      expect(slugs.has(slug), slug).toBe(true);
+    }
     const onDisk = readdirSync(path.join(ROOT, "public", "gifts", "models")).filter((f) => f.endsWith(".glb"));
     expect(onDisk.sort()).toEqual(Object.values(GIFT_MODEL_FILES).map((a) => path.basename(a.src)).sort());
   });
@@ -137,33 +180,59 @@ describe("loading boundaries", () => {
   const rel = (f: string) => path.relative(ROOT, f).replace(/\\/g, "/");
   const importing = (pattern: RegExp) => files.filter((f) => pattern.test(readFileSync(f, "utf8"))).map(rel).sort();
 
-  it("three.js and React Three Fiber are imported only by the 3D scene", () => {
+  it("three.js and React Three Fiber are imported only by the 3D scenes and their shared canvas / graph", () => {
     expect(importing(/from\s*["'](three|@react-three\/[^"']+)["']|import\(\s*["'](three|@react-three)/)).toEqual([
+      "src/components/gift-canvas.tsx",
+      "src/components/gift-legendary-graph.ts",
       "src/components/gift-scene-3d.tsx",
+      "src/components/gift-scene-legendary.tsx",
     ]);
   });
 
-  it("the scene is only ever loaded dynamically", () => {
-    const loaders = importing(/@\/components\/gift-scene-3d["']/);
+  it.each(["gift-scene-3d", "gift-scene-legendary"])("%s is only ever loaded dynamically", (name) => {
+    const loaders = importing(new RegExp(`@/components/${name}["']`));
     expect(loaders).toEqual(["src/components/gift-stage.tsx", "src/lib/gift-render-capability.ts"]);
     for (const f of loaders) {
       const src = read(f);
-      expect(src, f).not.toMatch(/^\s*import\s[^(]*["']@\/components\/gift-scene-3d["']/m);
+      expect(src, f).not.toMatch(new RegExp(`^\\s*import\\s[^(]*["']@/components/${name}["']`, "m"));
     }
     const stage = read("src/components/gift-stage.tsx");
-    expect(stage).toMatch(/dynamic\(\(\) => import\("@\/components\/gift-scene-3d"\), \{ ssr: false/);
+    expect(stage).toContain(`dynamic(() => import("@/components/${name}"), { ssr: false`);
   });
 
-  it("models load without Draco or Meshopt, and the scene renders on demand with a capped DPR", () => {
+  it("the shared canvas and the legendary graph are reached only through the lazily loaded scenes", () => {
+    expect(importing(/@\/components\/gift-canvas["']/)).toEqual(["src/components/gift-scene-3d.tsx", "src/components/gift-scene-legendary.tsx"]);
+    expect(importing(/@\/components\/gift-legendary-graph["']/)).toEqual(["src/components/gift-scene-legendary.tsx"]);
+  });
+
+  it("models load without Draco or Meshopt, and the scenes render on demand with a capped DPR", () => {
     const scene = read("src/components/gift-scene-3d.tsx");
     const calls = [...scene.matchAll(/useGLTF(?:\.preload)?\(([^)]*)\)/g)].map((m) => m[1].replace(/\s/g, ""));
     expect(calls.length).toBeGreaterThan(0);
     for (const args of calls) expect(args).toMatch(/^src,false,false$/);
-    expect(scene).toContain('frameloop="demand"');
-    expect(scene).toContain("giftCanvasDpr(");
-    expect(scene).toContain("acquireGiftCanvas(");
-    expect(scene).toContain("webglcontextlost");
-    expect(scene).not.toMatch(/https?:\/\//);
+    const canvas = read("src/components/gift-canvas.tsx");
+    expect(canvas).toContain('frameloop="demand"');
+    expect(canvas).toContain("giftCanvasDpr(");
+    expect(canvas).toContain("acquireGiftCanvas(");
+    expect(canvas).toContain("webglcontextlost");
+    for (const f of ["src/components/gift-scene-3d.tsx", "src/components/gift-scene-legendary.tsx"]) {
+      expect(read(f), f).toContain("<GiftCanvas");
+    }
+    for (const f of ["gift-canvas.tsx", "gift-scene-3d.tsx", "gift-scene-legendary.tsx", "gift-legendary-graph.ts"]) {
+      expect(read(`src/components/${f}`), f).not.toMatch(/https?:\/\/|fetch\(|XMLHttpRequest/);
+    }
+  });
+
+  it("the legendary scene sets up its texture properly and disposes everything on close", () => {
+    const scene = read("src/components/gift-scene-legendary.tsx");
+    expect(scene).toContain("colorSpace = SRGBColorSpace");
+    expect(scene).toContain("anisotropy = Math.min(MAX_ANISOTROPY");
+    expect(scene).toContain("texture?.dispose()");
+    expect(scene).toContain("built.dispose()");
+    expect(scene).toContain("scene.remove(built.root)");
+    expect(scene).toContain('removeEventListener("visibilitychange"');
+    expect(scene).toContain("cancelAnimationFrame(frame)");
+    expect(scene).toContain("legendarySceneNeedsFrames(");
   });
 
   it("the new libraries are pinned to exact versions", () => {

@@ -1,11 +1,22 @@
 """Slice the owner's gift icon sheet ("Glowing Gift Icon Gallery", 1536x1024, a grid of glowing icons on a dark navy
 backdrop, each with a tier badge and its name under it) into the per-gift WebP files in public/gifts/art/ and write
-the typed manifest src/lib/gift-art-images.ts.
+the typed manifest src/lib/gift-art-images.ts. With --legendary, slice the owner's Legendary diptych instead (see below).
 
     python scripts/slice-gift-art.py "<path to the sheet .png>" [--preview contact.png]
+    python scripts/slice-gift-art.py --legendary "<path to the Legendary Rose and Golden Orchid Duo .png>" [--preview p.png]
 
 Needs Python 3 with Pillow (WebP support), numpy and opencv-python. Deterministic: the same sheet gives the same bytes
-with the same library versions. The sheet itself is not in the repo; keep the original somewhere safe.
+with the same library versions. Neither original is in the repo; keep them somewhere safe. Each mode only replaces
+its own gifts' files in public/gifts/art/ (the sheet: the slugs in CELLS; --legendary: the slugs in LEGENDARY).
+
+--legendary: the owner's "Legendary Rose and Golden Orchid Duo" (1774x887, two square scenes side by side: the Luxury
+Red Rose on the left, the Gold Orchid on the right, each with its baked "LEGENDARY" plaque, which is kept). The seam is
+found as the strongest colour step between neighbouring columns in the middle tenth of the width; each half is
+cropped to the largest centred square (the whole artwork, ~887 px). The PNG's alpha is nearly opaque (~245) and falls
+off only at the far edges: it is normalised by its median and the art composited over black, then the same kind of
+rounded-square fade as the icons is applied (starting further out, these are full scenes). Output per gift:
+<slug>.<hash>.webp (768x768, the reveal's art and the legendary 3D scene's texture) and <slug>-256.<hash>.webp, and
+the manifest src/lib/gift-legendary-art-images.ts. The 768 file is slightly downscaled from the source, never upscaled.
 
 How it works (no fixed pixel positions):
 - The backdrop is modelled as a smooth degree-4 polynomial fitted to the pixels close to it.
@@ -34,13 +45,14 @@ OUT_DIR = os.path.join(ROOT, "public", "gifts", "art")
 MANIFEST = os.path.join(ROOT, "src", "lib", "gift-art-images.ts")
 
 # The sheet's cells in reading order (row by row, left to right), named by the gift item slug (= its assetKey) they
-# show. None = not used: row 5's second cell is a second, smaller "Trophy Frame"; row 1's first one is cleaner.
+# show. None = not used: row 5's second cell is a second, smaller "Trophy Frame"; row 1's first one is cleaner. Row
+# 5's fourth cell is the sheet's Gold Orchid, replaced by the Legendary diptych's (--legendary).
 CELLS = [
     "trophy-frame", "birthday-balloons", "teddy-bear", "fireworks", "keepsake-locket", "high-five",
     "wave", "coffee", "rose", "grad-cap", "supporter-star", "kindred-spirit",
     "aurora-frame", "frost-frame", "gold-ring-frame", "confetti", "aurora-sweep", "heartbeat-note",
     "paper-crane", "forget-me-not", "birthday-candle", "cake-slice", "gold-star", "gg-badge",
-    "level-up", None, "pixel-heart", "gold-orchid", "midnight-crystal-frame", "lantern",
+    "level-up", None, "pixel-heart", None, "midnight-crystal-frame", "lantern",
     "shared-table", "playful-kitten", "houseplant", "sunset-postcard", "shooting-star",
 ]
 LARGE, THUMB = 384, 192
@@ -49,6 +61,31 @@ MARGIN = 1.24  # square side = longest side of the art's body x this
 FADE_FROM, FADE_TO = 0.74, 1.0  # rounded-square fade, as a fraction of the half side
 FADE_POWER = 4  # superellipse exponent: 2 = circle, higher = squarer
 TEXT_PAD = 5  # px around every detected badge word and name that is always replaced by plain backdrop
+
+# --legendary: the diptych's halves, left to right, by item slug.
+LEGENDARY = ["luxury-red-rose", "gold-orchid"]
+LEGENDARY_LARGE, LEGENDARY_THUMB = 768, 256
+LEGENDARY_FADE_FROM = 0.8
+LEGENDARY_QUALITY = 76
+LEGENDARY_MANIFEST = os.path.join(ROOT, "src", "lib", "gift-legendary-art-images.ts")
+
+
+def remove_outputs(slugs):
+    """Deletes this mode's previous files (and only those): <slug>.<hash>.webp and <slug>-<size>.<hash>.webp."""
+    import re
+
+    pattern = re.compile(r"^(%s)(-\d+)?\.[0-9a-f]{10}\.webp$" % "|".join(re.escape(s) for s in slugs))
+    for old in os.listdir(OUT_DIR):
+        if pattern.match(old):
+            os.remove(os.path.join(OUT_DIR, old))
+
+
+def edge_fade(size, fade_from):
+    """Rounded-square (superellipse) alpha fade, 1 inside `fade_from` of the half side, smoothstepped to 0 at the edge."""
+    t = (np.arange(size) + 0.5) / size * 2 - 1
+    norm = (np.abs(t)[None, :] ** FADE_POWER + np.abs(t)[:, None] ** FADE_POWER) ** (1 / FADE_POWER)
+    f = np.clip((FADE_TO - norm) / (FADE_TO - fade_from), 0, 1)
+    return f * f * (3 - 2 * f)
 
 
 def background_model(im):
@@ -154,20 +191,17 @@ def render(rebased, target, cell, box, text_mask):
     images = {}
     for size in (LARGE, THUMB):
         scaled = cv2.resize(rgb, (size, size), interpolation=cv2.INTER_LANCZOS4 if size > side else cv2.INTER_AREA)
-        t = (np.arange(size) + 0.5) / size * 2 - 1
-        norm = (np.abs(t)[None, :] ** FADE_POWER + np.abs(t)[:, None] ** FADE_POWER) ** (1 / FADE_POWER)
-        f = np.clip((FADE_TO - norm) / (FADE_TO - FADE_FROM), 0, 1)
-        alpha = f * f * (3 - 2 * f)
+        alpha = edge_fade(size, FADE_FROM)
         rgba = np.dstack([np.clip(scaled, 0, 255), alpha * 255])
         images[size] = Image.fromarray(np.round(rgba).astype(np.uint8), "RGBA")
     return images, side
 
 
-def save(img, stem):
+def save(img, stem, quality=85):
     import io
 
     buf = io.BytesIO()
-    img.save(buf, "WEBP", quality=85, alpha_quality=90, method=6, exact=False)
+    img.save(buf, "WEBP", quality=quality, alpha_quality=90, method=6, exact=False)
     data = buf.getvalue()
     name = f"{stem}.{hashlib.sha256(data).hexdigest()[:10]}.webp"
     with open(os.path.join(OUT_DIR, name), "wb") as fh:
@@ -195,13 +229,32 @@ export const GIFT_ART_IMAGES = {
 '''
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("sheet", help="path to the original sheet (PNG)")
-    ap.add_argument("--preview", help="also write a contact sheet of the results (dark and light backdrop) here")
-    args = ap.parse_args()
+LEGENDARY_MANIFEST_HEAD = '''// GENERATED by scripts/slice-gift-art.py --legendary from the owner's "Legendary Rose and Golden Orchid Duo"; do not
+// edit by hand, re-run the script (see CLAUDE.md, "Art pipeline"). Each entry is a gift item's assetKey (= its slug) and
+// its two square WebP files in public/gifts/art/ (content-hashed names, cached as immutable): the whole scene on its
+// dark backdrop (the baked "LEGENDARY" plaque included), fading out towards the edges. The large file is also the
+// texture of the legendary 3D scene (src/components/gift-scene-legendary.tsx).
 
-    im = np.asarray(Image.open(args.sheet).convert("RGB")).astype(np.float64)
+import type { GiftArtImage } from "@/lib/gift-art-images";
+
+export const GIFT_LEGENDARY_ART_IMAGES = {
+'''
+
+
+def write_preview(path, images):
+    tile, cols = 160, 6
+    sheet = Image.new("RGB", (cols * tile * 2, ((len(images) + cols - 1) // cols) * tile), (40, 40, 40))
+    for i, img in enumerate(images):
+        small = img.resize((tile, tile), Image.LANCZOS)
+        for j, colour in enumerate([(14, 17, 19), (246, 244, 240)]):
+            back = Image.new("RGBA", (tile, tile), colour + (255,))
+            back.alpha_composite(small)
+            sheet.paste(back.convert("RGB"), ((i % cols) * tile * 2 + j * tile, (i // cols) * tile))
+    sheet.save(path)
+
+
+def slice_sheet(path, preview):
+    im = np.asarray(Image.open(path).convert("RGB")).astype(np.float64)
     bg = background_model(im)
     target = bg.reshape(-1, 3).mean(0)
     rebased = im - bg + target
@@ -218,9 +271,7 @@ def main():
     text_mask = np.clip(cv2.GaussianBlur(text_mask, (0, 0), 1.5) * 1.5, 0, 1)
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    for old in os.listdir(OUT_DIR):
-        if old.endswith(".webp"):
-            os.remove(os.path.join(OUT_DIR, old))
+    remove_outputs([slug for slug in CELLS if slug])
 
     lines, results = [], []
     for slug, cell in zip(CELLS, cells):
@@ -242,17 +293,71 @@ def main():
     for slug, box, side, lb, tb, _ in results:
         print(f"{slug:24} body {box[2]:3}x{box[3]:<3} square {side:3}px  {lb / 1024:5.1f} KB + {tb / 1024:4.1f} KB")
     print(f"{len(results)} gifts, {sum(r[3] + r[4] for r in results) / 1024:.0f} KB total")
+    if preview:
+        write_preview(preview, [r[5] for r in results])
 
-    if args.preview:
-        tile, cols = 160, 6
-        sheet = Image.new("RGB", (cols * tile * 2, ((len(results) + cols - 1) // cols) * tile), (40, 40, 40))
-        for i, (*_, img) in enumerate(results):
-            small = img.resize((tile, tile), Image.LANCZOS)
-            for j, colour in enumerate([(14, 17, 19), (246, 244, 240)]):
-                back = Image.new("RGBA", (tile, tile), colour + (255,))
-                back.alpha_composite(small)
-                sheet.paste(back.convert("RGB"), ((i % cols) * tile * 2 + j * tile, (i // cols) * tile))
-        sheet.save(args.preview)
+
+def find_seam(rgb):
+    """The column where the right half starts: the strongest step between neighbouring columns near the middle."""
+    w = rgb.shape[1]
+    step = np.abs(np.diff(rgb, axis=1)).mean(axis=(0, 2))
+    lo, hi = int(w * 0.45), int(w * 0.55)
+    return lo + int(np.argmax(step[lo:hi])) + 1
+
+
+def slice_legendary(path, preview):
+    src = np.asarray(Image.open(path).convert("RGBA")).astype(np.float64)
+    rgb, alpha = src[..., :3], src[..., 3]
+    alpha = np.clip(alpha / max(np.median(alpha), 1), 0, 1)
+    rgb = rgb * alpha[..., None]
+    h, w, _ = rgb.shape
+    seam = find_seam(rgb)
+    halves = [(0, seam), (seam, w)]
+    print(f"source {w}x{h}, seam at column {seam}")
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    remove_outputs(LEGENDARY)
+    lines, previews = [], []
+    for slug, (x0, x1) in zip(LEGENDARY, halves):
+        side = min(h, x1 - x0)
+        sx, sy = x0 + (x1 - x0 - side) // 2, (h - side) // 2
+        crop = rgb[sy: sy + side, sx: sx + side]
+        out = {}
+        for size in (LEGENDARY_LARGE, LEGENDARY_THUMB):
+            if size > side:
+                sys.exit(f"{slug}: the half is only {side}px, smaller than {size}px")
+            scaled = cv2.resize(crop, (size, size), interpolation=cv2.INTER_AREA)
+            rgba = np.dstack([np.clip(scaled, 0, 255), edge_fade(size, LEGENDARY_FADE_FROM) * 255])
+            out[size] = Image.fromarray(np.round(rgba).astype(np.uint8), "RGBA")
+        large, large_bytes = save(out[LEGENDARY_LARGE], slug, quality=LEGENDARY_QUALITY)
+        thumb, thumb_bytes = save(out[LEGENDARY_THUMB], f"{slug}-{LEGENDARY_THUMB}", quality=LEGENDARY_QUALITY)
+        print(f"{slug:24} crop {side}px at ({sx},{sy})  {large_bytes / 1024:5.1f} KB + {thumb_bytes / 1024:4.1f} KB")
+        previews.append(out[LEGENDARY_LARGE])
+        lines.append(
+            f'  "{slug}": {{ src: "/gifts/art/{large}", width: {LEGENDARY_LARGE}, height: {LEGENDARY_LARGE}, '
+            f'thumbSrc: "/gifts/art/{thumb}", thumbWidth: {LEGENDARY_THUMB}, thumbHeight: {LEGENDARY_THUMB} }},'
+        )
+    lines.sort()
+    with open(LEGENDARY_MANIFEST, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(
+            LEGENDARY_MANIFEST_HEAD + "\n".join(lines) + "\n} as const satisfies Readonly<Record<string, GiftArtImage>>;\n"
+        )
+    if preview:
+        write_preview(preview, previews)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("sheet", nargs="?", help="path to the original icon sheet (PNG)")
+    ap.add_argument("--legendary", metavar="DUO", help="path to the original Legendary diptych (PNG) instead of the sheet")
+    ap.add_argument("--preview", help="also write a contact sheet of the results (dark and light backdrop) here")
+    args = ap.parse_args()
+    if bool(args.sheet) == bool(args.legendary):
+        ap.error("give either the sheet or --legendary DUO")
+    if args.legendary:
+        slice_legendary(args.legendary, args.preview)
+    else:
+        slice_sheet(args.sheet, args.preview)
 
 
 if __name__ == "__main__":

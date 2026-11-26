@@ -1,18 +1,21 @@
 "use client";
 
-import { Component, Fragment, useCallback, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { Component, Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { GiftArt } from "@/components/gift-art";
 import { GiftSignatureMotion } from "@/components/gift-signature-motion";
-import { giftRenderer, resolveGiftModel } from "@/lib/gift-3d-assets";
+import { giftRenderer, resolveGiftScene } from "@/lib/gift-3d-assets";
 import { giftEffectPlan, isLowEndDevice, sparkleSpots } from "@/lib/gift-effect-plan";
+import { legendaryHitMs } from "@/lib/gift-legendary-plan";
 import { hasWebGL } from "@/lib/gift-render-capability";
 import { giftSignatureFor } from "@/lib/gift-signature-motion";
 import type { GiftTierName } from "@/lib/gift-market";
 
 // The richer renderers are separate chunks, fetched only when a reveal actually renders one (never on the server, never
-// in the grid's compact cards): three.js + React Three Fiber for Epic / Legendary.
+// in the grid's compact cards): three.js + React Three Fiber for Epic / Legendary, a GLB model or, for the Luxury Red
+// Rose and the Gold Orchid, the cinematic scene around their artwork.
 const GiftScene3D = dynamic(() => import("@/components/gift-scene-3d"), { ssr: false, loading: () => null });
+const GiftSceneLegendary = dynamic(() => import("@/components/gift-scene-legendary"), { ssr: false, loading: () => null });
 
 /** A renderer that throws (a chunk that failed to load, a broken model) hands back to the plain stage. */
 class RendererBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
@@ -49,11 +52,13 @@ export function useLowEndDevice(): boolean {
  * grid's small card: halo only, nothing moves. Decorative: the name next to it is what screen readers get. `playKey`
  * restarts the whole sequence (Replay).
  *
- * Epic and Legendary gifts with a model (src/lib/gift-3d-assets.ts) play a small 3D scene over the stage's layers
- * instead of the flat art, only with full motion (giftRenderer: never with reduce motion or on a low-end device),
- * only where the browser has WebGL and never in a compact card.
+ * Epic and Legendary gifts with a 3D scene (src/lib/gift-3d-assets.ts, resolveGiftScene: a GLB model, or for the
+ * Luxury Red Rose and the Gold Orchid the cinematic scene around their artwork, gift-scene-legendary.tsx) play it over
+ * the stage's layers instead of the flat art, only with full motion (giftRenderer: never with reduce motion or on a
+ * low-end device), only where the browser has WebGL and never in a compact card.
  * The static art stays underneath as the poster until the scene is ready, and is what remains if it fails or the
- * WebGL context is lost. Replay restarts the scene without recreating its canvas.
+ * WebGL context is lost. Replay restarts the scene without recreating its canvas. `climaxCount` (the reveal's sound
+ * climax cues) adds a light pulse to the legendary scene.
  *
  * A single-item gift with a signature motion (src/lib/gift-signature-motion.ts: Wave, High five, Birthday Balloons,
  * Confetti) plays GiftSignatureMotion instead of the art's generic entrance (and never the 3D scene); the tier's
@@ -68,6 +73,7 @@ export function GiftStage({
   reduce,
   playAnimation = true,
   compact = false,
+  climaxCount = 0,
   className,
 }: {
   tier: GiftTierName;
@@ -79,14 +85,16 @@ export function GiftStage({
   /** false: never load the 3D renderer (the grid's small cards); the static art only. */
   playAnimation?: boolean;
   compact?: boolean;
+  /** How many climax cues the reveal's sound has reached (the legendary scene pulses on each). */
+  climaxCount?: number;
   className?: string;
 }) {
   const lowEnd = useLowEndDevice();
   const plan = giftEffectPlan(tier, { reduce, lowEnd });
   const rich = !compact;
   const signature = rich && playAnimation ? giftSignatureFor(items) : null;
-  const model = rich && playAnimation && !signature ? resolveGiftModel(items) : null;
-  const webgl = useSyncExternalStore(noopSubscribe, () => model !== null && plan.motion === "full" && hasWebGL(), () => false);
+  const scene = rich && playAnimation && !signature ? resolveGiftScene(items) : null;
+  const webgl = useSyncExternalStore(noopSubscribe, () => scene !== null && plan.motion === "full" && hasWebGL(), () => false);
   const [failed, setFailed] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
   const onSceneReady = useCallback(() => setSceneReady(true), []);
@@ -96,7 +104,12 @@ export function GiftStage({
   }, []);
   const renderer = failed
     ? "stage"
-    : giftRenderer({ tier, motion: plan.motion, webgl, hasModel: model !== null, hasSignature: signature !== null });
+    : giftRenderer({ tier, motion: plan.motion, webgl, hasScene: scene !== null, hasSignature: signature !== null });
+  // When this play (or Replay) started: the legendary scene's clock, so a scene that loads late joins the timeline.
+  const playStartRef = useRef(0);
+  useEffect(() => {
+    playStartRef.current = performance.now();
+  }, [playKey]);
   const particles = (tier === "EPIC" || tier === "LEGENDARY") && (compact || plan.motion !== "light");
   const sweep = tier === "LEGENDARY" && (compact || plan.motion !== "light");
   const spots = rich ? sparkleSpots(plan.sparkles) : [];
@@ -156,18 +169,33 @@ export function GiftStage({
           </span>
         )}
       </Fragment>
-      {renderer === "three" && model && (
+      {renderer === "three" && scene && (
         <span className="gift-stage-scene">
           <RendererBoundary onError={onSceneFailed}>
-            <GiftScene3D
-              src={model.src}
-              tier={tier}
-              durationMs={plan.durationMs}
-              playKey={playKey}
-              lowEnd={lowEnd}
-              onReady={onSceneReady}
-              onFallback={onSceneFailed}
-            />
+            {scene.kind === "legendary" ? (
+              <GiftSceneLegendary
+                variant={scene.variant}
+                artSrc={scene.artSrc}
+                artSize={size}
+                playKey={playKey}
+                playStartRef={playStartRef}
+                hitMs={legendaryHitMs(plan)}
+                climaxCount={climaxCount}
+                lowEnd={lowEnd}
+                onReady={onSceneReady}
+                onFallback={onSceneFailed}
+              />
+            ) : (
+              <GiftScene3D
+                src={scene.model.src}
+                tier={tier}
+                durationMs={plan.durationMs}
+                playKey={playKey}
+                lowEnd={lowEnd}
+                onReady={onSceneReady}
+                onFallback={onSceneFailed}
+              />
+            )}
           </RendererBoundary>
         </span>
       )}
