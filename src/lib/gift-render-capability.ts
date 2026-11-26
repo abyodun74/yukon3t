@@ -2,6 +2,7 @@
 
 import { giftEffectPlan, isLowEndDevice } from "@/lib/gift-effect-plan";
 import { giftRenderer, resolveGiftModel } from "@/lib/gift-3d-assets";
+import { giftSignatureFor } from "@/lib/gift-signature-motion";
 import type { GiftTierName } from "@/lib/gifts-data";
 
 // What this browser can do for a gift reveal, checked once and cached: WebGL for the 3D scene (old Android WebViews may
@@ -47,6 +48,7 @@ export function prefetchGiftReveal(gift: { tier: GiftTierName; items: readonly {
     tier: gift.tier,
     motion,
     hasModel: model !== null,
+    hasSignature: giftSignatureFor(gift.items) !== null,
     webgl: model !== null && hasWebGL(),
   });
   if (renderer === "three" && model && !prefetched.has(model.src)) {

@@ -1480,6 +1480,92 @@ img[data-press-highlight] {
   }
 }
 
+/* Gift signature motions (src/lib/gift-signature-motion.ts, src/components/gift-signature-motion.tsx): Wave, High five,
+   Birthday Balloons and Confetti replace the stage's generic entrance with their own. No keyframes here: the component
+   animates each layer from the pure plan with the Web Animations API (transform + opacity, finite, fill backwards).
+   This is only the final pose every layer returns to: the art at rest, every transient layer (box, lid, halves, flash,
+   ring, motion lines, particles) hidden. So reduced motion, a missing track or a cancelled animation all show the
+   plain art. No CSS filter, no will-change (the browser promotes animated layers itself). */
+.gift-sig {
+  position: relative;
+  z-index: 1;
+  display: block;
+  flex-shrink: 0;
+}
+.gift-sig-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.gift-sig-fx {
+  pointer-events: none;
+  position: absolute;
+  opacity: 0;
+}
+.gift-sig-particle {
+  border-radius: 1px;
+}
+.gift-sig-particle-circle {
+  border-radius: 9999px;
+}
+.gift-sig-particle-line {
+  border-radius: 9999px;
+}
+.gift-sig-flash,
+.gift-sig-ring {
+  width: 54%;
+  aspect-ratio: 1;
+  margin-left: -27%;
+  margin-top: -27%;
+  border-radius: 9999px;
+}
+.gift-sig-flash {
+  background: radial-gradient(circle, rgba(255, 250, 230, 0.95), rgba(255, 214, 120, 0.35) 38%, transparent 68%);
+}
+.gift-sig-ring {
+  width: 30%;
+  margin-left: -15%;
+  margin-top: -15%;
+  border: 2px solid color-mix(in srgb, var(--gift-tier) 40%, white);
+}
+.gift-sig-box,
+.gift-sig-lid {
+  display: block;
+}
+.gift-sig-lid {
+  transform-origin: 18% 100%;
+}
+/* The Wave's hand swings as one tile: a soft round mask hides the tile's corners so no square edge tilts with it. */
+.gift-sig-wave-hand {
+  mask-image: radial-gradient(circle, #000 60%, transparent 71%);
+  -webkit-mask-image: radial-gradient(circle, #000 60%, transparent 71%);
+}
+.gift-sig-lines {
+  top: 10%;
+  width: 16%;
+  height: 26%;
+}
+.gift-sig-lines-end {
+  left: 82%;
+}
+.gift-sig-lines-start {
+  left: 0%;
+}
+.gift-sig-lines-start .gift-sig-arc {
+  transform: scaleX(-1);
+}
+.gift-sig-arc {
+  position: absolute;
+  inset: 20% 40% 20% 0;
+  border: 4px solid transparent;
+  border-right-color: #ffc94a;
+  border-radius: 9999px;
+}
+.gift-sig-arc-outer {
+  inset: 0 0 0 14%;
+  border-right-color: #ffe7a6;
+}
+
 /* The hearts that float up a post, a Muse or a Story when it is liked (heart-burst-layer.tsx in PostCard, MuseCard and
    StoryViewer; src/lib/heart-burst.ts + like-heart-art.tsx). The layer
    is absolute, clipped to the media container (overflow hidden), pointer-events none and takes no layout space; each

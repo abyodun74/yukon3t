@@ -32,6 +32,20 @@ describe("the picker's universe styles", () => {
   });
 });
 
+describe("the signature motions' styles", () => {
+  it("sit above the universes' section and hold only final poses (the motion is the plan's, via the Web Animations API)", () => {
+    const css = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8");
+    const start = css.indexOf("Gift signature motions (");
+    const end = css.indexOf("The hearts that float up", start);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    expect(start).toBeLessThan(css.indexOf("Gift universes (Phase A"));
+    const section = css.slice(start, end);
+    expect(section).not.toMatch(/\banimation(-name)?\s*:/);
+    expect(section).not.toMatch(/@keyframes|will-change\s*:|\bfilter\s*:/);
+  });
+});
+
 describe("gift animation players", () => {
   it("ships no Lottie player or Lottie files (removed 2026-11-25)", () => {
     const pkg = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")) as { dependencies: Record<string, string> };

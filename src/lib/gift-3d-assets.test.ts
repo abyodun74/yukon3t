@@ -12,6 +12,7 @@ import {
   resolveGiftModel,
 } from "@/lib/gift-3d-assets";
 import { GIFT_MARKET, GIFT_PRODUCTS, GIFT_TIERS } from "@/lib/gifts-data";
+import { giftSignatureFor } from "@/lib/gift-signature-motion";
 
 // The 3D layer of the gift reveal: which renderer a reveal uses, the one-canvas rule, the DPR cap, every model
 // file (small, self-contained, uncompressed so no decoder is ever fetched, marked as a placeholder), and the import
@@ -19,13 +20,20 @@ import { GIFT_MARKET, GIFT_PRODUCTS, GIFT_TIERS } from "@/lib/gifts-data";
 
 const ROOT = process.cwd();
 const read = (file: string) => readFileSync(path.join(ROOT, file), "utf8");
-const full = { motion: "full" as const, webgl: true, hasModel: true };
+const full = { motion: "full" as const, webgl: true, hasModel: true, hasSignature: false };
 
 describe("giftRenderer", () => {
   it("3D only for Epic and Legendary, with a model and WebGL", () => {
     expect(GIFT_TIERS.map((tier) => giftRenderer({ ...full, tier }))).toEqual(["stage", "stage", "three", "three"]);
     expect(giftRenderer({ ...full, tier: "LEGENDARY", webgl: false })).toBe("stage");
     expect(giftRenderer({ ...full, tier: "LEGENDARY", hasModel: false })).toBe("stage");
+  });
+
+  it("never for a gift with a signature motion: Birthday Balloons' release from the box replaces its 3D scene", () => {
+    for (const tier of GIFT_TIERS) expect(giftRenderer({ ...full, tier, hasSignature: true })).toBe("stage");
+    // It keeps its model entry (the poster rule above), the renderer rule is what skips it.
+    expect(resolveGiftModel([{ slug: "birthday-balloons" }])).not.toBeNull();
+    expect(giftSignatureFor([{ slug: "birthday-balloons" }])).toBe("balloon-release");
   });
 
   it("never with reduce motion or on a low-end device", () => {

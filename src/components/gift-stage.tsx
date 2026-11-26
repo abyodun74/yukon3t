@@ -3,9 +3,11 @@
 import { Component, Fragment, useCallback, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { GiftArt } from "@/components/gift-art";
+import { GiftSignatureMotion } from "@/components/gift-signature-motion";
 import { giftRenderer, resolveGiftModel } from "@/lib/gift-3d-assets";
 import { giftEffectPlan, isLowEndDevice, sparkleSpots } from "@/lib/gift-effect-plan";
 import { hasWebGL } from "@/lib/gift-render-capability";
+import { giftSignatureFor } from "@/lib/gift-signature-motion";
 import type { GiftTierName } from "@/lib/gift-market";
 
 // The richer renderers are separate chunks, fetched only when a reveal actually renders one (never on the server, never
@@ -52,6 +54,10 @@ export function useLowEndDevice(): boolean {
  * only where the browser has WebGL and never in a compact card.
  * The static art stays underneath as the poster until the scene is ready, and is what remains if it fails or the
  * WebGL context is lost. Replay restarts the scene without recreating its canvas.
+ *
+ * A single-item gift with a signature motion (src/lib/gift-signature-motion.ts: Wave, High five, Birthday Balloons,
+ * Confetti) plays GiftSignatureMotion instead of the art's generic entrance (and never the 3D scene); the tier's
+ * halo, sparkles and depth rings stay around it. Replay remounts it, so it starts over.
  */
 export function GiftStage({
   tier,
@@ -78,7 +84,8 @@ export function GiftStage({
   const lowEnd = useLowEndDevice();
   const plan = giftEffectPlan(tier, { reduce, lowEnd });
   const rich = !compact;
-  const model = rich && playAnimation ? resolveGiftModel(items) : null;
+  const signature = rich && playAnimation ? giftSignatureFor(items) : null;
+  const model = rich && playAnimation && !signature ? resolveGiftModel(items) : null;
   const webgl = useSyncExternalStore(noopSubscribe, () => model !== null && plan.motion === "full" && hasWebGL(), () => false);
   const [failed, setFailed] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
@@ -89,7 +96,7 @@ export function GiftStage({
   }, []);
   const renderer = failed
     ? "stage"
-    : giftRenderer({ tier, motion: plan.motion, webgl, hasModel: model !== null });
+    : giftRenderer({ tier, motion: plan.motion, webgl, hasModel: model !== null, hasSignature: signature !== null });
   const particles = (tier === "EPIC" || tier === "LEGENDARY") && (compact || plan.motion !== "light");
   const sweep = tier === "LEGENDARY" && (compact || plan.motion !== "light");
   const spots = rich ? sparkleSpots(plan.sparkles) : [];
@@ -127,15 +134,27 @@ export function GiftStage({
             style={{ left: `${s.x}%`, top: `${s.y}%`, width: s.size, height: s.size, "--d": `${s.delayMs}ms` } as CSSProperties}
           />
         ))}
-        <span
-          className={`gift-stage-art flex flex-wrap items-center justify-center gap-2 transition-opacity duration-300 ${sceneReady && renderer !== "stage" ? "opacity-0" : ""}`}
-        >
-          <span className={`gift-fx-tilt flex flex-wrap items-center justify-center gap-2 ${rich && plan.depthLayers > 0 ? "gift-fx-tilt-on" : ""}`}>
-            {items.map((item, i) => (
-              <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} name={name} size={items.length > 1 ? Math.round(size / 2) : size} eager />
-            ))}
+        {signature ? (
+          <GiftSignatureMotion
+            kind={signature}
+            tier={tier}
+            reduce={reduce}
+            lowEnd={lowEnd}
+            assetKey={items[0].assetKey}
+            name={name}
+            size={size}
+          />
+        ) : (
+          <span
+            className={`gift-stage-art flex flex-wrap items-center justify-center gap-2 transition-opacity duration-300 ${sceneReady && renderer !== "stage" ? "opacity-0" : ""}`}
+          >
+            <span className={`gift-fx-tilt flex flex-wrap items-center justify-center gap-2 ${rich && plan.depthLayers > 0 ? "gift-fx-tilt-on" : ""}`}>
+              {items.map((item, i) => (
+                <GiftArt key={`${item.slug}-${i}`} assetKey={item.assetKey} name={name} size={items.length > 1 ? Math.round(size / 2) : size} eager />
+              ))}
+            </span>
           </span>
-        </span>
+        )}
       </Fragment>
       {renderer === "three" && model && (
         <span className="gift-stage-scene">

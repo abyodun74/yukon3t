@@ -102,12 +102,18 @@ describe("gift-marketplace structure", () => {
   });
 
   it("the preview effect code is pure presentation: no actions, DB, network or storage, and sound only via the gift sound modules", () => {
-    for (const f of ["src/components/gift-stage.tsx", "src/components/gift-reveal.tsx", "src/lib/gift-effect-plan.ts"]) {
+    const effectFiles = [
+      "src/components/gift-stage.tsx",
+      "src/components/gift-reveal.tsx",
+      "src/lib/gift-effect-plan.ts",
+      "src/components/gift-signature-motion.tsx",
+      "src/lib/gift-signature-motion.ts",
+    ];
+    for (const f of effectFiles) {
       const src = read(f);
-      expect(src).not.toMatch(/@\/app\/actions|prisma|fetch\(|XMLHttpRequest|sendBeacon|localStorage|new Audio|AudioContext|\.play\(\)/);
+      expect(src, f).not.toMatch(/@\/app\/actions|prisma|fetch\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|indexedDB|new Audio|AudioContext|\.play\(\)/);
     }
-    expect(read("src/components/gift-stage.tsx")).not.toMatch(/gift-sound/);
-    expect(read("src/lib/gift-effect-plan.ts")).not.toMatch(/gift-sound/);
+    for (const f of effectFiles.filter((f) => f !== "src/components/gift-reveal.tsx")) expect(read(f), f).not.toMatch(/gift-sound/);
   });
 
   it("the sound modules touch no actions, DB, network or storage (only the mute preference module uses storage)", () => {

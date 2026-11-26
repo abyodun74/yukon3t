@@ -68,14 +68,17 @@ export type GiftRenderer = "three" | "stage";
 
 /**
  * Which renderer a reveal uses. Only with full motion (never with reduce motion or on a low-end device); 3D only for Epic / Legendary with a model and WebGL.
+ * A gift with a signature motion (gift-signature-motion.ts, e.g. Birthday Balloons' release from the box) always uses
+ * the stage: the signature is its reveal, and the 3D model would only cover it.
  */
 export function giftRenderer(input: {
   tier: GiftTierName;
   motion: GiftEffectMotion;
   webgl: boolean;
   hasModel: boolean;
+  hasSignature: boolean;
 }): GiftRenderer {
-  if (input.motion !== "full") return "stage";
+  if (input.motion !== "full" || input.hasSignature) return "stage";
   if ((input.tier === "EPIC" || input.tier === "LEGENDARY") && input.hasModel && input.webgl) return "three";
   return "stage";
 }
