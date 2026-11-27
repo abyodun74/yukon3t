@@ -3020,7 +3020,7 @@ const sections: Section[] = [
             Inspire, Gaming Arena, Luxury Universe, and Culture &amp; Community.
             <br />
             <br />
-            The <strong>gift marketplace</strong> shows 36 gifts in nine
+            The <strong>gift marketplace</strong> shows 37 gifts in nine
             categories (Love &amp; Romance, Birthday, Congratulations, Luxury,
             Cute &amp; Fun, Gaming, Lifestyle, Celebration and Special Moments),
             with search, filters, a preview and your gift history. Each gift has

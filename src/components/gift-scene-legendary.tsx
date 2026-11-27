@@ -7,10 +7,11 @@ import { GIFT_CANVAS_FOV, GiftCanvas } from "@/components/gift-canvas";
 import { buildLegendaryGraph, type LegendaryGraph } from "@/components/gift-legendary-graph";
 import { legendaryScenePlan, legendarySceneNeedsFrames, type LegendaryScenePlan, type LegendaryVariant } from "@/lib/gift-legendary-plan";
 
-// The cinematic Legendary reveal of the Luxury Red Rose and the Gold Orchid: the owner's artwork on a plane in a dark
-// scene, with a slow camera push-in and sway, falling petals, sparkles, an orbiting glow ribbon, a light sweep and a
-// pulse ring at the base (plan: src/lib/gift-legendary-plan.ts; objects: gift-legendary-graph.ts). Only GiftStage
-// loads this file, through next/dynamic (ssr: false), and only while one of those two gifts' reveal is open and
+// The cinematic Legendary reveal of the Luxury Red Rose, the Gold Orchid and the Diamond Jewelry Gift Box: the owner's
+// artwork on a plane in a dark scene, with a slow camera push-in and sway, falling petals (for the jewelry box,
+// diamonds floating up), sparkles, an orbiting glow ribbon (gold for the box), a light sweep and a pulse ring at the
+// base (plan: src/lib/gift-legendary-plan.ts; objects: gift-legendary-graph.ts). Only GiftStage
+// loads this file, through next/dynamic (ssr: false), and only while one of those gifts' reveal is open and
 // giftRenderer chose "three"; intent prefetch (gift-render-capability.ts) imports it early.
 //
 // The texture is the same same-origin 768px WebP the stage shows as its poster (already in the browser's cache), with

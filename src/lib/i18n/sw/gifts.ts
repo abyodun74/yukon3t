@@ -201,6 +201,7 @@ export const gifts: typeof giftsEn = {
     fireworks: { name: "Fataki", description: "Miale ya mwanga kwa kusherehekea." },
     "shooting-star": { name: "Kimondo", description: "Kwa wakati unaostahili kutamani jambo." },
     "keepsake-locket": { name: "Kidani cha kumbukumbu", description: "Kidani cha dhahabu kwa wakati wa kuhifadhi." },
+    "diamond-jewelry-box": { name: "Sanduku la zawadi la vito vya almasi", description: "Sanduku la velveti la vito vya almasi vya umbo la moyo, lililofungwa kwa dhahabu." },
   },
   market: {
     title: "Soko la zawadi",

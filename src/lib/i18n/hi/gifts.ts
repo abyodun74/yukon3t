@@ -201,6 +201,7 @@ export const gifts: typeof giftsEn = {
     fireworks: { name: "आतिशबाज़ी", description: "जश्न के लिए रोशनी की चमक।" },
     "shooting-star": { name: "टूटता तारा", description: "उस पल के लिए जो एक मन्नत के लायक है।" },
     "keepsake-locket": { name: "यादगार लॉकेट", description: "सँजोकर रखने लायक पल के लिए एक सुनहरा लॉकेट।" },
+    "diamond-jewelry-box": { name: "हीरे के गहनों का उपहार बॉक्स", description: "दिल के आकार के हीरों के गहनों वाला मखमली डिब्बा, सोने में लिपटा।" },
   },
   market: {
     title: "उपहार बाज़ार",

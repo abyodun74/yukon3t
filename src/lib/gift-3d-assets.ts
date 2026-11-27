@@ -2,6 +2,7 @@ import type { GiftTierName } from "@/lib/gifts-data";
 import type { GiftEffectMotion } from "@/lib/gift-effect-plan";
 import { GIFT_ART_IMAGES } from "@/lib/gift-art-images";
 import { COMPOSED_USES_ART, type ComposedVariant } from "@/lib/gift-composed-plan";
+import { GIFT_JEWELRY_ART_IMAGES } from "@/lib/gift-jewelry-art-images";
 import { GIFT_LEGENDARY_ART_IMAGES } from "@/lib/gift-legendary-art-images";
 import type { LegendaryVariant } from "@/lib/gift-legendary-plan";
 
@@ -9,7 +10,7 @@ import type { LegendaryVariant } from "@/lib/gift-legendary-plan";
 // picks between them. Client-safe, no I/O, unit-tested (gift-3d-assets.test.ts).
 //
 //   three  Epic and Legendary: a small React Three Fiber scene, either a self-hosted GLB model (gift-scene-3d.tsx), for
-//          the Luxury Red Rose and the Gold Orchid the cinematic scene around the owner's artwork
+//          the Luxury Red Rose, the Gold Orchid and the Diamond Jewelry Gift Box the cinematic scene around the owner's artwork
 //          (gift-scene-legendary.tsx, plan in gift-legendary-plan.ts), or for five gifts a procedural object with the
 //          gift's own icon or effect placed on it (gift-scene-composed.tsx, plan in gift-composed-plan.ts).
 //          resolveGiftScene says which.
@@ -75,7 +76,11 @@ export const GIFT_COMPOSED_SCENE_FOR_ITEM: Readonly<Record<string, ComposedVaria
 export const GIFT_LEGENDARY_SCENE_FOR_ITEM: Readonly<Record<string, LegendaryVariant>> = {
   "luxury-red-rose": "rose",
   "gold-orchid": "orchid",
+  "diamond-jewelry-box": "jewelry",
 };
+
+/** The full-scene artwork the legendary scenes are built around (the diptych's two halves and the jewelry box). */
+const LEGENDARY_SCENE_ART: Readonly<Record<string, { src: string }>> = { ...GIFT_LEGENDARY_ART_IMAGES, ...GIFT_JEWELRY_ART_IMAGES };
 
 /** The model for a single-item gift, or null (boxes and unmapped items stay on the stage). */
 export function resolveGiftModel(items: readonly { slug: string }[]): GiftModelAsset | null {
@@ -94,7 +99,7 @@ export function resolveGiftScene(items: readonly { slug: string }[]): GiftScene 
   if (items.length !== 1) return null;
   const slug = items[0].slug;
   if (Object.prototype.hasOwnProperty.call(GIFT_LEGENDARY_SCENE_FOR_ITEM, slug)) {
-    const art = GIFT_LEGENDARY_ART_IMAGES[slug as keyof typeof GIFT_LEGENDARY_ART_IMAGES];
+    const art = Object.prototype.hasOwnProperty.call(LEGENDARY_SCENE_ART, slug) ? LEGENDARY_SCENE_ART[slug] : undefined;
     if (art) return { kind: "legendary", variant: GIFT_LEGENDARY_SCENE_FOR_ITEM[slug], artSrc: art.src };
   }
   if (Object.prototype.hasOwnProperty.call(GIFT_COMPOSED_SCENE_FOR_ITEM, slug)) {

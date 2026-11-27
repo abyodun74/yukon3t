@@ -10,7 +10,9 @@ import {
   Float32BufferAttribute,
   Group,
   InstancedMesh,
+  LatheGeometry,
   Mesh,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
@@ -18,6 +20,7 @@ import {
   Points,
   ShaderMaterial,
   TubeGeometry,
+  Vector2,
   Vector3,
   type Material,
   type PerspectiveCamera,
@@ -72,6 +75,17 @@ export function petalGeometry(lengthSegments = 6, widthSegments = 4): BufferGeom
   geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
   geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * A small brilliant-cut diamond (the jewelry box's floating diamonds): a flat table, a short crown and a pointed
+ * pavilion, eight facets round, height 1 (so it scales like a petal). Flat shading makes each facet catch the light.
+ */
+export function diamondGeometry(segments = 8): BufferGeometry {
+  const profile = [new Vector2(0, -0.62), new Vector2(0.5, 0.12), new Vector2(0.34, 0.38), new Vector2(0, 0.38)];
+  const geometry = new LatheGeometry(profile, segments);
   geometry.computeVertexNormals();
   return geometry;
 }
@@ -286,18 +300,32 @@ export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture):
   art.renderOrder = ORDER.art;
   root.add(art);
 
-  // Petals, behind and in front of the picture.
+  // Petals (or, for the jewelry box, small diamonds), behind and in front of the picture.
   const [petalGeo, petalMaterial] = own(
-    petalGeometry(),
-    new MeshStandardMaterial({
-      color: new Color(look.petalColor),
-      emissive: new Color(look.petalEmissive),
-      emissiveIntensity: 1,
-      metalness: look.petalMetalness,
-      roughness: look.petalRoughness,
-      side: DoubleSide,
-      transparent: true,
-    }),
+    look.particle === "diamond" ? diamondGeometry() : petalGeometry(),
+    look.particle === "diamond"
+      ? new MeshPhysicalMaterial({
+          color: new Color(look.petalColor),
+          emissive: new Color(look.petalEmissive),
+          emissiveIntensity: 1,
+          metalness: look.petalMetalness,
+          roughness: look.petalRoughness,
+          clearcoat: 1,
+          iridescence: 1,
+          iridescenceIOR: 2.0,
+          iridescenceThicknessMaximum: 480,
+          flatShading: true,
+          transparent: true,
+        })
+      : new MeshStandardMaterial({
+          color: new Color(look.petalColor),
+          emissive: new Color(look.petalEmissive),
+          emissiveIntensity: 1,
+          metalness: look.petalMetalness,
+          roughness: look.petalRoughness,
+          side: DoubleSide,
+          transparent: true,
+        }),
   );
   const petalSets = (["back", "front"] as const).map((side) => {
     const specs = plan.petals.filter((p) => p.side === side);

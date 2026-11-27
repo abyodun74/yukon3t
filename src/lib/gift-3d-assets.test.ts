@@ -15,6 +15,7 @@ import {
   resolveGiftScene,
 } from "@/lib/gift-3d-assets";
 import { GIFT_ART_IMAGES } from "@/lib/gift-art-images";
+import { GIFT_JEWELRY_ART_IMAGES } from "@/lib/gift-jewelry-art-images";
 import { GIFT_LEGENDARY_ART_IMAGES } from "@/lib/gift-legendary-art-images";
 import { GIFT_MARKET, GIFT_PRODUCTS, GIFT_TIERS } from "@/lib/gifts-data";
 import { giftSignatureFor } from "@/lib/gift-signature-motion";
@@ -111,8 +112,13 @@ describe("the scene registry", () => {
     expect(resolveGiftScene([{ slug: "toString" }])).toBeNull();
   });
 
-  it("the rose and the orchid get the legendary scene with their own artwork, and no placeholder model", () => {
-    expect(GIFT_LEGENDARY_SCENE_FOR_ITEM).toEqual({ "luxury-red-rose": "rose", "gold-orchid": "orchid" });
+  it("the rose, the orchid and the jewelry box get the legendary scene with their own artwork, and no placeholder model", () => {
+    expect(GIFT_LEGENDARY_SCENE_FOR_ITEM).toEqual({ "luxury-red-rose": "rose", "gold-orchid": "orchid", "diamond-jewelry-box": "jewelry" });
+    expect(resolveGiftScene([{ slug: "diamond-jewelry-box" }])).toEqual({
+      kind: "legendary",
+      variant: "jewelry",
+      artSrc: GIFT_JEWELRY_ART_IMAGES["diamond-jewelry-box"].src,
+    });
     expect(resolveGiftScene([{ slug: "luxury-red-rose" }])).toEqual({
       kind: "legendary",
       variant: "rose",

@@ -21,7 +21,7 @@ import {
   type LegendaryVariant,
 } from "@/lib/gift-legendary-plan";
 
-const VARIANTS: LegendaryVariant[] = ["rose", "orchid"];
+const VARIANTS: LegendaryVariant[] = ["rose", "orchid", "jewelry"];
 const fullEffect = giftEffectPlan("LEGENDARY", { reduce: false, lowEnd: false });
 const HIT = legendaryHitMs(fullEffect);
 const samples = (endMs: number, step = 250) => Array.from({ length: Math.floor(endMs / step) + 1 }, (_, i) => i * step);
@@ -64,7 +64,7 @@ describe("legendaryScenePlan", () => {
       for (const p of plan.petals) {
         expect(Math.abs(p.x)).toBeLessThanOrEqual(0.8);
         expect(Math.abs(p.z)).toBeLessThanOrEqual(0.85);
-        expect(p.scale).toBeGreaterThan(0.04);
+        expect(p.scale).toBeGreaterThan(0.03);
         expect(p.scale).toBeLessThan(0.09);
         // A whole fall takes at least ~16 s.
         expect((LEGENDARY_FALL.top - LEGENDARY_FALL.bottom) / p.fallSpeed).toBeGreaterThan(16);
@@ -220,5 +220,27 @@ describe("levels, sweep and pulse", () => {
     const climax = 70000;
     expect(legendarySceneNeedsFrames(plan, climax + 100, [HIT, climax])).toBe(true);
     expect(legendarySceneNeedsFrames(plan, climax + plan.pulseMs, [HIT, climax])).toBe(false);
+  });
+});
+
+describe("the Diamond Jewelry Gift Box", () => {
+  const plan = legendaryScenePlan("jewelry", { lowEnd: false, hitMs: HIT });
+
+  it("floats small diamonds up (never down), with a gold orbit and the pulse ring at the box's base", () => {
+    expect(plan.look.particle).toBe("diamond");
+    expect(plan.look.drift).toBe("rise");
+    expect(legendaryScenePlan("rose", { lowEnd: false, hitMs: HIT }).look.drift).toBe("fall");
+    for (const p of plan.petals.slice(0, 8)) {
+      let last = -Infinity;
+      let wrapped = 0;
+      for (const t of samples(20000, 100)) {
+        const y = legendaryPetalPose(plan, p, t, 1).y;
+        if (y < last) wrapped++;
+        last = y;
+      }
+      // Only the loop's restart at the bottom ever moves one down.
+      expect(wrapped).toBeLessThanOrEqual(2);
+    }
+    expect(plan.look.baseY).toBeLessThan(0);
   });
 });

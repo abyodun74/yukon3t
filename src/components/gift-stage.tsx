@@ -13,7 +13,7 @@ import type { GiftTierName } from "@/lib/gift-market";
 
 // The richer renderers are separate chunks, fetched only when a reveal actually renders one (never on the server, never
 // in the grid's compact cards): three.js + React Three Fiber for Epic / Legendary, a GLB model, for the Luxury Red
-// Rose and the Gold Orchid the cinematic scene around their artwork, or for five gifts a composed scene (a procedural
+// Rose, the Gold Orchid and the Diamond Jewelry Gift Box the cinematic scene around their artwork, or for five gifts a composed scene (a procedural
 // object with the gift's icon or effect placed on it).
 const GiftScene3D = dynamic(() => import("@/components/gift-scene-3d"), { ssr: false, loading: () => null });
 const GiftSceneLegendary = dynamic(() => import("@/components/gift-scene-legendary"), { ssr: false, loading: () => null });
@@ -55,7 +55,7 @@ export function useLowEndDevice(): boolean {
  * restarts the whole sequence (Replay).
  *
  * Epic and Legendary gifts with a 3D scene (src/lib/gift-3d-assets.ts, resolveGiftScene: a GLB model, for the
- * Luxury Red Rose and the Gold Orchid the cinematic scene around their artwork, gift-scene-legendary.tsx, or a composed
+ * Luxury Red Rose, the Gold Orchid and the Diamond Jewelry Gift Box the cinematic scene around their artwork, gift-scene-legendary.tsx, or a composed
  * scene, gift-scene-composed.tsx: Keepsake Locket, Fireworks, Level Up, Aurora Sweep, Aurora Frame) play it over
  * the stage's layers instead of the flat art, only with full motion (giftRenderer: never with reduce motion or on a
  * low-end device), only where the browser has WebGL and never in a compact card.

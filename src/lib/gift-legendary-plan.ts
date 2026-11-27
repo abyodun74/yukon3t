@@ -1,7 +1,7 @@
 import { giftRevealTimeline, type GiftEffectPlan } from "@/lib/gift-effect-plan";
 
-// The cinematic 3D reveal of the two Legendary atelier pieces drawn by the owner (the Luxury Red Rose and the Gold
-// Orchid): what src/components/gift-scene-legendary.tsx shows, as one pure, deterministic plan plus the pose functions
+// The cinematic 3D reveal of the Legendary atelier pieces drawn by the owner (the Luxury Red Rose, the Gold Orchid and
+// the Diamond Jewelry Gift Box, whose petals are small diamonds floating up instead): what src/components/gift-scene-legendary.tsx shows, as one pure, deterministic plan plus the pose functions
 // it samples every frame. Client-safe, no I/O, no three.js, unit-tested (gift-legendary-plan.test.ts).
 //
 // The artwork is a flat picture on a plane: the camera pushes in slowly and sways +-10 degrees around it (a flat image
@@ -17,9 +17,13 @@ import { giftRevealTimeline, type GiftEffectPlan } from "@/lib/gift-effect-plan"
 // dimmed, camera at rest) and the scene stops drawing (`legendarySceneNeedsFrames`), waking only for a pulse.
 // Motion: eased tweens and slow sines only, nothing overshoots.
 
-export type LegendaryVariant = "rose" | "orchid";
+export type LegendaryVariant = "rose" | "orchid" | "jewelry";
 
 export type LegendaryLook = {
+  /** What drifts around the picture: cupped petals (rose, orchid) or small faceted diamonds (the jewelry box). */
+  particle: "petal" | "diamond";
+  /** Petals fall; diamonds float up. */
+  drift: "fall" | "rise";
   petalColor: string;
   petalEmissive: string;
   petalMetalness: number;
@@ -45,6 +49,8 @@ export type LegendaryLook = {
 
 export const LEGENDARY_LOOKS: Record<LegendaryVariant, LegendaryLook> = {
   rose: {
+    particle: "petal",
+    drift: "fall",
     petalColor: "#c8102e",
     petalEmissive: "#3a0008",
     petalMetalness: 0.05,
@@ -64,6 +70,8 @@ export const LEGENDARY_LOOKS: Record<LegendaryVariant, LegendaryLook> = {
     seed: 0x5e1d,
   },
   orchid: {
+    particle: "petal",
+    drift: "fall",
     petalColor: "#f2b93b",
     petalEmissive: "#4a3000",
     petalMetalness: 0.65,
@@ -81,6 +89,29 @@ export const LEGENDARY_LOOKS: Record<LegendaryVariant, LegendaryLook> = {
     ribbonSpin: 0.3,
     baseY: -0.42,
     seed: 0x0c41d,
+  },
+  // The Diamond Jewelry Gift Box: diamonds floating up around the open box, gold orbit, white glints, a bright light
+  // sweep over the jewels, the pulse ring where the box meets its gold base.
+  jewelry: {
+    particle: "diamond",
+    drift: "rise",
+    petalColor: "#cfe0ff",
+    petalEmissive: "#141c34",
+    petalMetalness: 0.65,
+    petalRoughness: 0.08,
+    petalScale: [0.035, 0.06],
+    glowColor: "#ffbf4a",
+    sparkleColor: "#ffffff",
+    ribbonFrom: "#ffd36b",
+    ribbonTo: "#fff1c4",
+    ringColor: "#ffd780",
+    sweepColor: "#ffffff",
+    sweepStrength: 0.8,
+    sweepEveryMs: 5000,
+    sweepMs: 1700,
+    ribbonSpin: 0.34,
+    baseY: -0.33,
+    seed: 0xd1a40,
   },
 };
 
@@ -285,7 +316,7 @@ export function legendaryPetalPose(plan: LegendaryScenePlan, petal: PetalSpec, t
   const edge = smoothstep(0, 0.08, progress) * (1 - smoothstep(0.86, 1, progress));
   return {
     x: petal.x + petal.swayAmp * Math.sin(seconds * petal.swayRate + petal.swayPhase),
-    y: LEGENDARY_FALL.top - progress * range,
+    y: plan.look.drift === "rise" ? LEGENDARY_FALL.bottom + progress * range : LEGENDARY_FALL.top - progress * range,
     z: petal.z,
     rx: petal.rot[0] + petal.spin[0] * seconds,
     ry: petal.rot[1] + petal.spin[1] * seconds,

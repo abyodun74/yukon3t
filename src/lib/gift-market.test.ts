@@ -9,6 +9,7 @@ import {
   GIFT_CATEGORIES,
   GIFT_ITEMS,
   GIFT_MARKET,
+  GIFT_MARKET_ADDED,
   GIFT_MARKET_SEED_MIGRATIONS,
   GIFT_PRODUCTS,
   GIFT_TIERS,
@@ -43,12 +44,31 @@ const migrationSql = (name: string) => readFileSync(path.join(process.cwd(), "pr
 describe("the marketplace launch catalog (GIFT_MARKET)", () => {
   const productBySku = new Map(GIFT_PRODUCTS.map((p) => [p.sku, p]));
 
-  it("has exactly 36 gifts: 9 categories x 4, unique skus", () => {
+  it("has the 36 launch gifts (9 categories x 4) plus the gifts added since, unique skus", () => {
     expect(GIFT_CATEGORIES).toHaveLength(9);
-    expect(GIFT_MARKET).toHaveLength(36);
-    expect(new Set(GIFT_MARKET.map((m) => m.sku)).size).toBe(36);
+    const added = Object.keys(GIFT_MARKET_ADDED);
+    expect(added).toEqual(["sticker.diamond-jewelry-box"]);
+    expect(GIFT_MARKET).toHaveLength(36 + added.length);
+    expect(new Set(GIFT_MARKET.map((m) => m.sku)).size).toBe(GIFT_MARKET.length);
+    const launch = GIFT_MARKET.filter((m) => !added.includes(m.sku));
     for (const category of GIFT_CATEGORIES) {
-      expect(GIFT_MARKET.filter((m) => m.category === category), category).toHaveLength(GIFTS_PER_CATEGORY);
+      expect(launch.filter((m) => m.category === category), category).toHaveLength(GIFTS_PER_CATEGORY);
+    }
+    // Each added gift is in the marketplace list and seeded by its own migration (after the launch seed).
+    for (const [sku, migration] of Object.entries(GIFT_MARKET_ADDED)) {
+      expect(GIFT_MARKET.some((m) => m.sku === sku), sku).toBe(true);
+      expect(GIFT_MARKET_SEED_MIGRATIONS.indexOf(migration), sku).toBeGreaterThan(0);
+    }
+  });
+
+  it("the Diamond Jewelry Gift Box: Legendary, 2500 Y3T Coins, Luxury, not featured, the dearest gift in the catalog", () => {
+    const m = GIFT_MARKET.find((g) => g.sku === "sticker.diamond-jewelry-box")!;
+    expect(m).toEqual({ sku: "sticker.diamond-jewelry-box", category: "LUXURY", tier: "LEGENDARY", coinPrice: 2500, featured: false });
+    expect(Math.max(...GIFT_MARKET.map((g) => g.coinPrice))).toBe(2500);
+    expect(m.coinPrice).toBeLessThanOrEqual(COIN_PRICE_MAX);
+    // Featured stays the launch picks: at most one per category.
+    for (const category of GIFT_CATEGORIES) {
+      expect(GIFT_MARKET.filter((g) => g.category === category && g.featured).length, category).toBeLessThanOrEqual(1);
     }
   });
 
@@ -113,15 +133,25 @@ describe("the marketplace launch catalog (GIFT_MARKET)", () => {
   });
 });
 
-describe("the marketplace seed migration", () => {
-  const seed = migrationSql(GIFT_MARKET_SEED_MIGRATIONS[0]);
+describe("the marketplace seed migrations", () => {
+  // Read with LF line endings whatever the checkout's core.autocrlf did to them (Postgres doesn't care either way).
+  const seed = GIFT_MARKET_SEED_MIGRATIONS.map((name) => migrationSql(name).replace(/\r\n/g, "\n")).join("\n");
   const ddl = migrationSql("20261201120200_gift_marketplace_coins");
 
-  it("is a catalog seed migration too (it inserts the eight new gifts), listed after every earlier one", () => {
-    expect(GIFT_CATALOG_SEED_MIGRATIONS.at(-1)).toBe(GIFT_MARKET_SEED_MIGRATIONS[0]);
+  it("are catalog seed migrations too (they insert their new gifts), the newest listed last", () => {
+    for (const name of GIFT_MARKET_SEED_MIGRATIONS) expect(GIFT_CATALOG_SEED_MIGRATIONS as readonly string[]).toContain(name);
+    expect(GIFT_CATALOG_SEED_MIGRATIONS.at(-1)).toBe(GIFT_MARKET_SEED_MIGRATIONS.at(-1));
   });
 
-  it("writes each launch gift's coin price, category, tier and featured flag exactly once, as listed", () => {
+  it("an added gift is written only by its own migration", () => {
+    for (const [sku, migration] of Object.entries(GIFT_MARKET_ADDED)) {
+      for (const name of GIFT_MARKET_SEED_MIGRATIONS) {
+        expect(migrationSql(name).includes(`'${sku}'`), `${sku} in ${name}`).toBe(name === migration);
+      }
+    }
+  });
+
+  it("writes each marketplace gift's coin price, category, tier and featured flag exactly once, as listed", () => {
     for (const m of GIFT_MARKET) {
       const line = `UPDATE "GiftProduct" SET "coinPrice" = ${m.coinPrice}, "category" = '${m.category}'::"GiftCategory", "tier" = '${m.tier}'::"GiftTier", "featured" = ${m.featured} WHERE "GiftProduct"."sku" = '${m.sku}';`;
       expect(seed, m.sku).toContain(line);

@@ -201,6 +201,7 @@ export const gifts: typeof giftsEn = {
     fireworks: { name: "Fogos de artifício", description: "Explosões de luz para comemorar." },
     "shooting-star": { name: "Estrela cadente", description: "Para um momento que merece um desejo." },
     "keepsake-locket": { name: "Medalhão de lembrança", description: "Um medalhão dourado para um momento a guardar." },
+    "diamond-jewelry-box": { name: "Caixa de presente de joias de diamantes", description: "Um estojo de veludo com joias de diamantes em forma de coração, envolto em ouro." },
   },
   market: {
     title: "Mercado de presentes",

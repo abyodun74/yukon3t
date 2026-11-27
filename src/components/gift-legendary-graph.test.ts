@@ -33,7 +33,7 @@ describe("petalGeometry", () => {
   });
 });
 
-describe.each(["rose", "orchid"] as LegendaryVariant[])("buildLegendaryGraph (%s)", (variant) => {
+describe.each(["rose", "orchid", "jewelry"] as LegendaryVariant[])("buildLegendaryGraph (%s)", (variant) => {
   it.each([false, true])("lowEnd=%s: bounded instance and point counts", (lowEnd) => {
     const plan = legendaryScenePlan(variant, { lowEnd, hitMs: 2180 });
     const graph = buildLegendaryGraph(plan, new Texture());

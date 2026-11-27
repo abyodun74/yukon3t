@@ -30,6 +30,7 @@ export const GIFT_CATALOG_SEED_MIGRATIONS = [
   "20261114120300_gift_universe_catalog_seed",
   "20261115120500_gift_arena_champion_award",
   "20261201120300_gift_marketplace_catalog_seed",
+  "20261206120000_gift_diamond_jewelry_box",
 ] as const;
 
 /** No gift, box or edition costs more than this (USD cents). */
@@ -135,6 +136,8 @@ export const GIFT_ITEMS = [
   { slug: "fireworks", kind: "STICKER", assetKey: "fireworks", sortOrder: 750, universe: "CELEBRATE", collection: "party", occasionTags: ["birthday", "achievement", "holiday"], rarity: "STANDARD" },
   { slug: "shooting-star", kind: "STICKER", assetKey: "shooting-star", sortOrder: 760, universe: "LOVE", collection: "tender", occasionTags: ["love", "achievement"], rarity: "STANDARD" },
   { slug: "keepsake-locket", kind: "STICKER", assetKey: "keepsake-locket", sortOrder: 770, universe: "LUXURY", collection: "atelier", occasionTags: ["love", "anniversary"], rarity: "PREMIUM", piece: 5 },
+  // 2026-11-26: the owner's "Legendary Diamond Jewelry Gift Box" art (scripts/slice-gift-art.py --jewelry), piece No. 6.
+  { slug: "diamond-jewelry-box", kind: "STICKER", assetKey: "diamond-jewelry-box", sortOrder: 780, universe: "LUXURY", collection: "atelier", occasionTags: ["love", "anniversary", "achievement"], rarity: "PREMIUM", piece: 6 },
 ] as const satisfies readonly GiftItemDef[];
 
 export type GiftItemSlug = (typeof GIFT_ITEMS)[number]["slug"];
@@ -262,16 +265,21 @@ export const GIFT_PRODUCTS: readonly GiftProductDef[] = [
   single("sticker.fireworks", "fireworks", 499, 750),
   single("sticker.shooting-star", "shooting-star", 199, 760),
   single("sticker.keepsake-locket", "keepsake-locket", 999, 770),
+  single("sticker.diamond-jewelry-box", "diamond-jewelry-box", 999, 780),
 ];
 
 // ---------- Gift marketplace (2026-11): Y3T Coin prices, the nine categories and the four rarity tiers ----------
 //
 // Written to the database by GIFT_MARKET_SEED_MIGRATIONS (gifts-data.test.ts checks every row below is written exactly
-// once, by sku, as listed). A product with a category is one of the marketplace's 36 launch gifts (9 categories x 4);
-// boxes have a coin price (they can still be sent from the gift picker) but no category. Free gifts and awards have no
-// coin price at all. The marketplace and the picker read the database, never this list.
+// once, by sku, as listed). A product with a category is a marketplace gift: the 36 launch gifts (9 categories x 4) and
+// the gifts added after launch (GIFT_MARKET_ADDED, each by its own seed migration); boxes have a coin price (they can
+// still be sent from the gift picker) but no category. Free gifts and awards have no coin price at all. The
+// marketplace and the picker read the database, never this list.
 
-export const GIFT_MARKET_SEED_MIGRATIONS = ["20261201120300_gift_marketplace_catalog_seed"] as const;
+export const GIFT_MARKET_SEED_MIGRATIONS = [
+  "20261201120300_gift_marketplace_catalog_seed",
+  "20261206120000_gift_diamond_jewelry_box",
+] as const;
 
 export const GIFT_CATEGORIES = [
   "LOVE_ROMANCE",
@@ -290,7 +298,7 @@ export type GiftCategoryName = (typeof GIFT_CATEGORIES)[number];
 export const GIFT_TIERS = ["COMMON", "RARE", "EPIC", "LEGENDARY"] as const;
 export type GiftTierName = (typeof GIFT_TIERS)[number];
 
-/** Launch gifts per category. */
+/** Launch gifts per category (gifts added later, GIFT_MARKET_ADDED, come on top). */
 export const GIFTS_PER_CATEGORY = 4;
 /** Highest coin price a product may have (the database CHECK allows up to 100000). */
 export const COIN_PRICE_MAX = 5000;
@@ -358,7 +366,15 @@ export const GIFT_MARKET: readonly GiftMarketDef[] = [
   market("sticker.shooting-star", "SPECIAL_MOMENTS", "RARE", 120),
   market("frame.aurora", "SPECIAL_MOMENTS", "EPIC", 380),
   market("sticker.keepsake-locket", "SPECIAL_MOMENTS", "LEGENDARY", 1000, true),
+  // Added after launch (GIFT_MARKET_ADDED): seeded by 20261206120000_gift_diamond_jewelry_box. Not featured: the
+  // featured row keeps its launch picks (one per category at most; the Luxury Red Rose for Luxury).
+  market("sticker.diamond-jewelry-box", "LUXURY", "LEGENDARY", 2500),
 ];
+
+/** The marketplace gifts added after the 36 launch gifts (in GIFT_MARKET too), each with its own seed migration. */
+export const GIFT_MARKET_ADDED: Readonly<Record<string, (typeof GIFT_MARKET_SEED_MIGRATIONS)[number]>> = {
+  "sticker.diamond-jewelry-box": "20261206120000_gift_diamond_jewelry_box",
+};
 
 /** Coin prices of the boxes (sendable from the gift picker; not in the marketplace grid). */
 export const GIFT_BOX_COIN_PRICES: Readonly<Record<string, number>> = {

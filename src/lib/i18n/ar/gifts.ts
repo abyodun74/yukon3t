@@ -202,6 +202,7 @@ export const gifts: typeof giftsEn = {
     fireworks: { name: "ألعاب نارية", description: "ومضات من الضوء للاحتفال." },
     "shooting-star": { name: "شهاب", description: "للحظة تستحق أمنية." },
     "keepsake-locket": { name: "قلادة تذكارية", description: "قلادة ذهبية للحظة تستحق الاحتفاظ بها." },
+    "diamond-jewelry-box": { name: "علبة هدايا مجوهرات الألماس", description: "علبة مخملية لمجوهرات ألماس على شكل قلب، ملفوفة بالذهب." },
   },
   market: {
     title: "سوق الهدايا",

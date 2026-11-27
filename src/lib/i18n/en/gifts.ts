@@ -205,6 +205,7 @@ export const giftsEn = {
     fireworks: { name: "Fireworks", description: "Bursts of light to celebrate." },
     "shooting-star": { name: "Shooting Star", description: "For a moment worth a wish." },
     "keepsake-locket": { name: "Keepsake Locket", description: "A golden locket for a moment to keep." },
+    "diamond-jewelry-box": { name: "Diamond Jewelry Gift Box", description: "A velvet box of heart-cut diamond jewelry, wrapped in gold." },
   },
   // The gift marketplace (src/app/gift-marketplace, src/lib/gift-market.ts): browse, preview and send with Y3T Coins.
   market: {

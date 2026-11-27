@@ -188,10 +188,10 @@ describe("gift catalog", () => {
     });
     const singles = GIFT_PRODUCTS.filter((p) => !p.isBox);
     expect(Math.max(...singles.map((p) => p.webPriceMinor))).toBe(999);
-    // 13 Phase 1 items + 15 Phase A gifts + 4 free kind words + the Phase B award + 8 marketplace gifts; 16 Phase 1
-    // products + 19 singles + 4 boxes + the award + 8 marketplace singles.
-    expect(GIFT_ITEMS).toHaveLength(41);
-    expect(GIFT_PRODUCTS).toHaveLength(48);
+    // 13 Phase 1 items + 15 Phase A gifts + 4 free kind words + the Phase B award + 8 marketplace gifts + the Diamond
+    // Jewelry Gift Box; 16 Phase 1 products + 19 singles + 4 boxes + the award + 8 marketplace singles + the box.
+    expect(GIFT_ITEMS).toHaveLength(42);
+    expect(GIFT_PRODUCTS).toHaveLength(49);
   });
 
   it("has the Arena Champion award (Phase B): a free Gaming badge only the app gives, tagged tournament_win", () => {
