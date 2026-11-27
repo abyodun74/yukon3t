@@ -5,8 +5,8 @@ import { seededRandom, smoothstep } from "@/lib/gift-legendary-plan";
 // variant plus the pose functions sampled every frame. Client-safe, no I/O, no three.js, unit-tested
 // (gift-composed-plan.test.ts).
 //
-//   gold-heart     Keepsake Locket: a polished gold heart (an embossed inner heart, like the locket in its icon), with a
-//                  warm glow and twinkles.
+//   gold-heart     Keepsake Locket: a rounded, polished, fully metallic gold heart (a puffy 3D heart, no engraving),
+//                  with a warm glow and twinkles.
 //   fireworks-box  Fireworks: the gift box arrives, its lid swings open on its back hinge and rockets launch from the
 //                  open box and burst overhead; the first burst lands on the reveal's hit.
 //   star-badge     Level Up: the gold star arrives and the Level Up badge (its icon, cut out of the backdrop) comes in
@@ -66,7 +66,8 @@ export const COMPOSED_REST: Record<ComposedVariant, { y: number; scale: number }
 /** The gem (Aurora Sweep / Frame): its crown's flat top (the table) in the gem's own units, and its radius. */
 export const GEM_TABLE = { y: 0.495, radius: 0.55 } as const;
 /** The Aurora Frame plane: side length (gem units) and where the frame's painted bottom edge is (fraction from the bottom). */
-export const FRAME_PLANE = { size: 1.5, bottomInset: 0.2 } as const;
+/** (bottomInset measured on the 384px icon: the frame's lowest painted edge is at 76.5% of its height.) */
+export const FRAME_PLANE = { size: 1.5, bottomInset: 0.235 } as const;
 /** The gem's girdle (its widest ring, where crown meets pavilion): y and radius, gem units. */
 export const GEM_GIRDLE = { y: 0.145, radius: 0.95 } as const;
 /** Where the frame starts: below the gem and in front of its girdle, so it rises clear of the gem. */

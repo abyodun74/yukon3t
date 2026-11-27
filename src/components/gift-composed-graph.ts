@@ -151,8 +151,8 @@ void main() {
     // A rocket (or one of its trail points, lagging behind): from the box up to the burst, slowing as it climbs.
     float k = (t - start) / max(1.0, end - start);
     p = mix(aFrom, aTo, easeOutCubic(k));
-    alpha = step(0.0, k) * step(k, 1.0) * (1.0 - lag / 140.0);
-    size *= 1.0 - lag / 200.0;
+    alpha = step(0.0, k) * step(k, 1.0) * (1.0 - lag / 260.0);
+    size *= 1.0 - lag / 320.0;
   } else if (kind < 1.5) {
     // A burst spark: flies out fast, slows, falls a little and fades.
     float age = (uTime - start) / uLife;
@@ -303,7 +303,11 @@ export function gemGeometries(): { crown: BufferGeometry; pavilion: BufferGeomet
   return { crown, pavilion };
 }
 
-const GOLD = { color: "#f0ad38", metalness: 1, roughness: 0.25, clearcoat: 0.45, clearcoatRoughness: 0.12, envMapIntensity: 0.95 } as const;
+const GOLD = { color: "#e8a332", metalness: 1, roughness: 0.3, clearcoat: 0.2, clearcoatRoughness: 0.15, envMapIntensity: 0.7 } as const;
+
+/** Each rocket is drawn with a trail of points lagging behind it (ms), so the upward blast reads as a streak. */
+export const ROCKET_TRAIL_MAX_LAG = 220;
+export const ROCKET_TRAIL_STEP = 20;
 
 export type ComposedView = { pixelRatio: number };
 
@@ -318,8 +322,8 @@ const LOOK: Record<ComposedVariant, { glow: string; glow2: string; sparkle: stri
   "gold-heart": { glow: "#ffb83a", glow2: "#ffe39a", sparkle: "#fff0c4", light: "#ffcf7a", ring: "#ffd98a" },
   "fireworks-box": { glow: "#9a5cff", glow2: "#ff5fa2", sparkle: "#ffe2f2", light: "#c58cff", ring: "#ffffff" },
   "star-badge": { glow: "#ffb43a", glow2: "#b26bff", sparkle: "#fff0c4", light: "#ffcf7a", ring: "#ffe7a6" },
-  "gem-sweep": { glow: "#3fd6c6", glow2: "#b26bff", sparkle: "#d9fbff", light: "#9fe8ff", ring: "#c8fff6" },
-  "gem-frame": { glow: "#4fa3ff", glow2: "#ff7ad9", sparkle: "#e3f6ff", light: "#c58cff", ring: "#d8f3ff" },
+  "gem-sweep": { glow: "#ff2d55", glow2: "#3fd6c6", sparkle: "#ffe1e8", light: "#ff3a5c", ring: "#ffd0da" },
+  "gem-frame": { glow: "#ff2d55", glow2: "#b26bff", sparkle: "#ffe1e8", light: "#ff3a5c", ring: "#ffd0da" },
 };
 
 export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Texture | null; envMap: Texture | null }): ComposedGraph {
@@ -344,7 +348,8 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
   const random = seededRandom(0x6f1f7 + plan.fireworks.length);
 
   root.add(new AmbientLight(0xffffff, 0.35));
-  const key = new DirectionalLight(0xfff4e0, 2.4);
+  // Softer on gold: polished metal turns a strong key light into a blown-out white spot.
+  const key = new DirectionalLight(0xfff4e0, variant === "gold-heart" || variant === "star-badge" ? 1.3 : 2.4);
   key.position.set(2.5, 3, 4);
   root.add(key);
   const rim = new DirectionalLight(0xffe2b0, 1.8);
@@ -406,18 +411,18 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
     ownGeometry(pavilion);
     const gem = ownMaterial(
       new MeshPhysicalMaterial({
-        color: new Color("#6a9fe8"),
-        emissive: new Color("#0a1430"),
-        metalness: 0.35,
-        roughness: 0.1,
-        clearcoat: 1,
+        color: new Color("#9c0018"),
+        emissive: new Color("#2a0008"),
+        metalness: 0.75,
+        roughness: 0.05,
+        clearcoat: 0.3,
         clearcoatRoughness: 0.06,
-        iridescence: 1,
-        iridescenceIOR: 1.9,
-        iridescenceThicknessMaximum: 560,
+        iridescence: 0.3,
+        iridescenceIOR: 1.7,
+        iridescenceThicknessMaximum: 420,
         flatShading: true,
         envMap: assets.envMap,
-        envMapIntensity: 0.5,
+        envMapIntensity: 0.55,
       }),
     );
     object.add(new Mesh(crown, gem), new Mesh(pavilion, gem));
@@ -477,6 +482,8 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
       new PlaneGeometry(1.25, 1.25),
       additive({ uColor: { value: new Color("#ffd8a0") }, uColor2: { value: new Color("#ff9ad0") }, uLevel: { value: 0 } }, GLOW_FRAGMENT),
     );
+    // Hidden by the lid where the lid is in front of it (it must not wash over the open lid).
+    openingMaterial.depthTest = true;
     openingGlow = openingMaterial;
     const opening = new Mesh(openingGeometry, openingMaterial);
     opening.rotation.x = -Math.PI / 2;
@@ -486,7 +493,11 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
 
     lid = new Group();
     lid.position.set(0, 0.3, -0.71);
-    const lidBox = new Mesh(ownGeometry(new BoxGeometry(1.42, 0.25, 1.42)), paper);
+    // The lid's inside (its underside, facing the camera once open) is darker card, not the lit outside paper.
+    const lidInside = ownMaterial(
+      new MeshPhysicalMaterial({ color: new Color("#2e1470"), roughness: 0.85, envMap: assets.envMap, envMapIntensity: 0.15 }),
+    );
+    const lidBox = new Mesh(ownGeometry(new BoxGeometry(1.42, 0.25, 1.42)), [paper, paper, paper, lidInside, paper, paper]);
     lidBox.position.set(0, 0.125, 0.71);
     const bandA = new Mesh(ownGeometry(new BoxGeometry(0.24, 0.27, 1.44)), ribbon);
     bandA.position.set(0, 0.125, 0.71);
@@ -541,7 +552,7 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
       const core = new Color(fw.core);
       const start = [fw.fromX * rest.scale, rest.y + BOX_OPENING.y * rest.scale, fw.fromZ * rest.scale];
       const burst = [fw.x, fw.y, fw.z];
-      for (let lag = 0; lag <= 120; lag += 20) push(start, burst, lag === 0 ? core : color, [fw.launchMs, fw.burstMs, lag, 0], lag === 0 ? 16 : 11);
+      for (let lag = 0; lag <= ROCKET_TRAIL_MAX_LAG; lag += ROCKET_TRAIL_STEP) push(start, burst, lag === 0 ? core : color, [fw.launchMs, fw.burstMs, lag, 0], lag === 0 ? 22 : 15);
       for (let i = 0; i < fw.particles; i++) {
         // Evenly spread directions (golden-angle spiral on a sphere), each at a slightly different speed.
         const y = 1 - (2 * (i + 0.5)) / fw.particles;

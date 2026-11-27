@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BufferGeometry, Material, Mesh, MeshPhysicalMaterial, Points, Texture, type Object3D } from "three";
-import { buildComposedGraph, gemGeometries, goldHeartGeometry, starGeometry } from "@/components/gift-composed-graph";
+import { ROCKET_TRAIL_MAX_LAG, ROCKET_TRAIL_STEP, buildComposedGraph, gemGeometries, goldHeartGeometry, starGeometry } from "@/components/gift-composed-graph";
 import { COMPOSED_USES_ART, COMPOSED_VARIANTS, GEM_TABLE, composedScenePlan, type ComposedVariant } from "@/lib/gift-composed-plan";
 
 // The composed scenes' three.js objects, built for real (three.js needs no WebGL to create them) with fake textures:
@@ -116,7 +116,8 @@ describe("the Fireworks", () => {
     graph.root.traverse((node) => {
       if ((node as Points).isPoints) clouds.push(node as Points);
     });
-    const expected = plan.fireworks.reduce((n, f) => n + 7 + f.particles + 1, 0);
+    const trail = ROCKET_TRAIL_MAX_LAG / ROCKET_TRAIL_STEP + 1;
+    const expected = plan.fireworks.reduce((n, f) => n + trail + f.particles + 1, 0);
     expect(clouds.map((c) => c.geometry.getAttribute("position").count)).toContain(expected);
     graph.dispose();
   });

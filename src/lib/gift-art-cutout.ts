@@ -4,16 +4,19 @@
 // separate dark parts such as the graduation cap's top), so this does not key by colour alone: it flood-fills from the
 // picture's border through backdrop-coloured (or already faded) pixels only. Dark parts enclosed by the art (the Level
 // Up shield's navy face, the night sky inside the Aurora Frame) are not reachable from the border and stay opaque.
-// Inside the filled region alpha ramps with the colour distance from the backdrop, so the art's own soft glows become
-// translucent instead of a hard edge, and the backdrop's tint is taken back out of those pixels (un-blended), so no navy
+// Inside the filled region alpha ramps with the colour distance from the backdrop and with brightness (a dark halo goes
+// too), so the art's own soft glows become translucent instead of a hard edge or a dark rim, and the backdrop's tint is taken back out of those pixels (un-blended), so no navy
 // fringe is left. Pure, deterministic, no DOM: it works on an RGBA buffer (ImageData.data), unit-tested
 // (gift-art-cutout.test.ts).
 
 /** The icons' backdrop, re-based to one navy by scripts/slice-gift-art.py (measured on the 384px files). */
 export const GIFT_ART_BACKDROP: readonly [number, number, number] = [14, 13, 46];
 /** Colour distance from the backdrop: at or under LO fully cut, from HI fully kept (smooth in between). */
-export const CUTOUT_LO = 18;
-export const CUTOUT_HI = 70;
+export const CUTOUT_LO = 24;
+export const CUTOUT_HI = 90;
+/** Inside the filled region a pixel this dark (relative luminance, 0..1) is cut too: the art's dark halo, which would
+ *  otherwise leave a dark rim around the icon on a bright object (the gold star, the gem). */
+export const CUTOUT_DARK = [0.08, 0.28] as const;
 /** A pixel the icon's own edge fade has made this transparent counts as backdrop for the flood fill. */
 const FADED_ALPHA = 250;
 
@@ -67,7 +70,8 @@ export function cutOutGiftArt(data: Uint8ClampedArray, width: number, height: nu
   for (let i = 0; i < count; i++) {
     if (!reached[i]) continue;
     const o = i * 4;
-    const keep = smooth(CUTOUT_LO, CUTOUT_HI, distance[i]);
+    const luminance = (0.2126 * data[o] + 0.7152 * data[o + 1] + 0.0722 * data[o + 2]) / 255;
+    const keep = smooth(CUTOUT_LO, CUTOUT_HI, distance[i]) * smooth(CUTOUT_DARK[0], CUTOUT_DARK[1], luminance);
     if (keep <= 0) {
       data[o + 3] = 0;
       continue;
