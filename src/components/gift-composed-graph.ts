@@ -1,6 +1,7 @@
 import {
   AdditiveBlending,
   AmbientLight,
+  BackSide,
   BoxGeometry,
   BufferGeometry,
   Color,
@@ -18,6 +19,7 @@ import {
   PlaneGeometry,
   PointLight,
   Points,
+  Scene,
   ShaderMaterial,
   Shape,
   SphereGeometry,
@@ -49,7 +51,7 @@ import {
 // (src/lib/gift-composed-plan.ts) and posed by `update(t)`. No React here, so it can be built and disposed in a unit
 // test (gift-composed-graph.test.ts). All geometry is procedural (no model file, nothing downloaded); the only texture
 // is the gift's own icon, cut out of its backdrop by the scene (gift-art-cutout.ts), owned and disposed by the scene,
-// as is the environment map (three's own procedural RoomEnvironment) that makes the metal read as metal.
+// as is the environment map (prefiltered from buildStudioEnvironment below) that makes the metal read as metal.
 //
 // Layering: the objects use the depth buffer (the icon on the star sits on the star's face, the frame stands on the
 // gem and is hidden by it while behind it); additive glows, sparkles, fireworks and rings are drawn after them, by
@@ -151,8 +153,8 @@ void main() {
     // A rocket (or one of its trail points, lagging behind): from the box up to the burst, slowing as it climbs.
     float k = (t - start) / max(1.0, end - start);
     p = mix(aFrom, aTo, easeOutCubic(k));
-    alpha = step(0.0, k) * step(k, 1.0) * (1.0 - lag / 260.0);
-    size *= 1.0 - lag / 320.0;
+    alpha = step(0.0, k) * step(k, 1.0) * (1.0 - lag / 340.0) * 1.6;
+    size *= 1.0 - lag / 420.0;
   } else if (kind < 1.5) {
     // A burst spark: flies out fast, slows, falls a little and fades.
     float age = (uTime - start) / uLife;
@@ -237,6 +239,58 @@ function additive(uniforms: Record<string, { value: unknown }>, fragmentShader: 
   });
 }
 
+/**
+ * The studio the metal and the gem reflect (prefiltered by the scene with PMREM): a dark floor, a warm horizon, a soft
+ * ceiling, one large softbox up and to the right, a cool strip light behind on the left and a dim fill on the right.
+ * All moderate (nothing near the blown-out panels of three's RoomEnvironment), so gold keeps its colour and shading
+ * where it faces the camera instead of clipping to white. Procedural, no file; `dispose` frees what it made.
+ */
+export function buildStudioEnvironment(): { scene: Scene; dispose: () => void } {
+  const scene = new Scene();
+  const geometries: BufferGeometry[] = [];
+  const materials: Material[] = [];
+  const sky = new SphereGeometry(20, 32, 16);
+  const colors: number[] = [];
+  const position = sky.getAttribute("position");
+  const floor = new Color("#070504");
+  const horizon = new Color("#6e5434");
+  const ceiling = new Color("#8f8576");
+  for (let i = 0; i < position.count; i++) {
+    const y = position.getY(i) / 20;
+    const c = y < 0 ? floor.clone().lerp(horizon, Math.pow(1 + y, 3)) : horizon.clone().lerp(ceiling, Math.pow(y, 0.7));
+    colors.push(c.r, c.g, c.b);
+  }
+  sky.setAttribute("color", new Float32BufferAttribute(colors, 3));
+  const skyMaterial = new MeshBasicMaterial({ vertexColors: true, side: BackSide });
+  geometries.push(sky);
+  materials.push(skyMaterial);
+  scene.add(new Mesh(sky, skyMaterial));
+  const panel = (w: number, h: number, intensity: number, tint: string, position: [number, number, number]) => {
+    const geometry = new PlaneGeometry(w, h);
+    const material = new MeshBasicMaterial({ color: new Color(tint).multiplyScalar(intensity), side: DoubleSide });
+    geometries.push(geometry);
+    materials.push(material);
+    const mesh = new Mesh(geometry, material);
+    mesh.position.set(...position);
+    mesh.lookAt(0, 0, 0);
+    scene.add(mesh);
+  };
+  panel(9, 6, 2.4, "#fff4e2", [6, 9, 8]);
+  // A warm fill card behind the camera: what a face turned straight at the viewer reflects, so a flat gold face reads
+  // as gold rather than the bronze of the horizon (and never as white: it is dimmer than the softbox).
+  panel(12, 7, 1.1, "#ffe2b0", [0, 1.5, 14]);
+  panel(2.5, 12, 1.6, "#dfe8ff", [-10, 2, -5]);
+  panel(4, 8, 0.7, "#ffe1b8", [11, -1, 2]);
+  return {
+    scene,
+    dispose() {
+      for (const geometry of geometries) geometry.dispose();
+      for (const material of materials) material.dispose();
+      scene.clear();
+    },
+  };
+}
+
 /** The classic 3D heart surface, (x^2 + 9/4 y^2 + z^2 - 1)^3 - x^2 z^3 - 9/200 y^2 z^3 = 0 (z up, y = depth). */
 function heartField(x: number, y: number, z: number): number {
   const a = x * x + 2.25 * y * y + z * z - 1;
@@ -303,11 +357,11 @@ export function gemGeometries(): { crown: BufferGeometry; pavilion: BufferGeomet
   return { crown, pavilion };
 }
 
-const GOLD = { color: "#e8a332", metalness: 1, roughness: 0.3, clearcoat: 0.2, clearcoatRoughness: 0.15, envMapIntensity: 0.7 } as const;
+const GOLD = { color: "#efb43c", metalness: 1, roughness: 0.26, clearcoat: 0.25, clearcoatRoughness: 0.15, envMapIntensity: 1.0 } as const;
 
 /** Each rocket is drawn with a trail of points lagging behind it (ms), so the upward blast reads as a streak. */
-export const ROCKET_TRAIL_MAX_LAG = 220;
-export const ROCKET_TRAIL_STEP = 20;
+export const ROCKET_TRAIL_MAX_LAG = 300;
+export const ROCKET_TRAIL_STEP = 8;
 
 export type ComposedView = { pixelRatio: number };
 
@@ -372,7 +426,8 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
   // The object, in a group that carries its entrance and sway (everything placed on it is a child, so it follows).
   const object = new Group();
   root.add(object);
-  const gold = () =>
+  // envBoost: the star's broad flat face mostly reflects the studio's darker horizon, so it takes more of it than the heart.
+  const gold = (envBoost = 1) =>
     ownMaterial(
       new MeshPhysicalMaterial({
         ...GOLD,
@@ -380,6 +435,7 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
         emissive: new Color("#3a2000"),
         emissiveIntensity: 0.35,
         envMap: assets.envMap,
+        envMapIntensity: GOLD.envMapIntensity * envBoost,
       }),
     );
 
@@ -395,7 +451,7 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
     const heart = new Mesh(ownGeometry(goldHeartGeometry()), gold());
     object.add(heart);
   } else if (variant === "star-badge") {
-    const star = new Mesh(ownGeometry(starGeometry()), gold());
+    const star = new Mesh(ownGeometry(starGeometry()), gold(1.2));
     object.add(star);
     if (assets.art) {
       badgeMaterial = ownMaterial(
@@ -462,7 +518,7 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
     );
     const hidden = ownMaterial(new MeshBasicMaterial({ visible: false }));
     const ribbon = ownMaterial(
-      new MeshPhysicalMaterial({ color: new Color("#f2c14e"), metalness: 0.85, roughness: 0.28, envMap: assets.envMap, envMapIntensity: 1.2 }),
+      new MeshPhysicalMaterial({ color: new Color("#e3ad42"), metalness: 0.9, roughness: 0.4, envMap: assets.envMap, envMapIntensity: 0.9 }),
     );
     const body = new Mesh(ownGeometry(new BoxGeometry(1.3, 1.0, 1.3)), [paper, paper, hidden, paper, paper, paper]);
     body.position.y = -0.2;
@@ -499,10 +555,11 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
     );
     const lidBox = new Mesh(ownGeometry(new BoxGeometry(1.42, 0.25, 1.42)), [paper, paper, paper, lidInside, paper, paper]);
     lidBox.position.set(0, 0.125, 0.71);
-    const bandA = new Mesh(ownGeometry(new BoxGeometry(0.24, 0.27, 1.44)), ribbon);
-    bandA.position.set(0, 0.125, 0.71);
-    const bandB = new Mesh(ownGeometry(new BoxGeometry(1.44, 0.27, 0.24)), ribbon);
-    bandB.position.set(0, 0.125, 0.71);
+    // The lid's ribbon wraps its top and sides only (from just above its underside), so the open lid's inside shows no band.
+    const bandA = new Mesh(ownGeometry(new BoxGeometry(0.24, 0.255, 1.44)), ribbon);
+    bandA.position.set(0, 0.1375, 0.71);
+    const bandB = new Mesh(ownGeometry(new BoxGeometry(1.44, 0.255, 0.24)), ribbon);
+    bandB.position.set(0, 0.1375, 0.71);
     const loopGeometry = ownGeometry(new TorusGeometry(0.22, 0.07, 12, 32));
     const loopL = new Mesh(loopGeometry, ribbon);
     loopL.position.set(-0.2, 0.42, 0.71);
@@ -552,7 +609,7 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
       const core = new Color(fw.core);
       const start = [fw.fromX * rest.scale, rest.y + BOX_OPENING.y * rest.scale, fw.fromZ * rest.scale];
       const burst = [fw.x, fw.y, fw.z];
-      for (let lag = 0; lag <= ROCKET_TRAIL_MAX_LAG; lag += ROCKET_TRAIL_STEP) push(start, burst, lag === 0 ? core : color, [fw.launchMs, fw.burstMs, lag, 0], lag === 0 ? 22 : 15);
+      for (let lag = 0; lag <= ROCKET_TRAIL_MAX_LAG; lag += ROCKET_TRAIL_STEP) push(start, burst, lag < 60 ? core : color, [fw.launchMs, fw.burstMs, lag, 0], lag === 0 ? 28 : 18);
       for (let i = 0; i < fw.particles; i++) {
         // Evenly spread directions (golden-angle spiral on a sphere), each at a slightly different speed.
         const y = 1 - (2 * (i + 0.5)) / fw.particles;

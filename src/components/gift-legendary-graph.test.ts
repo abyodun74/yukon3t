@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { BufferGeometry, InstancedMesh, Material, Matrix4, Mesh, PerspectiveCamera, Points, Texture, type Object3D } from "three";
-import { buildLegendaryGraph, petalGeometry } from "@/components/gift-legendary-graph";
-import { legendaryScenePlan, type LegendaryVariant } from "@/lib/gift-legendary-plan";
+import { BufferGeometry, InstancedMesh, Material, Matrix4, Mesh, PerspectiveCamera, Points, ShaderMaterial, Texture, type Object3D } from "three";
+import { buildLegendaryGraph, diamondGeometry, petalGeometry } from "@/components/gift-legendary-graph";
+import { legendaryPetalPose, legendaryScenePlan, type LegendaryVariant } from "@/lib/gift-legendary-plan";
 
 // The legendary scene's three.js objects, built for real (three.js needs no WebGL to create them) with a fake texture:
 // bounded counts, finite poses over the whole timeline, and every geometry and material disposed on close (the texture
@@ -94,5 +94,64 @@ describe.each(["rose", "orchid", "jewelry"] as LegendaryVariant[])("buildLegenda
     for (const item of [...geometries, ...materials]) expect(disposed.has(item)).toBe(true);
     expect(textureDisposed).toBe(false);
     expect(graph.root.children).toHaveLength(0);
+  });
+});
+
+describe("the jewelry box's floating diamonds", () => {
+  it("are brilliant-cut: a flat table, about as wide as tall, pointed below, one flat normal per facet", () => {
+    const geometry = diamondGeometry();
+    expect(geometry.getIndex()).toBeNull();
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox!;
+    expect(box.max.y - box.min.y).toBeCloseTo(0.98, 2);
+    expect(box.max.x - box.min.x).toBeCloseTo(1, 1);
+    const position = geometry.getAttribute("position");
+    const normal = geometry.getAttribute("normal");
+    // Flat facets: the three vertices of every triangle share one normal.
+    for (let t = 0; t < position.count; t += 3) {
+      for (let k = 1; k < 3; k++) {
+        expect(normal.getX(t + k)).toBeCloseTo(normal.getX(t), 5);
+        expect(normal.getY(t + k)).toBeCloseTo(normal.getY(t), 5);
+      }
+    }
+    // The flat table on top is wide; the bottom comes to a point.
+    let top = 0;
+    let bottom = 0;
+    for (let i = 0; i < position.count; i++) {
+      const r = Math.hypot(position.getX(i), position.getZ(i));
+      if (Math.abs(position.getY(i) - box.max.y) < 1e-6) top = Math.max(top, r);
+      if (Math.abs(position.getY(i) - box.min.y) < 1e-6) bottom = Math.max(bottom, r);
+    }
+    expect(top).toBeGreaterThan(0.25);
+    expect(bottom).toBeLessThan(1e-6);
+    geometry.dispose();
+  });
+
+  it("use a faceted shader with a per-diamond twinkle, stay near upright, and the picture keeps its aspect", () => {
+    const plan = legendaryScenePlan("jewelry", { lowEnd: false, hitMs: 2180 });
+    const graph = buildLegendaryGraph(plan, new Texture(), 0.8);
+    const instanced: InstancedMesh[] = [];
+    const art: Mesh[] = [];
+    graph.root.traverse((node) => {
+      if ((node as InstancedMesh).isInstancedMesh) instanced.push(node as InstancedMesh);
+      else if ((node as Mesh).isMesh && (node as Mesh).renderOrder === 0) art.push(node as Mesh);
+    });
+    expect(instanced).toHaveLength(2);
+    for (const mesh of instanced) {
+      expect((mesh.material as ShaderMaterial).isShaderMaterial).toBe(true);
+      expect(mesh.geometry.getAttribute("aPhase").count).toBeGreaterThanOrEqual(mesh.count);
+    }
+    expect(instanced[0].geometry).not.toBe(instanced[1].geometry);
+    expect(art).toHaveLength(1);
+    expect(art[0].scale.y).toBeCloseTo(0.8, 6);
+    for (const spec of plan.petals) {
+      for (const t of [0, 3000, 9000]) {
+        const pose = legendaryPetalPose(plan, spec, t, 1);
+        expect(Math.abs(pose.rx)).toBeLessThanOrEqual(0.5 + 1e-9);
+        expect(Math.abs(pose.rz)).toBeLessThanOrEqual(0.4 + 1e-9);
+      }
+    }
+    graph.update(5000, view());
+    graph.dispose();
   });
 });

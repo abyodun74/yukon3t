@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { BufferGeometry, Material, Mesh, MeshPhysicalMaterial, Points, Texture, type Object3D } from "three";
-import { ROCKET_TRAIL_MAX_LAG, ROCKET_TRAIL_STEP, buildComposedGraph, gemGeometries, goldHeartGeometry, starGeometry } from "@/components/gift-composed-graph";
+import { BufferGeometry, Material, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, Points, Texture, type Object3D } from "three";
+import {
+  ROCKET_TRAIL_MAX_LAG,
+  ROCKET_TRAIL_STEP,
+  buildComposedGraph,
+  buildStudioEnvironment,
+  gemGeometries,
+  goldHeartGeometry,
+  starGeometry,
+} from "@/components/gift-composed-graph";
 import { COMPOSED_USES_ART, COMPOSED_VARIANTS, GEM_TABLE, composedScenePlan, type ComposedVariant } from "@/lib/gift-composed-plan";
 
 // The composed scenes' three.js objects, built for real (three.js needs no WebGL to create them) with fake textures:
@@ -116,9 +124,32 @@ describe("the Fireworks", () => {
     graph.root.traverse((node) => {
       if ((node as Points).isPoints) clouds.push(node as Points);
     });
-    const trail = ROCKET_TRAIL_MAX_LAG / ROCKET_TRAIL_STEP + 1;
+    const trail = Math.floor(ROCKET_TRAIL_MAX_LAG / ROCKET_TRAIL_STEP) + 1;
     const expected = plan.fireworks.reduce((n, f) => n + trail + f.particles + 1, 0);
     expect(clouds.map((c) => c.geometry.getAttribute("position").count)).toContain(expected);
     graph.dispose();
+  });
+});
+
+describe("the studio environment", () => {
+  it("is moderate (nothing that would clip polished gold to white) and disposes everything it made", () => {
+    const studio = buildStudioEnvironment();
+    const materials: MeshBasicMaterial[] = [];
+    const geometries: BufferGeometry[] = [];
+    studio.scene.traverse((node) => {
+      const mesh = node as Mesh;
+      if (mesh.isMesh) {
+        materials.push(mesh.material as MeshBasicMaterial);
+        geometries.push(mesh.geometry);
+      }
+    });
+    expect(materials.length).toBeGreaterThanOrEqual(4);
+    // The brightest panel stays under 2.5 (three's RoomEnvironment lights its boxes far brighter).
+    for (const m of materials) expect(Math.max(m.color.r, m.color.g, m.color.b)).toBeLessThanOrEqual(2.5);
+    const disposed = new Set<object>();
+    for (const item of [...materials, ...geometries]) item.addEventListener("dispose", () => disposed.add(item));
+    studio.dispose();
+    for (const item of [...materials, ...geometries]) expect(disposed.has(item)).toBe(true);
+    expect(studio.scene.children).toHaveLength(0);
   });
 });

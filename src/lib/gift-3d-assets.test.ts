@@ -282,14 +282,14 @@ describe("loading boundaries", () => {
     expect(scene).toContain("art?.dispose()");
     expect(scene).toContain("envMap?.dispose()");
     expect(scene).toContain("pmrem.dispose()");
-    expect(scene).toContain("room.dispose()");
+    expect(scene).toContain("studio.dispose()");
     expect(scene).toContain("built.dispose()");
     expect(scene).toContain("scene.remove(built.root)");
     expect(scene).toContain('removeEventListener("visibilitychange"');
     expect(scene).toContain("cancelAnimationFrame(frame)");
     expect(scene).toContain("composedSceneNeedsFrames(");
-    // The environment is three's own procedural room: no HDR file, nothing downloaded.
-    expect(scene).toMatch(/three\/examples\/jsm\/environments\/RoomEnvironment\.js/);
+    // The environment is a procedural studio built in code: no HDR file, nothing downloaded.
+    expect(scene).toContain("buildStudioEnvironment()");
     expect(scene).not.toMatch(/\.hdr|\.exr|RGBELoader|EXRLoader/);
   });
 

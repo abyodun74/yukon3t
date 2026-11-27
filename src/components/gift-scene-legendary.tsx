@@ -72,7 +72,9 @@ function LegendaryContent({
         loaded.colorSpace = SRGBColorSpace;
         loaded.anisotropy = Math.min(MAX_ANISOTROPY, gl.capabilities.getMaxAnisotropy());
         loaded.needsUpdate = true;
-        built = buildLegendaryGraph(plan, loaded);
+        const image = loaded.image as { width?: number; height?: number } | undefined;
+        const aspect = image?.width && image.height ? image.height / image.width : 1;
+        built = buildLegendaryGraph(plan, loaded, aspect);
         scene.add(built.root);
         setGraph(built);
       },

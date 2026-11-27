@@ -99,7 +99,7 @@ export const LEGENDARY_LOOKS: Record<LegendaryVariant, LegendaryLook> = {
     petalEmissive: "#141c34",
     petalMetalness: 0.65,
     petalRoughness: 0.08,
-    petalScale: [0.035, 0.06],
+    petalScale: [0.065, 0.1],
     glowColor: "#ffbf4a",
     sparkleColor: "#ffffff",
     ribbonFrom: "#ffd36b",
@@ -218,7 +218,8 @@ export function legendaryScenePlan(variant: LegendaryVariant, opts: { lowEnd: bo
     const side = i % 9 < 4 ? "front" : "back";
     return {
       side,
-      x: between(-0.8, 0.8),
+      // Diamonds in front of the picture keep to its sides, so they never hide the jewellery or the plaque.
+      x: look.particle === "diamond" && side === "front" ? signed(0.42, 0.8) : between(-0.8, 0.8),
       z: side === "front" ? between(0.12, 0.75) : -between(0.12, 0.85),
       phase: random(),
       fallSpeed: between(0.045, 0.085),
@@ -318,9 +319,19 @@ export function legendaryPetalPose(plan: LegendaryScenePlan, petal: PetalSpec, t
     x: petal.x + petal.swayAmp * Math.sin(seconds * petal.swayRate + petal.swayPhase),
     y: plan.look.drift === "rise" ? LEGENDARY_FALL.bottom + progress * range : LEGENDARY_FALL.top - progress * range,
     z: petal.z,
-    rx: petal.rot[0] + petal.spin[0] * seconds,
-    ry: petal.rot[1] + petal.spin[1] * seconds,
-    rz: petal.rot[2] + petal.spin[2] * seconds,
+    // A diamond stays near upright (table up, so its brilliant-cut silhouette reads) and turns about its axis with a
+    // gentle rock; a petal tumbles freely.
+    ...(plan.look.particle === "diamond"
+      ? {
+          rx: 0.5 * Math.sin(petal.rot[0] + 0.35 * petal.spin[0] * seconds),
+          ry: petal.rot[1] + 1.6 * petal.spin[1] * seconds,
+          rz: 0.4 * Math.sin(petal.rot[2] + 0.3 * petal.spin[2] * seconds),
+        }
+      : {
+          rx: petal.rot[0] + petal.spin[0] * seconds,
+          ry: petal.rot[1] + petal.spin[1] * seconds,
+          rz: petal.rot[2] + petal.spin[2] * seconds,
+        }),
     scale: petal.scale * edge * clamp01(level),
   };
 }

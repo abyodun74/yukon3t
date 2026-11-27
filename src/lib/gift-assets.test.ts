@@ -194,13 +194,14 @@ describe("Legendary artwork (src/lib/gift-legendary-art-images.ts, scripts/slice
     expect(Object.keys(GIFT_ART_IMAGES)).not.toContain("diamond-jewelry-box");
     expect(Object.keys(GIFT_LEGENDARY_ART_IMAGES)).not.toContain("diamond-jewelry-box");
     expect(GIFT_ITEMS.some((i) => i.assetKey === "diamond-jewelry-box")).toBe(true);
-    expect([image.width, image.height, image.thumbWidth, image.thumbHeight]).toEqual([768, 768, 256, 256]);
-    for (const { src, size, budget } of [
-      { src: image.src, size: 768, budget: 120 * 1024 },
-      { src: image.thumbSrc, size: 256, budget: 25 * 1024 },
+    // Kept whole at its own aspect (1402 x 1122 source): 768 x 615 and 256 x 205, never cropped or padded.
+    expect([image.width, image.height, image.thumbWidth, image.thumbHeight]).toEqual([768, 615, 256, 205]);
+    for (const { src, width, height, budget } of [
+      { src: image.src, width: 768, height: 615, budget: 120 * 1024 },
+      { src: image.thumbSrc, width: 256, height: 205, budget: 25 * 1024 },
     ]) {
       const file = readFileSync(publicFile(src));
-      expect(webpSize(file)).toEqual({ width: size, height: size });
+      expect(webpSize(file)).toEqual({ width, height });
       expect(file.toString("ascii", 12, 16)).toBe("VP8X");
       expect(file[20] & 0x10).toBe(0x10);
       expect(file.length).toBeLessThan(budget);

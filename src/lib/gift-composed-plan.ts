@@ -1,3 +1,4 @@
+import type { CutoutPreset } from "@/lib/gift-art-cutout";
 import { seededRandom, smoothstep } from "@/lib/gift-legendary-plan";
 
 // The composed 3D reveals: a procedural object with the gift's own artwork or effect placed physically on it (what
@@ -33,6 +34,15 @@ export const COMPOSED_USES_ART: Readonly<Record<ComposedVariant, boolean>> = {
   "star-badge": true,
   "gem-sweep": true,
   "gem-frame": true,
+};
+
+/** How each icon is cut out of its backdrop (gift-art-cutout.ts CUTOUT_PRESETS). */
+export const COMPOSED_CUTOUT: Readonly<Record<ComposedVariant, CutoutPreset>> = {
+  "gold-heart": "standard",
+  "fireworks-box": "standard",
+  "star-badge": "badge",
+  "gem-sweep": "standard",
+  "gem-frame": "frame",
 };
 
 export const COMPOSED_ACTIVE_MS = 14000;

@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useThree } from "@react-three/fiber";
 import { CanvasTexture, PMREMGenerator, SRGBColorSpace, type Texture } from "three";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GiftCanvas } from "@/components/gift-canvas";
-import { buildComposedGraph, type ComposedGraph } from "@/components/gift-composed-graph";
-import { cutOutGiftArt } from "@/lib/gift-art-cutout";
-import { COMPOSED_USES_ART, composedScenePlan, composedSceneNeedsFrames, type ComposedScenePlan, type ComposedVariant } from "@/lib/gift-composed-plan";
+import { buildComposedGraph, buildStudioEnvironment, type ComposedGraph } from "@/components/gift-composed-graph";
+import { CUTOUT_PRESETS, CUTOUT_UPSCALE, cutOutGiftArt, scaledCutout, type CutoutPreset } from "@/lib/gift-art-cutout";
+import { COMPOSED_CUTOUT, COMPOSED_USES_ART, composedScenePlan, composedSceneNeedsFrames, type ComposedScenePlan, type ComposedVariant } from "@/lib/gift-composed-plan";
 
 // The composed 3D reveals (Keepsake Locket, Fireworks, Level Up, Aurora Sweep, Aurora Frame): a procedural object with
 // the gift's own icon or effect placed on it (plan: src/lib/gift-composed-plan.ts; objects: gift-composed-graph.ts).
@@ -16,7 +15,7 @@ import { COMPOSED_USES_ART, composedScenePlan, composedSceneNeedsFrames, type Co
 //
 // The icon (where the variant uses one) is the same same-origin 384px WebP the stage shows as its poster (already in
 // the browser's cache), drawn into a canvas and cut out of its navy backdrop (gift-art-cutout.ts), then uploaded as an
-// sRGB texture with mipmaps. The metal's reflections come from three's procedural RoomEnvironment, prefiltered once
+// sRGB texture with mipmaps. The metal's reflections come from a procedural studio (buildStudioEnvironment), prefiltered once
 // (PMREM) per open reveal. The shared GiftCanvas gives the one-canvas slot, frameloop "demand", the DPR cap and the
 // context-loss fallback; an icon that fails to load hands back to the stage too. Frames are drawn only while the plan
 // says something moves (composedSceneNeedsFrames) and never while the page is hidden; Replay restarts the timeline on
@@ -26,20 +25,23 @@ import { COMPOSED_USES_ART, composedScenePlan, composedSceneNeedsFrames, type Co
 /** Anisotropic filtering for the icon when the object turns off-axis. */
 const MAX_ANISOTROPY = 4;
 
-function loadCutOut(src: string): Promise<HTMLCanvasElement> {
+function loadCutOut(src: string, preset: CutoutPreset): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.decoding = "async";
     image.onload = () => {
       try {
         const canvas = document.createElement("canvas");
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
+        // Cut at CUTOUT_UPSCALE x the file's size (smoothly upscaled), so the cut edge is finer than the 384px icon's.
+        canvas.width = image.naturalWidth * CUTOUT_UPSCALE;
+        canvas.height = image.naturalHeight * CUTOUT_UPSCALE;
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) throw new Error("no 2d context");
-        context.drawImage(image, 0, 0);
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
         const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-        cutOutGiftArt(pixels.data, canvas.width, canvas.height);
+        cutOutGiftArt(pixels.data, canvas.width, canvas.height, scaledCutout(CUTOUT_PRESETS[preset], CUTOUT_UPSCALE));
         context.putImageData(pixels, 0, 0);
         resolve(canvas);
       } catch (error) {
@@ -83,7 +85,7 @@ function ComposedContent({
     let envMap: Texture | null = null;
     let built: ComposedGraph | null = null;
     const needsArt = COMPOSED_USES_ART[plan.variant];
-    const icon = needsArt && artSrc ? loadCutOut(artSrc) : Promise.resolve(null);
+    const icon = needsArt && artSrc ? loadCutOut(artSrc, COMPOSED_CUTOUT[plan.variant]) : Promise.resolve(null);
     icon.then(
       (canvas) => {
         if (cancelled) return;
@@ -98,9 +100,9 @@ function ComposedContent({
           art = texture;
         }
         const pmrem = new PMREMGenerator(gl);
-        const room = new RoomEnvironment();
-        envMap = pmrem.fromScene(room, 0.04).texture;
-        room.dispose();
+        const studio = buildStudioEnvironment();
+        envMap = pmrem.fromScene(studio.scene, 0.02).texture;
+        studio.dispose();
         pmrem.dispose();
         built = buildComposedGraph(plan, { art, envMap });
         scene.add(built.root);

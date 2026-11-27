@@ -9,10 +9,10 @@ import {
   DynamicDrawUsage,
   Float32BufferAttribute,
   Group,
+  InstancedBufferAttribute,
   InstancedMesh,
   LatheGeometry,
   Mesh,
-  MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
@@ -80,15 +80,80 @@ export function petalGeometry(lengthSegments = 6, widthSegments = 4): BufferGeom
 }
 
 /**
- * A small brilliant-cut diamond (the jewelry box's floating diamonds): a flat table, a short crown and a pointed
- * pavilion, eight facets round, height 1 (so it scales like a petal). Flat shading makes each facet catch the light.
+ * A small brilliant-cut diamond (the jewelry box's floating diamonds), the classic silhouette: a wide flat table, a
+ * two-tier crown (star and bezel facets), a thin girdle and a deep pavilion to a point, sixteen facets round. Height 1
+ * (it scales like a petal), widest 1. Non-indexed with one normal per facet, so every facet is one flat tone (crisp facet
+ * contrast in the shader instead of a smooth pebble).
  */
-export function diamondGeometry(segments = 8): BufferGeometry {
-  const profile = [new Vector2(0, -0.62), new Vector2(0.5, 0.12), new Vector2(0.34, 0.38), new Vector2(0, 0.38)];
-  const geometry = new LatheGeometry(profile, segments);
+export function diamondGeometry(segments = 16): BufferGeometry {
+  const profile = [
+    new Vector2(0, -0.6),
+    new Vector2(0.5, 0.06),
+    new Vector2(0.5, 0.1),
+    new Vector2(0.43, 0.24),
+    new Vector2(0.3, 0.38),
+    new Vector2(0, 0.38),
+  ];
+  const lathe = new LatheGeometry(profile, segments);
+  const geometry = lathe.toNonIndexed();
+  lathe.dispose();
   geometry.computeVertexNormals();
   return geometry;
 }
+
+// The floating diamonds: an unlit, faceted "studio" look in the shader (cheap: no environment map, no transmission).
+// Each flat facet takes a tone from where its reflection points (bright ceiling and softboxes, a dark floor, deep blue
+// sides), a cool-violet dispersion tint that changes facet to facet, a white rim, sharp specular glints from two light
+// directions and a per-diamond twinkle. So a diamond reads clear-white with cool/violet reflections and crisp contrast.
+const DIAMOND_VERTEX = /* glsl */ `
+attribute float aPhase;
+varying vec3 vNormal;
+varying vec3 vView;
+varying float vPhase;
+void main() {
+  vec4 local = vec4(position, 1.0);
+  mat4 model = modelMatrix;
+  #ifdef USE_INSTANCING
+    local = instanceMatrix * local;
+    model = modelMatrix * instanceMatrix;
+  #endif
+  vec4 world = modelMatrix * local;
+  vNormal = normalize(mat3(model) * normal);
+  vView = normalize(cameraPosition - world.xyz);
+  vPhase = aPhase;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}`;
+
+const DIAMOND_FRAGMENT = /* glsl */ `
+uniform float uTime;
+varying vec3 vNormal;
+varying vec3 vView;
+varying float vPhase;
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 v = normalize(vView);
+  vec3 r = reflect(-v, n);
+  float facing = max(dot(n, v), 0.0);
+  // The studio: dark floor, deep blue sides, bright soft ceiling and two softboxes.
+  float ceiling = smoothstep(-0.1, 0.8, r.y);
+  float box1 = pow(max(dot(r, normalize(vec3(0.6, 0.7, 0.4))), 0.0), 18.0);
+  float box2 = pow(max(dot(r, normalize(vec3(-0.7, 0.3, 0.6))), 0.0), 14.0);
+  vec3 col = mix(vec3(0.04, 0.05, 0.16), vec3(0.3, 0.36, 0.68), smoothstep(-0.6, 0.2, r.y));
+  col = mix(col, vec3(0.95, 0.97, 1.0), ceiling);
+  col += vec3(1.0) * box1 * 2.0 + vec3(0.9, 0.85, 1.0) * box2 * 1.4;
+  // Dispersion: a cool / violet / pale-gold tint that changes from facet to facet, and every few facets a bright one.
+  float k = dot(n, vec3(12.9898, 78.233, 37.719));
+  float h = fract(sin(k) * 43758.5453);
+  vec3 fire = 0.5 + 0.5 * cos(6.2831 * (h + vec3(0.0, 0.33, 0.67)));
+  col *= mix(vec3(1.0), mix(vec3(0.8, 0.86, 1.0), fire, 0.5), 0.3);
+  col += vec3(0.95, 0.97, 1.0) * step(0.72, h) * 0.45;
+  // White rim, and a twinkle: now and then one facet flashes.
+  col += vec3(0.9, 0.93, 1.0) * pow(1.0 - facing, 3.0) * 0.6;
+  float twinkle = pow(max(sin(uTime * 1.7 + vPhase + k * 0.01), 0.0), 24.0);
+  col += vec3(1.0) * twinkle * smoothstep(0.6, 1.0, facing) * 1.4;
+  gl_FragColor = vec4(col, 1.0);
+  #include <colorspace_fragment>
+}`;
 
 class HelixCurve extends Curve<Vector3> {
   constructor(private readonly ribbon: LegendaryRibbon) {
@@ -251,7 +316,7 @@ export type LegendaryGraph = {
   dispose: () => void;
 };
 
-export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture): LegendaryGraph {
+export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture, aspect = 1): LegendaryGraph {
   const look = plan.look;
   const root = new Group();
   const geometries: BufferGeometry[] = [];
@@ -297,6 +362,8 @@ export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture):
     }),
   );
   const art = new Mesh(artGeometry, artMaterial);
+  // The picture keeps its own aspect (height / width; the jewelry box is wider than tall), as the poster draws it.
+  art.scale.y = aspect;
   art.renderOrder = ORDER.art;
   root.add(art);
 
@@ -304,18 +371,12 @@ export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture):
   const [petalGeo, petalMaterial] = own(
     look.particle === "diamond" ? diamondGeometry() : petalGeometry(),
     look.particle === "diamond"
-      ? new MeshPhysicalMaterial({
-          color: new Color(look.petalColor),
-          emissive: new Color(look.petalEmissive),
-          emissiveIntensity: 1,
-          metalness: look.petalMetalness,
-          roughness: look.petalRoughness,
-          clearcoat: 1,
-          iridescence: 1,
-          iridescenceIOR: 2.0,
-          iridescenceThicknessMaximum: 480,
-          flatShading: true,
+      ? new ShaderMaterial({
+          uniforms: { uTime: { value: 0 } },
+          vertexShader: DIAMOND_VERTEX,
+          fragmentShader: DIAMOND_FRAGMENT,
           transparent: true,
+          toneMapped: false,
         })
       : new MeshStandardMaterial({
           color: new Color(look.petalColor),
@@ -329,7 +390,16 @@ export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture):
   );
   const petalSets = (["back", "front"] as const).map((side) => {
     const specs = plan.petals.filter((p) => p.side === side);
-    const mesh = new InstancedMesh(petalGeo, petalMaterial, Math.max(1, specs.length));
+    // Diamonds carry a per-instance twinkle phase, so each set gets its own copy of the geometry for that attribute.
+    let geometry = petalGeo;
+    if (look.particle === "diamond") {
+      geometry = petalGeo.clone();
+      geometries.push(geometry);
+      const phases = new Float32Array(Math.max(1, specs.length));
+      specs.forEach((s, i) => (phases[i] = s.swayPhase * 3.7));
+      geometry.setAttribute("aPhase", new InstancedBufferAttribute(phases, 1));
+    }
+    const mesh = new InstancedMesh(geometry, petalMaterial, Math.max(1, specs.length));
     mesh.count = specs.length;
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
@@ -424,6 +494,7 @@ export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture):
         mesh.visible = levels.petals > 0;
       }
       sparkleMaterial.uniforms.uTime.value = seconds;
+      if (petalMaterial instanceof ShaderMaterial) petalMaterial.uniforms.uTime.value = seconds;
       sparkleMaterial.uniforms.uPixelRatio.value = view.pixelRatio;
       sparkleMaterial.uniforms.uLevel.value = levels.sparkles;
       ribbonGroup.rotation.y = seconds * look.ribbonSpin;
