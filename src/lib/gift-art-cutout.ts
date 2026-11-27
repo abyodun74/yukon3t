@@ -1,11 +1,11 @@
 // Cuts a gift icon out of its navy backdrop, in the browser, for the 3D reveals that place an icon on an object
-// (gift-scene-composed.tsx: the Level Up badge on the gold star, the Aurora Sweep across the gem, the Aurora Frame on
-// it). The icon files keep the sheet's backdrop on purpose (see CLAUDE.md "Art pipeline": a colour key alone can't
+// (gift-scene-composed.tsx: the Aurora Sweep across the gem, the Aurora Frame and the Midnight Crystal on it), plus the
+// hand-traced outlines of the two icons no colour key can separate (the Level Up badge, the Supporter Star's star). The icon files keep the sheet's backdrop on purpose (see CLAUDE.md "Art pipeline": a colour key alone can't
 // separate dark parts such as the graduation cap's top), so this does not key by colour alone: it flood-fills from the
 // picture's border through backdrop-coloured (or already faded) pixels only. Dark parts enclosed by the art (the Level
 // Up shield's navy face, the night sky inside the Aurora Frame) are not reachable from the border and stay opaque.
 // Inside the filled region alpha ramps with the colour distance from the backdrop and with brightness (a dark halo goes
-// too; warm dark glow, the maroon around the Level Up wings, can be cut harder than cool dark art), so the art's own soft
+// too; warm and cool dark glow can be ramped differently), so the art's own soft
 // glows become translucent instead of a hard edge or a dark rim, and the backdrop's tint is taken back out of those
 // pixels (un-blended), so no navy fringe is left. Optionally the art is first "sealed" (grown a few px) so the fill can
 // reach further into the glow without slipping through thin gaps into the art, and small specks left floating around
@@ -34,18 +34,136 @@ export type CutoutOptions = {
   speck: number;
   /** Anti-alias the cut edge (3x3 alpha average over the cut region). */
   soften: boolean;
+  /**
+   * Harden the cut region's leftover glow (0 = off): there, alpha below `harden` goes, and it ramps to full over the next
+   * 0.3, so a faint pale halo of un-blended glow pixels around the art doesn't survive as a speckled outline.
+   */
+  harden: number;
 };
 
 export const CUTOUT_PRESETS = {
-  /** The Aurora Sweep (painted onto the gem; its shader also drops dark pixels). */
-  standard: { reach: 90, lo: 24, hi: 90, cool: [0.08, 0.28], warm: [0.08, 0.28], seal: 0, speck: 0, soften: false },
-  /** The Level Up badge: its shield's dark lower half shares the glow's colour, so the fill stays at 90 (it would eat
-   *  the shield further out); the warm maroon glow around the wings and arrow is cut harder, and specks go. */
-  badge: { reach: 90, lo: 24, hi: 90, cool: [0.08, 0.28], warm: [0.16, 0.46], seal: 0, speck: 40, soften: true },
+  /** The Aurora Sweep (painted onto the gem; its shader also drops dark pixels) and the Supporter Star's engraving mask. */
+  standard: { reach: 90, lo: 24, hi: 90, cool: [0.08, 0.28], warm: [0.08, 0.28], seal: 0, speck: 0, soften: false, harden: 0 },
   /** The Aurora Frame: nothing dark is enclosed by its outer edge, so the fill reaches all of its dark-blue glow
-   *  (sealed by 2 px), which is cut, and the scattered specks go. */
-  frame: { reach: 130, lo: 24, hi: 130, cool: [0.14, 0.45], warm: [0.14, 0.45], seal: 2, speck: 40, soften: true },
+   *  (sealed by 2 px), which is cut; what is left of that glow is hardened (no pale speckled rim) and specks go. */
+  frame: { reach: 130, lo: 24, hi: 130, cool: [0.14, 0.45], warm: [0.14, 0.45], seal: 2, speck: 40, soften: true, harden: 0.42 },
+  /** The Midnight Crystal: its blue glow and the navy between the crystals go (sealed so the fill can't get into the
+   *  crystals' dark facets), the crystals' edges stay crisp. */
+  crystal: { reach: 120, lo: 30, hi: 120, cool: [0.12, 0.4], warm: [0.12, 0.4], seal: 2, speck: 60, soften: true, harden: 0.4 },
 } as const satisfies Record<string, CutoutOptions>;
+
+/**
+ * The Level Up badge's outline (wings, arrow and shield), traced by hand on the 384px icon (x, y in icon pixels,
+ * clockwise from the left wing's tip). Its dark shield and the maroon glow around it share their colours, so no colour
+ * key can separate them (the earlier colour-keyed cut left maroon patches above the arrow and between the wings, and a
+ * ragged shield); the scene fills this path instead (anti-aliased) and keeps only what is inside it. The four small
+ * sparkles outside the outline go with the glow.
+ */
+export const LEVEL_UP_SILHOUETTE: readonly (readonly [number, number])[] = [
+  // Left wing: tip, its top edge straight to the shield's corner.
+  [38.6, 136.6],
+  [40.4, 134.9],
+  [116.3, 169.4],
+  // The shield's top-left rim up to the arrow head.
+  [131.7, 159.4],
+  [150, 146.5],
+  [158.3, 141.7],
+  // The arrow head.
+  [156.2, 139.9],
+  [193.5, 98.4],
+  [231.3, 139.9],
+  [229.4, 141.8],
+  // The shield's top-right rim down to the right wing.
+  [251.7, 156.3],
+  [270.4, 169.6],
+  // Right wing: its top edge to the tip, then the three feathers' lower edges.
+  [305, 152.4],
+  [343.6, 135.6],
+  [345.9, 136.9],
+  [346.7, 140.5],
+  [342.9, 153.9],
+  [337.7, 165.2],
+  [332.7, 171.3],
+  [326.6, 176.3],
+  [328, 178.6],
+  [337.9, 180.2],
+  [336.7, 186.2],
+  [331.5, 197.7],
+  [325.2, 205.4],
+  [317.6, 210.5],
+  [310.6, 214],
+  [314.3, 217.6],
+  [311.5, 225.2],
+  [305.2, 232.8],
+  [296.2, 237.8],
+  [287.6, 239.1],
+  [285.9, 242.1],
+  [284.7, 245.8],
+  [280, 248.6],
+  [271, 247.7],
+  // The shield's right side and lower rims.
+  [269.9, 258],
+  [266.9, 262.5],
+  [243.2, 276.7],
+  [228.2, 292.3],
+  [163.2, 290.7],
+  [141.6, 277.7],
+  [118.8, 258.2],
+  [116.2, 252],
+  // Left wing: the three feathers' lower edges back up to the tip.
+  [115.5, 248.2],
+  [110, 249],
+  [105, 248.5],
+  [100, 246.4],
+  [97.4, 242.7],
+  [96, 239.4],
+  [92.5, 236.5],
+  [85, 231.5],
+  [77.4, 225.4],
+  [72.9, 219.7],
+  [72.6, 216.8],
+  [71, 213],
+  [62.5, 205.5],
+  [55.4, 196.1],
+  [51.5, 188.1],
+  [49.9, 182.5],
+  [50.6, 180.3],
+  [56.2, 176.6],
+  [53.8, 172.4],
+  [49.8, 168.6],
+  [45, 162.6],
+  [41.1, 155],
+  [38.8, 146.5],
+  [38.3, 139.6],
+];
+
+/**
+ * The Supporter Star icon's star (its five points and the five corners between them, 384px icon, clockwise from the top
+ * point), traced by hand: the outline of the engraving cut into the 3D star (its warm glow is not part of it).
+ */
+export const SUPPORTER_STAR_OUTLINE: readonly (readonly [number, number])[] = [
+  [188, 47],
+  [234, 129],
+  [330, 150],
+  [268, 218],
+  [283, 322],
+  [187, 278],
+  [90, 320],
+  [103, 217],
+  [42, 148],
+  [142, 129],
+];
+
+/** Whether the point (x, y) lies inside `polygon` (even-odd rule). */
+export function pointInPolygon(polygon: readonly (readonly [number, number])[], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
 
 export type CutoutPreset = keyof typeof CUTOUT_PRESETS;
 
@@ -200,6 +318,13 @@ export function cutOutGiftArt(
     data[o + 3] = Math.round(data[o + 3] * keep);
   }
 
+  if (options.harden > 0) {
+    for (let i = 0; i < count; i++) {
+      if (!reached[i]) continue;
+      const o = i * 4 + 3;
+      data[o] = Math.round(255 * smooth(options.harden, options.harden + 0.3, data[o] / 255));
+    }
+  }
   if (options.speck > 0) removeSpecks(data, width, height, options.speck);
   if (options.soften) softenEdge(data, width, height, dilate(reached, width, height, 1));
 }

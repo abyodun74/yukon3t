@@ -3256,7 +3256,7 @@ const sections: Section[] = [
             Opening a gift (or previewing one in the gift marketplace) also
             plays sound, always after your tap, never on its own: a short chime
             for Common gifts, 30 seconds of sound effects for Rare, 60 seconds
-            for Epic and 100 seconds of cinematic sound for Legendary. Reduce
+            for Epic and 100 seconds of cinematic sound for Legendary. Some gifts add a sound of their own, like the Playful Kitten&apos;s meow as it jumps out of its box. Reduce
             motion doesn&apos;t turn it off, since that&apos;s a motion setting.
             Tap the speaker button on the reveal to <strong>mute</strong> it;
             the choice is remembered on that device. The sound stops as soon as

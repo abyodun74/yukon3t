@@ -1,3 +1,4 @@
+import { KITTEN_JUMP_AFTER_HIT_MS } from "@/lib/gift-composed-plan";
 import type { GiftTierName } from "@/lib/gifts-data";
 
 // The gift reveal's sound, by rarity tier: a pure, deterministic composition plan (no I/O, no randomness, no Web Audio),
@@ -53,7 +54,8 @@ export type GiftSoundVoice =
   | "drum"
   | "impact"
   | "thunder"
-  | "riser";
+  | "riser"
+  | "meow";
 
 /** Where a voice sits: dry, a room's worth of reverb, or a hall's. */
 export type GiftSoundSpace = "dry" | "room" | "hall";
@@ -164,6 +166,7 @@ const DEFAULTS: Record<GiftSoundVoice, Pick<GiftSoundEvent, "attackMs" | "releas
   impact: { attackMs: 5, releaseMs: 2600, envelope: "decay", space: "hall", brightness: 0.6 },
   thunder: { attackMs: 40, releaseMs: 4000, envelope: "decay", space: "hall", brightness: 0.5 },
   riser: { attackMs: 300, releaseMs: 60, envelope: "sustain", space: "hall", brightness: 1 },
+  meow: { attackMs: 35, releaseMs: 230, envelope: "sustain", space: "room", brightness: 0.7 },
 };
 
 type Layers = {
@@ -475,7 +478,7 @@ function sortEvents(events: GiftSoundEvent[]): GiftSoundEvent[] {
   return events.map((e, i) => [e, i] as const).sort((a, b) => a[0].atMs - b[0].atMs || a[1] - b[1]).map(([e]) => e);
 }
 
-function tieredPlan(tier: Exclude<GiftTierName, "COMMON">, lowEnd: boolean, hitMs: number): Omit<GiftSoundPlan, "tier" | "lowEnd"> {
+function tieredPlan(tier: Exclude<GiftTierName, "COMMON">, lowEnd: boolean, hitMs: number, accent: GiftSoundAccent | null): Omit<GiftSoundPlan, "tier" | "lowEnd"> {
   const spec = SPECS[tier];
   const durationMs = GIFT_SOUND_DURATION_MS[tier];
   const score = new Score(durationMs, lowEnd);
@@ -500,7 +503,7 @@ function tieredPlan(tier: Exclude<GiftTierName, "COMMON">, lowEnd: boolean, hitM
 
   // The hit, on the gift's name.
   score.add("impact", hit, 3200, hz([26]), spec.hitImpact);
-  if (spec.hitThunder) score.add("thunder", hit + 30, 6500, [], spec.hitThunder, { crackles: thunderCrackles(6500, 1) });
+  if (spec.hitThunder && !accent) score.add("thunder", hit + 30, 6500, [], spec.hitThunder, { crackles: thunderCrackles(6500, 1) });
   score.add("bell", hit, 3800, hz(tier === "RARE" ? [86, 90, 93] : [86, 89, 93]), 0.1);
 
   // The body: each section's layers, chord by chord.
@@ -555,12 +558,42 @@ function tieredPlan(tier: Exclude<GiftTierName, "COMMON">, lowEnd: boolean, hitM
   };
 }
 
+// --- Accents: a sound of the gift's own on top of its tier's score --------------------------------------------------
+
+/** A gift's own sound over the score: today only the Playful Kitten's meow as it jumps out of its box. */
+export type GiftSoundAccent = "meow";
+
+/** The accent for a reveal's items (one item with an accent), or null. */
+export function giftSoundAccentFor(items: readonly { slug: string }[]): GiftSoundAccent | null {
+  return items.length === 1 && items[0].slug === "playful-kitten" ? "meow" : null;
+}
+
+/** The meow starts this long after the kitten leaves the box (it meows in the air, at the top of its leap). */
+export const MEOW_AFTER_JUMP_MS = 90;
+/**
+ * The meow's shape: the pitch rises from `startHz` to `peakHz` over the first `peakAt` of it and falls to `endHz`
+ * ("mi-a-ow"); a kitten's voice, high (a grown cat's is lower). Length and level before the master chain.
+ */
+export const MEOW = { durationMs: 680, startHz: 640, peakHz: 930, endHz: 520, peakAt: 0.34, gain: 2.4 } as const;
+
+/** When the meow starts, for the reveal's hit (the kitten's jump is timed from the same hit, gift-composed-plan.ts). */
+export function meowAtMs(hitMs: number): number {
+  return Math.round(Math.max(0, hitMs) + KITTEN_JUMP_AFTER_HIT_MS + MEOW_AFTER_JUMP_MS);
+}
+
 /**
  * The score for a tier. `hitMs` is when the reveal shows the gift's name (giftRevealTimeline's "name" step), so the
- * hit lands with it; it is clamped into each tier's range. Same input, same plan.
+ * hit lands with it; it is clamped into each tier's range. Same input, same plan. With an accent (the Playful Kitten's
+ * meow) the accent is added on its own cue, and the hit's thunder is left out so nothing rumbles under the kitten.
  */
-export function giftSoundPlan(tier: GiftTierName, opts: { lowEnd: boolean; hitMs: number }): GiftSoundPlan {
-  const body = tier === "COMMON" ? commonPlan(opts.lowEnd, opts.hitMs) : tieredPlan(tier, opts.lowEnd, opts.hitMs);
+export function giftSoundPlan(tier: GiftTierName, opts: { lowEnd: boolean; hitMs: number; accent?: GiftSoundAccent | null }): GiftSoundPlan {
+  const body = tier === "COMMON" ? commonPlan(opts.lowEnd, opts.hitMs) : tieredPlan(tier, opts.lowEnd, opts.hitMs, opts.accent ?? null);
+  if (opts.accent === "meow") {
+    // The meow follows the kitten (the scene's own hit, not the tier's clamped one).
+    const score = new Score(body.durationMs, opts.lowEnd);
+    score.add("meow", meowAtMs(opts.hitMs), MEOW.durationMs, [MEOW.startHz, MEOW.peakHz, MEOW.endHz], MEOW.gain);
+    body.events = sortEvents([...body.events, ...score.events]);
+  }
   return { tier, lowEnd: opts.lowEnd, ...body };
 }
 
@@ -612,6 +645,8 @@ export function voiceNodeCount(e: GiftSoundEvent): number {
     case "thunder":
     case "riser":
       return 3;
+    case "meow":
+      return 10;
   }
 }
 

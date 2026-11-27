@@ -24,8 +24,12 @@ import {
   softClipCurve,
   voiceNodeCount,
   GIFT_SOUND_ARM_WINDOW_MS,
+  MEOW,
+  giftSoundAccentFor,
+  meowAtMs,
   type GiftSoundPlan,
 } from "@/lib/gift-sound-plan";
+import { KITTEN_JUMP_AFTER_HIT_MS } from "@/lib/gift-composed-plan";
 
 // The hit times the reveal passes (giftRevealTimeline's "name" step at full motion), plus extremes.
 const HIT: Record<GiftTierName, number> = { COMMON: 430, RARE: 760, EPIC: 1190, LEGENDARY: 2180 };
@@ -280,5 +284,39 @@ describe("when sound may start", () => {
     expect(isArmFresh(1000, 1000 + GIFT_SOUND_ARM_WINDOW_MS)).toBe(true);
     expect(isArmFresh(1000, 1001 + GIFT_SOUND_ARM_WINDOW_MS)).toBe(false);
     expect(isArmFresh(1000, 999)).toBe(false);
+  });
+});
+
+describe("the Playful Kitten's meow", () => {
+  it("is only the kitten's: one item, the playful-kitten slug", () => {
+    expect(giftSoundAccentFor([{ slug: "playful-kitten" }])).toBe("meow");
+    expect(giftSoundAccentFor([{ slug: "playful-kitten" }, { slug: "playful-kitten" }])).toBeNull();
+    expect(giftSoundAccentFor([{ slug: "teddy-bear" }])).toBeNull();
+  });
+
+  it("adds exactly one meow, timed from the same hit as the kitten's jump (while it is in the air), and no hit thunder", () => {
+    for (const lowEnd of [false, true]) {
+      const plain = giftSoundPlan("EPIC", { lowEnd, hitMs: 1190 });
+      const kitten = giftSoundPlan("EPIC", { lowEnd, hitMs: 1190, accent: "meow" });
+      const meows = kitten.events.filter((e) => e.voice === "meow");
+      expect(meows).toHaveLength(1);
+      const [meow] = meows;
+      expect(meow.atMs).toBe(meowAtMs(1190));
+      expect(meow.atMs).toBeGreaterThan(1190 + KITTEN_JUMP_AFTER_HIT_MS);
+      expect(meow.durationMs).toBe(MEOW.durationMs);
+      // A kitten's rise and fall in pitch, start < peak > end, all in a kitten's range.
+      expect(meow.freqs).toEqual([MEOW.startHz, MEOW.peakHz, MEOW.endHz]);
+      expect(MEOW.peakHz).toBeGreaterThan(MEOW.startHz);
+      expect(MEOW.endHz).toBeLessThan(MEOW.peakHz);
+      for (const f of meow.freqs) expect(f).toBeGreaterThan(400);
+      // The rest of the score is the plain Epic score minus the thunder on the hit.
+      const hitThunder = (p: GiftSoundPlan) => p.events.filter((e) => e.voice === "thunder" && Math.abs(e.atMs - p.cues.hitMs - 30) <= 1);
+      expect(hitThunder(plain).length).toBe(lowEnd ? hitThunder(plain).length : 1);
+      expect(hitThunder(kitten)).toHaveLength(0);
+      expect(kitten.events.filter((e) => e.voice !== "meow").length).toBe(plain.events.length - hitThunder(plain).length);
+      expect(kitten.durationMs).toBe(plain.durationMs);
+      for (const e of kitten.events) expect(e.atMs + e.durationMs).toBeLessThanOrEqual(kitten.durationMs);
+      expect(peakConcurrency(kitten.events).nodes).toBeLessThan(400);
+    }
   });
 });

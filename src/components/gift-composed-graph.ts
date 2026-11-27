@@ -9,10 +9,10 @@ import {
   CylinderGeometry,
   DirectionalLight,
   DoubleSide,
-  ExtrudeGeometry,
   Float32BufferAttribute,
   FrontSide,
   Group,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshPhysicalMaterial,
@@ -21,41 +21,62 @@ import {
   Points,
   Scene,
   ShaderMaterial,
-  Shape,
   SphereGeometry,
-  TorusGeometry,
+  Vector2,
   type Material,
+  type MeshPhysicalMaterialParameters,
   type Texture,
 } from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { bowGeometry, boxShellGeometry, mergeParts, starGeometry, trophyGeometries, wrappedSidesGeometry } from "@/components/gift-composed-objects";
+import { buildKitten, type Kitten } from "@/components/gift-kitten";
 import { seededRandom } from "@/lib/gift-legendary-plan";
 import {
   BADGE_PLANE,
   BOX_OPENING,
   COMPOSED_REST,
+  COMPOSED_TILT,
+  CRYSTAL_PLANE,
   FRAME_PLANE,
+  GEM_TABLE,
+  KITTEN_BOX,
+  KITTEN_SCALE,
+  POSTCARD_BOX,
   STAR_FACE_Z,
+  TROPHY_BASE_Y,
+  TWIN_HEART_SCALE,
   badgePose,
   boxGlow,
   composedLevels,
   composedObjectPose,
   composedPulse,
+  crystalPose,
+  crystalRestY,
+  crystalSparkle,
+  engraveGlint,
   framePose,
+  kittenPose,
   lidAngle,
+  postcardWrapV,
   sweepReveal,
   sweepShimmer,
+  twinHeartPose,
   type ComposedScenePlan,
   type ComposedVariant,
 } from "@/lib/gift-composed-plan";
 
+export { starGeometry } from "@/components/gift-composed-objects";
+
 // The three.js objects of the composed reveals (gift-scene-composed.tsx), built from the pure plan
 // (src/lib/gift-composed-plan.ts) and posed by `update(t)`. No React here, so it can be built and disposed in a unit
-// test (gift-composed-graph.test.ts). All geometry is procedural (no model file, nothing downloaded); the only texture
-// is the gift's own icon, cut out of its backdrop by the scene (gift-art-cutout.ts), owned and disposed by the scene,
-// as is the environment map (prefiltered from buildStudioEnvironment below) that makes the metal read as metal.
+// test (gift-composed-graph.test.ts). All geometry is procedural (no model file, nothing downloaded: gift-composed-
+// objects.ts, gift-kitten.ts); the only textures are made by the scene from the gift's own icon (cut out of its
+// backdrop, or turned into engraving / wrap maps), owned and disposed by the scene, as is the environment map
+// (prefiltered from buildStudioEnvironment below, one studio per kind of material) that makes metal read as metal.
 //
-// Layering: the objects use the depth buffer (the icon on the star sits on the star's face, the frame stands on the
-// gem and is hidden by it while behind it); additive glows, sparkles, fireworks and rings are drawn after them, by
-// renderOrder, without writing depth.
+// Layering: the objects use the depth buffer (the icon on the star sits on the star's face, the frame and the crystal
+// stand on the gem and are hidden by it while behind it); additive glows, sparkles, fireworks and rings are drawn after
+// them, by renderOrder, without writing depth.
 
 const ORDER = { glow: -4, object: 0, art: 2, sparkles: 3, fireworks: 4, ring: 5 } as const;
 
@@ -240,21 +261,95 @@ function additive(uniforms: Record<string, { value: unknown }>, fragmentShader: 
 }
 
 /**
- * The studio the metal and the gem reflect (prefiltered by the scene with PMREM): a dark floor, a warm horizon, a soft
- * ceiling, one large softbox up and to the right, a cool strip light behind on the left and a dim fill on the right.
- * All moderate (nothing near the blown-out panels of three's RoomEnvironment), so gold keeps its colour and shading
- * where it faces the camera instead of clipping to white. Procedural, no file; `dispose` frees what it made.
+ * Which studio a variant's materials reflect: polished gold, the bright room the gems need (three's RoomEnvironment),
+ * a darker room with crisp cards for the clear-coated red hearts, a paper gift box.
  */
-export function buildStudioEnvironment(): { scene: Scene; dispose: () => void } {
+export type StudioKind = "gold" | "room" | "gem" | "box";
+
+export const STUDIO_FOR_VARIANT: Readonly<Record<ComposedVariant, StudioKind>> = {
+  "gold-heart": "gold",
+  "star-badge": "gold",
+  trophy: "gold",
+  "star-engraved": "gold",
+  "gem-sweep": "room",
+  "gem-frame": "room",
+  "gem-crystal": "room",
+  "twin-hearts": "gem",
+  "fireworks-box": "box",
+  "kitten-box": "box",
+  "postcard-box": "box",
+};
+
+type StudioPanel = { size: [number, number]; intensity: number; tint: string; at: [number, number, number] };
+type StudioSpec = { floor: string; horizon: string; ceiling: string; panels: StudioPanel[] };
+
+/**
+ * The studios, per kind. Gold is metal: everything it shows is a reflection, so its studio is warm all round (a warm
+ * brown floor rather than black, so the lower part of a heart or a cup reads as rich gold, not bronze), with soft cards
+ * and nothing bright enough to clip a face turned to the camera to white or pale lemon. The gem studio is darker with
+ * several small bright cards, so each facet of the ruby (and the red hearts' clearcoat) catches a crisp highlight, and a
+ * low warm bounce card in front so the pavilion's downward facets glow red instead of going black. The box studio is a
+ * bright, neutral room for paper and ribbon.
+ */
+const STUDIOS: Record<Exclude<StudioKind, "room">, StudioSpec> = {
+  gold: {
+    floor: "#4a3216",
+    horizon: "#b48a4c",
+    ceiling: "#c8b591",
+    panels: [
+      { size: [9, 6], intensity: 1.2, tint: "#fff0d6", at: [6, 9, 8] },
+      { size: [12, 7], intensity: 0.62, tint: "#ffd89c", at: [0, 1.5, 14] },
+      { size: [10, 4], intensity: 0.95, tint: "#ffcf86", at: [0, -7, 9] },
+      { size: [2.5, 12], intensity: 1.3, tint: "#e8eeff", at: [-10, 2, -5] },
+      { size: [4, 8], intensity: 0.8, tint: "#ffdcae", at: [11, -1, 2] },
+    ],
+  },
+  gem: {
+    floor: "#2a1216",
+    horizon: "#5a4048",
+    ceiling: "#8e8290",
+    panels: [
+      { size: [5, 4], intensity: 2.3, tint: "#ffffff", at: [6, 9, 8] },
+      { size: [3, 5], intensity: 2.0, tint: "#fff2f4", at: [-8, 6, 6] },
+      { size: [8, 3], intensity: 1.5, tint: "#ffc8cf", at: [0, -7, 9] },
+      { size: [2, 8], intensity: 1.7, tint: "#e6ecff", at: [9, 0, -6] },
+      { size: [4, 3], intensity: 1.3, tint: "#ffe6ea", at: [-6, -4, -8] },
+      { size: [6, 4], intensity: 1.0, tint: "#ffffff", at: [0, 3, 14] },
+    ],
+  },
+  box: {
+    floor: "#2b2430",
+    horizon: "#6c6474",
+    ceiling: "#b8b0c0",
+    panels: [
+      { size: [9, 6], intensity: 1.7, tint: "#fffaf2", at: [6, 9, 8] },
+      { size: [12, 7], intensity: 0.9, tint: "#fff0e0", at: [0, 1.5, 14] },
+      { size: [2.5, 12], intensity: 1.2, tint: "#e8eeff", at: [-10, 2, -5] },
+      { size: [4, 8], intensity: 0.8, tint: "#ffe8d0", at: [11, -1, 2] },
+    ],
+  },
+};
+
+/**
+ * The studio a variant's metal, gem or paper reflects (prefiltered by the scene with PMREM): a floor, a horizon, a
+ * ceiling and a few soft cards (STUDIOS). All moderate (nothing near the blown-out panels of three's RoomEnvironment).
+ * Procedural, no file; `dispose` frees what it made.
+ */
+export function buildStudioEnvironment(kind: StudioKind = "gold"): { scene: Scene; dispose: () => void } {
+  if (kind === "room") {
+    const room = new RoomEnvironment();
+    return { scene: room, dispose: () => room.dispose() };
+  }
+  const spec = STUDIOS[kind];
   const scene = new Scene();
   const geometries: BufferGeometry[] = [];
   const materials: Material[] = [];
   const sky = new SphereGeometry(20, 32, 16);
   const colors: number[] = [];
   const position = sky.getAttribute("position");
-  const floor = new Color("#070504");
-  const horizon = new Color("#6e5434");
-  const ceiling = new Color("#8f8576");
+  const floor = new Color(spec.floor);
+  const horizon = new Color(spec.horizon);
+  const ceiling = new Color(spec.ceiling);
   for (let i = 0; i < position.count; i++) {
     const y = position.getY(i) / 20;
     const c = y < 0 ? floor.clone().lerp(horizon, Math.pow(1 + y, 3)) : horizon.clone().lerp(ceiling, Math.pow(y, 0.7));
@@ -265,22 +360,16 @@ export function buildStudioEnvironment(): { scene: Scene; dispose: () => void } 
   geometries.push(sky);
   materials.push(skyMaterial);
   scene.add(new Mesh(sky, skyMaterial));
-  const panel = (w: number, h: number, intensity: number, tint: string, position: [number, number, number]) => {
-    const geometry = new PlaneGeometry(w, h);
-    const material = new MeshBasicMaterial({ color: new Color(tint).multiplyScalar(intensity), side: DoubleSide });
+  for (const p of spec.panels) {
+    const geometry = new PlaneGeometry(p.size[0], p.size[1]);
+    const material = new MeshBasicMaterial({ color: new Color(p.tint).multiplyScalar(p.intensity), side: DoubleSide });
     geometries.push(geometry);
     materials.push(material);
     const mesh = new Mesh(geometry, material);
-    mesh.position.set(...position);
+    mesh.position.set(...p.at);
     mesh.lookAt(0, 0, 0);
     scene.add(mesh);
-  };
-  panel(9, 6, 2.4, "#fff4e2", [6, 9, 8]);
-  // A warm fill card behind the camera: what a face turned straight at the viewer reflects, so a flat gold face reads
-  // as gold rather than the bronze of the horizon (and never as white: it is dimmer than the softbox).
-  panel(12, 7, 1.1, "#ffe2b0", [0, 1.5, 14]);
-  panel(2.5, 12, 1.6, "#dfe8ff", [-10, 2, -5]);
-  panel(4, 8, 0.7, "#ffe1b8", [11, -1, 2]);
+  }
   return {
     scene,
     dispose() {
@@ -329,24 +418,6 @@ export function goldHeartGeometry(widthSegments = 96, heightSegments = 72): Buff
   return geometry;
 }
 
-/** The five-point star of the earlier placeholder model (scripts/generate-gift-models.mjs), smoother bevels. */
-export function starGeometry(): BufferGeometry {
-  const s = new Shape();
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? 1 : 0.45;
-    const a = Math.PI / 2 + (i * Math.PI) / 5;
-    if (i === 0) s.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-    else s.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-  }
-  s.closePath();
-  const geometry = new ExtrudeGeometry(s, { depth: 0.3, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.06, bevelSegments: 4 });
-  geometry.computeBoundingBox();
-  const box = geometry.boundingBox!;
-  geometry.translate(-(box.min.x + box.max.x) / 2, -(box.min.y + box.max.y) / 2, -(box.min.z + box.max.z) / 2);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 /** The gem of the earlier placeholder model: a ten-sided crown (flat top = the table) over a pointed pavilion. */
 export function gemGeometries(): { crown: BufferGeometry; pavilion: BufferGeometry } {
   const crown = new CylinderGeometry(0.55, 0.95, 0.35, 10, 1);
@@ -357,13 +428,28 @@ export function gemGeometries(): { crown: BufferGeometry; pavilion: BufferGeomet
   return { crown, pavilion };
 }
 
-const GOLD = { color: "#efb43c", metalness: 1, roughness: 0.26, clearcoat: 0.25, clearcoatRoughness: 0.15, envMapIntensity: 1.0 } as const;
+/**
+ * Polished gold: a warm, saturated base colour that every reflection takes as its tint. No clear coat: a clear coat
+ * reflects the studio untinted, which is what turned the brightest faces pale lemon or white.
+ */
+const GOLD = { color: "#f4b942", metalness: 1, roughness: 0.24, envMapIntensity: 1.0 } as const;
 
 /** Each rocket is drawn with a trail of points lagging behind it (ms), so the upward blast reads as a streak. */
 export const ROCKET_TRAIL_MAX_LAG = 300;
 export const ROCKET_TRAIL_STEP = 8;
 
 export type ComposedView = { pixelRatio: number };
+
+/**
+ * What the scene hands the graph: the icon (cut out) or, for the engraved star and the postcard box, the colour map it
+ * made from the icon; the environment map; and the extra maps those two need (relief normals, roughness, the postcard
+ * lid's top). All owned and disposed by the scene.
+ */
+export type ComposedAssets = {
+  art: Texture | null;
+  envMap: Texture | null;
+  maps?: { normal?: Texture | null; roughness?: Texture | null; lidTop?: Texture | null; lidTopNormal?: Texture | null };
+};
 
 export type ComposedGraph = {
   root: Group;
@@ -378,9 +464,21 @@ const LOOK: Record<ComposedVariant, { glow: string; glow2: string; sparkle: stri
   "star-badge": { glow: "#ffb43a", glow2: "#b26bff", sparkle: "#fff0c4", light: "#ffcf7a", ring: "#ffe7a6" },
   "gem-sweep": { glow: "#ff2d55", glow2: "#3fd6c6", sparkle: "#ffe1e8", light: "#ff3a5c", ring: "#ffd0da" },
   "gem-frame": { glow: "#ff2d55", glow2: "#b26bff", sparkle: "#ffe1e8", light: "#ff3a5c", ring: "#ffd0da" },
+  trophy: { glow: "#ffb83a", glow2: "#ffe39a", sparkle: "#fff0c4", light: "#ffcf7a", ring: "#ffd98a" },
+  "kitten-box": { glow: "#ff8fc0", glow2: "#7fd0ff", sparkle: "#ffe8f4", light: "#ffc2dc", ring: "#ffffff" },
+  "twin-hearts": { glow: "#ff2d55", glow2: "#ff86a8", sparkle: "#ffd6e0", light: "#ff5a78", ring: "#ffc0cc" },
+  "star-engraved": { glow: "#ffb43a", glow2: "#ffe08a", sparkle: "#fff0c4", light: "#ffcf7a", ring: "#ffe7a6" },
+  "gem-crystal": { glow: "#3a5cff", glow2: "#b26bff", sparkle: "#e4ecff", light: "#6a86ff", ring: "#cfe0ff" },
+  "postcard-box": { glow: "#ff8a3d", glow2: "#c65cff", sparkle: "#ffe6c4", light: "#ffb070", ring: "#ffd9a0" },
 };
 
-export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Texture | null; envMap: Texture | null }): ComposedGraph {
+/** The gift box's colours (Fireworks, Playful Kitten): its paper, the lining inside, the ribbon. */
+const BOX_COLORS: Partial<Record<ComposedVariant, { paper: string; lining: string; ribbon: string }>> = {
+  "fireworks-box": { paper: "#7d4ef2", lining: "#5e3fb8", ribbon: "#f6cd62" },
+  "kitten-box": { paper: "#f06aa8", lining: "#b8487e", ribbon: "#f6cd62" },
+};
+
+export function buildComposedGraph(plan: ComposedScenePlan, assets: ComposedAssets): ComposedGraph {
   const variant = plan.variant;
   const look = LOOK[variant];
   const root = new Group();
@@ -400,16 +498,18 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
     return geometry;
   };
   const random = seededRandom(0x6f1f7 + plan.fireworks.length);
+  const studio = STUDIO_FOR_VARIANT[variant];
 
   root.add(new AmbientLight(0xffffff, 0.35));
   // Softer on gold: polished metal turns a strong key light into a blown-out white spot.
-  const key = new DirectionalLight(0xfff4e0, variant === "gold-heart" || variant === "star-badge" ? 1.3 : 2.4);
+  const key = new DirectionalLight(0xfff4e0, studio === "gold" ? 1.0 : studio === "box" ? 1.7 : 2.4);
   key.position.set(2.5, 3, 4);
   root.add(key);
   const rim = new DirectionalLight(0xffe2b0, 1.8);
   rim.position.set(-2.2, 1.6, -3);
   root.add(rim);
-  const fill = new PointLight(new Color(look.light), 6, 0, 2);
+  // A coloured fill from low left; weaker on gold, where a point light makes a pale hot spot on a broad face.
+  const fill = new PointLight(new Color(look.light), studio === "gold" ? 2.2 : 6, 0, 2);
   fill.position.set(-1.6, -0.6, 2.2);
   root.add(fill);
 
@@ -426,16 +526,15 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
   // The object, in a group that carries its entrance and sway (everything placed on it is a child, so it follows).
   const object = new Group();
   root.add(object);
-  // envBoost: the star's broad flat face mostly reflects the studio's darker horizon, so it takes more of it than the heart.
-  const gold = (envBoost = 1) =>
+  const gold = (extra: Partial<MeshPhysicalMaterialParameters> = {}) =>
     ownMaterial(
       new MeshPhysicalMaterial({
         ...GOLD,
         color: new Color(GOLD.color),
-        emissive: new Color("#3a2000"),
-        emissiveIntensity: 0.35,
+        emissive: new Color("#4a2a00"),
+        emissiveIntensity: 0.3,
         envMap: assets.envMap,
-        envMapIntensity: GOLD.envMapIntensity * envBoost,
+        ...extra,
       }),
     );
 
@@ -446,13 +545,70 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
   let frame: Mesh | null = null;
   let frameMaterial: MeshBasicMaterial | null = null;
   let sweepMaterial: ShaderMaterial | null = null;
+  let kitten: Kitten | null = null;
+  let hearts: Group[] = [];
+  let glint: PointLight | null = null;
+  let crystal: Mesh | null = null;
+  let crystalMaterial: MeshBasicMaterial | null = null;
+  let crystalSparkles: ShaderMaterial | null = null;
+
+  /** The gift box (Fireworks, Playful Kitten): an open body with real walls and a lining, and the lid on its hinge. */
+  const giftBox = (colors: { paper: string; lining: string; ribbon: string }) => {
+    const group = new Group();
+    const paper = ownMaterial(
+      new MeshPhysicalMaterial({ color: new Color(colors.paper), roughness: 0.5, clearcoat: 0.25, clearcoatRoughness: 0.35, envMap: assets.envMap, envMapIntensity: 0.7 }),
+    );
+    const lining = ownMaterial(
+      new MeshPhysicalMaterial({
+        color: new Color(colors.lining),
+        roughness: 0.7,
+        sheen: 0.5,
+        sheenColor: new Color("#ffffff"),
+        sheenRoughness: 0.45,
+        envMap: assets.envMap,
+        envMapIntensity: 0.35,
+      }),
+    );
+    const edge = ownMaterial(new MeshPhysicalMaterial({ color: new Color(colors.paper).lerp(new Color("#ffffff"), 0.25), roughness: 0.6, envMap: assets.envMap, envMapIntensity: 0.5 }));
+    const ribbon = ownMaterial(
+      new MeshPhysicalMaterial({ color: new Color(colors.ribbon), metalness: 0.8, roughness: 0.32, clearcoat: 0.4, envMap: assets.envMap, envMapIntensity: 1.1, side: DoubleSide }),
+    );
+    const shellMaterials = [paper, lining, edge];
+    const body = new Mesh(ownGeometry(boxShellGeometry(1.3, 1.0, 1.3, 0.045, "top")), shellMaterials);
+    body.position.y = -0.2;
+    group.add(body);
+    // Ribbon down the middle of each side (thin plates on the paper).
+    const strip = (w: number, h: number, d: number, x: number, y: number, z: number) => ({ geometry: new BoxGeometry(w, h, d), group: 0, matrix: new Matrix4().makeTranslation(x, y, z) });
+    const bodyStrips = [strip(0.22, 1.0, 0.012, 0, -0.2, 0.656), strip(0.22, 1.0, 0.012, 0, -0.2, -0.656), strip(0.012, 1.0, 0.22, 0.656, -0.2, 0), strip(0.012, 1.0, 0.22, -0.656, -0.2, 0)];
+    group.add(new Mesh(ownGeometry(mergeParts(bodyStrips)), ribbon));
+    for (const s of bodyStrips) s.geometry.dispose();
+
+    // The lid: a cap whose walls come down over the body's top, hinged along its back bottom edge.
+    const hinge = new Group();
+    hinge.position.set(0, 0.1, -0.7);
+    const lidShell = new Mesh(ownGeometry(boxShellGeometry(1.4, 0.24, 1.4, 0.04, "bottom")), shellMaterials);
+    lidShell.position.set(0, 0.12, 0.7);
+    const lidStrips = [
+      strip(0.24, 0.012, 1.412, 0, 0.246, 0.7),
+      strip(1.412, 0.012, 0.24, 0, 0.246, 0.7),
+      strip(0.24, 0.24, 0.012, 0, 0.12, 1.406),
+      strip(0.24, 0.24, 0.012, 0, 0.12, -0.006),
+      strip(0.012, 0.24, 0.24, 0.706, 0.12, 0.7),
+      strip(0.012, 0.24, 0.24, -0.706, 0.12, 0.7),
+    ];
+    const lidRibbon = new Mesh(ownGeometry(mergeParts(lidStrips)), ribbon);
+    for (const s of lidStrips) s.geometry.dispose();
+    const bow = new Mesh(ownGeometry(bowGeometry()), ribbon);
+    bow.position.set(0, 0.252, 0.7);
+    hinge.add(lidShell, lidRibbon, bow);
+    group.add(hinge);
+    return { group, hinge };
+  };
 
   if (variant === "gold-heart") {
-    const heart = new Mesh(ownGeometry(goldHeartGeometry()), gold());
-    object.add(heart);
+    object.add(new Mesh(ownGeometry(goldHeartGeometry()), gold()));
   } else if (variant === "star-badge") {
-    const star = new Mesh(ownGeometry(starGeometry()), gold(1.2));
-    object.add(star);
+    object.add(new Mesh(ownGeometry(starGeometry()), gold()));
     if (assets.art) {
       badgeMaterial = ownMaterial(
         new MeshBasicMaterial({ map: assets.art, transparent: true, depthWrite: false, toneMapped: false, side: FrontSide, opacity: 0 }),
@@ -461,24 +617,77 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
       badge.renderOrder = ORDER.art;
       object.add(badge);
     }
-  } else if (variant === "gem-sweep" || variant === "gem-frame") {
+  } else if (variant === "star-engraved") {
+    // The Supporter Star engraved into the front face: the scene's colour map (the gold darkened in the cuts), relief
+    // normals and a satin finish inside the engraving, all on the star's own surface, lit with it.
+    const maps = assets.maps ?? {};
+    const engraved = gold({
+      map: assets.art,
+      normalMap: maps.normal ?? null,
+      normalScale: new Vector2(1.1, 1.1),
+      roughnessMap: maps.roughness ?? null,
+      roughness: 1,
+    });
+    object.add(new Mesh(ownGeometry(starGeometry(true)), engraved));
+    glint = new PointLight(new Color("#fff1d6"), 0, 2.4, 2);
+    object.add(glint);
+  } else if (variant === "trophy") {
+    const parts = trophyGeometries();
+    for (const g of Object.values(parts)) ownGeometry(g);
+    const cupGold = gold();
+    const lacquer = ownMaterial(
+      new MeshPhysicalMaterial({ color: new Color("#0c0a10"), roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05, envMap: assets.envMap, envMapIntensity: 0.45 }),
+    );
+    const plate = gold({ roughness: 0.38, clearcoat: 0 });
+    object.add(new Mesh(parts.cup, cupGold), new Mesh(parts.handles, cupGold), new Mesh(parts.plinth, lacquer), new Mesh(parts.plate, plate));
+  } else if (variant === "twin-hearts") {
+    const geometry = ownGeometry(goldHeartGeometry(80, 60));
+    const reds = ["#b8001a", "#c80a22"].map((c) =>
+      ownMaterial(
+        new MeshPhysicalMaterial({
+          color: new Color(c),
+          emissive: new Color("#300006"),
+          emissiveIntensity: 0.5,
+          roughness: 0.2,
+          metalness: 0.05,
+          clearcoat: 1,
+          clearcoatRoughness: 0.04,
+          envMap: assets.envMap,
+          envMapIntensity: 1.1,
+        }),
+      ),
+    );
+    hearts = reds.map((material) => {
+      const group = new Group();
+      const mesh = new Mesh(geometry, material);
+      mesh.scale.setScalar(TWIN_HEART_SCALE);
+      group.add(mesh);
+      object.add(group);
+      return group;
+    });
+  } else if (variant === "gem-sweep" || variant === "gem-frame" || variant === "gem-crystal") {
     const { crown, pavilion } = gemGeometries();
     ownGeometry(crown);
     ownGeometry(pavilion);
+    const midnight = variant === "gem-crystal";
+    // The ruby (the Aurora gifts) or the midnight sapphire (Midnight Crystal): a glossy, faceted, metallic-tinted stone in
+    // the bright "room" studio (three's RoomEnvironment), whose many lit panels give every facet its own highlight. Red or
+    // deep blue can't clip to white the way polished gold does, so the gem keeps the bright studio the gold left behind.
     const gem = ownMaterial(
       new MeshPhysicalMaterial({
-        color: new Color("#9c0018"),
-        emissive: new Color("#2a0008"),
+        color: new Color(midnight ? "#1c2ca8" : "#9c0018"),
+        emissive: new Color(midnight ? "#0a1040" : "#2a0008"),
         metalness: 0.75,
         roughness: 0.05,
-        clearcoat: 0.3,
+        clearcoat: midnight ? 0.08 : 0.3,
         clearcoatRoughness: 0.06,
-        iridescence: 0.3,
+        // The thin-film glint reflects untinted light; on the darker blue stone it turned the table white, so it is faint.
+        iridescence: midnight ? 0.1 : 0.3,
         iridescenceIOR: 1.7,
         iridescenceThicknessMaximum: 420,
         flatShading: true,
         envMap: assets.envMap,
-        envMapIntensity: 0.55,
+        envMapIntensity: midnight ? 0.3 : 0.55,
       }),
     );
     object.add(new Mesh(crown, gem), new Mesh(pavilion, gem));
@@ -510,65 +719,120 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
       frame.renderOrder = ORDER.art;
       object.add(frame);
     }
-  } else {
-    // The gift box: an open body (no top face, inside walls visible), ribbon strips on its sides, and the lid with its
-    // ribbon and bow on a hinge along the back top edge.
-    const paper = ownMaterial(
-      new MeshPhysicalMaterial({ color: new Color("#6a3be0"), roughness: 0.55, clearcoat: 0.15, clearcoatRoughness: 0.4, envMap: assets.envMap, envMapIntensity: 0.3, side: DoubleSide }),
-    );
-    const hidden = ownMaterial(new MeshBasicMaterial({ visible: false }));
-    const ribbon = ownMaterial(
-      new MeshPhysicalMaterial({ color: new Color("#e3ad42"), metalness: 0.9, roughness: 0.4, envMap: assets.envMap, envMapIntensity: 0.9 }),
-    );
-    const body = new Mesh(ownGeometry(new BoxGeometry(1.3, 1.0, 1.3)), [paper, paper, hidden, paper, paper, paper]);
-    body.position.y = -0.2;
-    object.add(body);
-    for (const [w, d, x, z] of [
-      [0.22, 0.02, 0, 0.655],
-      [0.22, 0.02, 0, -0.655],
-      [0.02, 0.22, 0.655, 0],
-      [0.02, 0.22, -0.655, 0],
-    ] as const) {
-      const strip = new Mesh(ownGeometry(new BoxGeometry(w, 1.0, d)), ribbon);
-      strip.position.set(x, -0.2, z);
-      object.add(strip);
+    if (variant === "gem-crystal" && assets.art) {
+      crystalMaterial = ownMaterial(
+        new MeshBasicMaterial({ map: assets.art, transparent: true, depthWrite: false, toneMapped: false, side: DoubleSide, opacity: 0 }),
+      );
+      crystal = new Mesh(ownGeometry(new PlaneGeometry(CRYSTAL_PLANE.size, CRYSTAL_PLANE.size)), crystalMaterial);
+      crystal.renderOrder = ORDER.art;
+      object.add(crystal);
+      // Its own glints, around the crystal's points once it has landed (gem units, in front of and around it).
+      const restY = crystalRestY();
+      const specs = Array.from({ length: plan.lowEnd ? 10 : 22 }, () => ({
+        x: (random() * 2 - 1) * 0.62,
+        y: restY - 0.25 + random() * 0.85,
+        z: (random() * 2 - 1) * 0.18 + 0.08,
+        size: 6 + random() * 9,
+        phase: random() * Math.PI * 2,
+        rate: 2.2 + random() * 2.2,
+      }));
+      const geometry = ownGeometry(new BufferGeometry());
+      geometry.setAttribute("position", new Float32BufferAttribute(specs.flatMap((s) => [s.x, s.y, s.z]), 3));
+      geometry.setAttribute("aSize", new Float32BufferAttribute(specs.map((s) => s.size), 1));
+      geometry.setAttribute("aPhase", new Float32BufferAttribute(specs.map((s) => s.phase), 1));
+      geometry.setAttribute("aRate", new Float32BufferAttribute(specs.map((s) => s.rate), 1));
+      crystalSparkles = additive(
+        { uColor: { value: new Color("#eef3ff") }, uTime: { value: 0 }, uPixelRatio: { value: 1 }, uLevel: { value: 0 } },
+        SPARKLE_FRAGMENT,
+        SPARKLE_VERTEX,
+      );
+      materials.push(crystalSparkles);
+      const points = new Points(geometry, crystalSparkles);
+      points.frustumCulled = false;
+      points.renderOrder = ORDER.sparkles;
+      object.add(points);
     }
-    // The light inside the open box.
-    const [openingGeometry, openingMaterial] = own(
-      new PlaneGeometry(1.25, 1.25),
-      additive({ uColor: { value: new Color("#ffd8a0") }, uColor2: { value: new Color("#ff9ad0") }, uLevel: { value: 0 } }, GLOW_FRAGMENT),
+  } else if (variant === "postcard-box") {
+    // The sunset wrapped round the box: one picture round the four sides and on up the lid's rim, its relief in the
+    // paper (normal map), the lid's top a sunset of its own (sun and rays) under a gold bow.
+    const maps = assets.maps ?? {};
+    const B = POSTCARD_BOX;
+    const wrap = ownMaterial(
+      new MeshPhysicalMaterial({
+        color: new Color("#ffffff"),
+        map: assets.art,
+        normalMap: maps.normal ?? null,
+        normalScale: new Vector2(0.9, 0.9),
+        roughness: 0.42,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.3,
+        envMap: assets.envMap,
+        envMapIntensity: 0.6,
+      }),
     );
-    // Hidden by the lid where the lid is in front of it (it must not wash over the open lid).
-    openingMaterial.depthTest = true;
-    openingGlow = openingMaterial;
-    const opening = new Mesh(openingGeometry, openingMaterial);
-    opening.rotation.x = -Math.PI / 2;
-    opening.position.y = BOX_OPENING.y - 0.02;
-    opening.renderOrder = ORDER.sparkles;
-    object.add(opening);
-
-    lid = new Group();
-    lid.position.set(0, 0.3, -0.71);
-    // The lid's inside (its underside, facing the camera once open) is darker card, not the lit outside paper.
-    const lidInside = ownMaterial(
-      new MeshPhysicalMaterial({ color: new Color("#2e1470"), roughness: 0.85, envMap: assets.envMap, envMapIntensity: 0.15 }),
+    const base = ownMaterial(new MeshPhysicalMaterial({ color: new Color("#2b1640"), roughness: 0.6, envMap: assets.envMap, envMapIntensity: 0.4 }));
+    const top = ownMaterial(
+      new MeshPhysicalMaterial({
+        map: maps.lidTop ?? null,
+        normalMap: maps.lidTopNormal ?? null,
+        normalScale: new Vector2(0.9, 0.9),
+        roughness: 0.42,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.3,
+        envMap: assets.envMap,
+        envMapIntensity: 0.6,
+      }),
     );
-    const lidBox = new Mesh(ownGeometry(new BoxGeometry(1.42, 0.25, 1.42)), [paper, paper, paper, lidInside, paper, paper]);
-    lidBox.position.set(0, 0.125, 0.71);
-    // The lid's ribbon wraps its top and sides only (from just above its underside), so the open lid's inside shows no band.
-    const bandA = new Mesh(ownGeometry(new BoxGeometry(0.24, 0.255, 1.44)), ribbon);
-    bandA.position.set(0, 0.1375, 0.71);
-    const bandB = new Mesh(ownGeometry(new BoxGeometry(1.44, 0.255, 0.24)), ribbon);
-    bandB.position.set(0, 0.1375, 0.71);
-    const loopGeometry = ownGeometry(new TorusGeometry(0.22, 0.07, 12, 32));
-    const loopL = new Mesh(loopGeometry, ribbon);
-    loopL.position.set(-0.2, 0.42, 0.71);
-    loopL.rotation.set(0, Math.PI / 2, Math.PI / 4);
-    const loopR = new Mesh(loopGeometry, ribbon);
-    loopR.position.set(0.2, 0.42, 0.71);
-    loopR.rotation.set(0, Math.PI / 2, -Math.PI / 4);
-    lid.add(lidBox, bandA, bandB, loopL, loopR);
-    object.add(lid);
+    const ribbon = ownMaterial(
+      new MeshPhysicalMaterial({ color: new Color("#f6cd62"), metalness: 0.8, roughness: 0.32, clearcoat: 0.4, envMap: assets.envMap, envMapIntensity: 1.1, side: DoubleSide }),
+    );
+    const bodyHeight = B.bodyTop - B.bodyBottom;
+    const body = new Mesh(
+      ownGeometry(wrappedSidesGeometry(B.width, bodyHeight, B.width, [postcardWrapV(B.bodyBottom), postcardWrapV(B.bodyTop)], { top: true, bottom: true })),
+      [wrap, base],
+    );
+    body.position.y = (B.bodyTop + B.bodyBottom) / 2;
+    const lidHeight = B.lidTop - B.lidBottom;
+    const lidSides = new Mesh(
+      ownGeometry(wrappedSidesGeometry(B.lidWidth, lidHeight, B.lidWidth, [postcardWrapV(B.lidBottom), postcardWrapV(B.lidTop)], { top: false, bottom: true })),
+      [wrap, base],
+    );
+    lidSides.position.y = (B.lidTop + B.lidBottom) / 2;
+    const lidTop = new Mesh(ownGeometry(new PlaneGeometry(B.lidWidth, B.lidWidth)), top);
+    lidTop.rotation.x = -Math.PI / 2;
+    lidTop.position.y = B.lidTop;
+    const bow = new Mesh(ownGeometry(bowGeometry()), ribbon);
+    bow.position.set(0, B.lidTop, 0);
+    bow.scale.setScalar(0.85);
+    object.add(body, lidSides, lidTop, bow);
+  } else {
+    // The gift box (Fireworks, Playful Kitten).
+    const built = giftBox(BOX_COLORS[variant]!);
+    lid = built.hinge;
+    if (variant === "kitten-box") {
+      built.group.position.set(KITTEN_BOX.x, 0, KITTEN_BOX.z);
+      object.add(built.group);
+      kitten = buildKitten(assets.envMap);
+      for (const g of kitten.geometries) ownGeometry(g);
+      for (const m of kitten.materials) ownMaterial(m);
+      kitten.root.scale.setScalar(KITTEN_SCALE);
+      object.add(kitten.root);
+    } else {
+      object.add(built.group);
+      // The light inside the open box.
+      const [openingGeometry, openingMaterial] = own(
+        new PlaneGeometry(1.2, 1.2),
+        additive({ uColor: { value: new Color("#ffd8a0") }, uColor2: { value: new Color("#ff9ad0") }, uLevel: { value: 0 } }, GLOW_FRAGMENT),
+      );
+      // Hidden by the lid where the lid is in front of it (it must not wash over the open lid).
+      openingMaterial.depthTest = true;
+      openingGlow = openingMaterial;
+      const opening = new Mesh(openingGeometry, openingMaterial);
+      opening.rotation.x = -Math.PI / 2;
+      opening.position.y = BOX_OPENING.y - 0.02;
+      opening.renderOrder = ORDER.sparkles;
+      object.add(opening);
+    }
   }
 
   // Twinkles around the object.
@@ -639,7 +903,8 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
     root.add(points);
   }
 
-  // The landing pulse: on the star's face, lying on the gem's table under the frame, round the heart.
+  // The landing pulse: on the star's face, lying on the gem's table under the frame / crystal, at the trophy's and the
+  // postcard box's base, round the hearts.
   const [ringGeometry, ringMaterial] = own(
     new PlaneGeometry(2, 2),
     additive({ uColor: { value: new Color(look.ring) }, uRadius: { value: 0 }, uAlpha: { value: 0 } }, RING_FRAGMENT),
@@ -647,18 +912,29 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
   const ring = new Mesh(ringGeometry, ringMaterial);
   ring.renderOrder = ORDER.ring;
   ring.visible = false;
-  if (variant === "gem-frame") {
+  if (variant === "gem-frame" || variant === "gem-crystal") {
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(0, 0.5, 0);
+    ring.position.set(0, GEM_TABLE.y + 0.005, 0);
     ring.scale.setScalar(0.75);
-  } else if (variant === "star-badge") {
+  } else if (variant === "star-badge" || variant === "star-engraved") {
     ring.position.set(0, BADGE_PLANE.y, STAR_FACE_Z + 0.02);
     ring.scale.setScalar(1.05);
+  } else if (variant === "trophy") {
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(0, TROPHY_BASE_Y, 0);
+    ring.scale.setScalar(0.9);
+  } else if (variant === "postcard-box") {
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(0, POSTCARD_BOX.bodyBottom, 0);
+    ring.scale.setScalar(1.3);
   } else {
     ring.position.set(0, 0, 0.1);
     ring.scale.setScalar(1.2);
   }
+  // The spinning variants' rings lie in scene space at the base, so they don't spin (a ring is round either way).
   object.add(ring);
+
+  const tilt = COMPOSED_TILT[variant] ?? 0;
 
   return {
     root,
@@ -667,7 +943,7 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
       const pose = composedObjectPose(plan, t);
       object.position.y = pose.y;
       object.scale.setScalar(pose.scale);
-      object.rotation.set(pose.pitch, pose.yaw, 0);
+      object.rotation.set(pose.pitch + tilt, pose.yaw, 0);
       const levels = composedLevels(plan, t);
       glowMaterial.uniforms.uLevel.value = levels.glow;
       sparkleMaterial.uniforms.uTime.value = seconds;
@@ -691,9 +967,30 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: { art: Textu
         frame.position.set(0, f.y, f.z);
         frameMaterial.opacity = f.opacity;
       }
+      if (crystal && crystalMaterial) {
+        const c = crystalPose(plan, t);
+        crystal.position.set(c.x, c.y, 0);
+        crystalMaterial.opacity = c.opacity;
+      }
+      if (crystalSparkles) {
+        crystalSparkles.uniforms.uTime.value = seconds;
+        crystalSparkles.uniforms.uPixelRatio.value = view.pixelRatio;
+        crystalSparkles.uniforms.uLevel.value = crystalSparkle(plan, t);
+      }
       if (sweepMaterial) {
         sweepMaterial.uniforms.uReveal.value = sweepReveal(plan, t);
         sweepMaterial.uniforms.uShimmer.value = sweepShimmer(plan, t) ?? -10;
+      }
+      if (kitten) kitten.pose(kittenPose(plan, t));
+      hearts.forEach((group, i) => {
+        const h = twinHeartPose(plan, i as 0 | 1, t);
+        group.position.set(h.x, h.y, h.z);
+        group.rotation.set(0, h.yaw, h.roll);
+      });
+      if (glint) {
+        const g = engraveGlint(plan, t);
+        glint.intensity = g ? 4 * g.strength : 0;
+        if (g) glint.position.set(g.x, 0.35, STAR_FACE_Z + 0.55);
       }
       const pulse = composedPulse(plan, t);
       ring.visible = pulse !== null;

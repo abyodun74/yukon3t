@@ -2,7 +2,21 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  COMPOSED_SPIN,
   COMPOSED_VARIANTS,
+  CRYSTAL_PLANE,
+  KITTEN_BOX,
+  KITTEN_FLIGHT_MS,
+  KITTEN_JUMP_AFTER_HIT_MS,
+  KITTEN_LAND,
+  SPIN_RAMP_MS,
+  TWIN_HEARTS_REST,
+  crystalPose,
+  crystalRestY,
+  engraveGlint,
+  kittenPose,
+  spinAngle,
+  twinHeartPose,
   FRAME_PLANE,
   FRAME_START,
   GEM_GIRDLE,
@@ -53,7 +67,8 @@ describe("the plan", () => {
       expect(plan.momentMs, variant).toBeGreaterThanOrEqual(plan.hitMs);
       expect(plan.entranceMs[1], variant).toBeLessThanOrEqual(plan.momentMs);
       expect(plan.endMs, variant).toBe(plan.activeMs + plan.settleMs);
-      expect(composedSceneNeedsFrames(plan, plan.endMs + 4000), variant).toBe(false);
+      // A spinning variant keeps drawing while the reveal is open; every other one stops once settled.
+      expect(composedSceneNeedsFrames(plan, plan.endMs + 4000), variant).toBe(COMPOSED_SPIN[variant] !== undefined);
       expect(composedSceneNeedsFrames(plan, 0), variant).toBe(true);
     }
   });
@@ -64,8 +79,9 @@ describe("the plan", () => {
       expect(monotonic(entrance.map((p) => p.y)), variant).toBe(true);
       expect(monotonic(entrance.map((p) => p.scale)), variant).toBe(true);
       const rest = composedObjectPose(plan, plan.endMs + 1000);
-      expect(Math.abs(rest.yaw), variant).toBeLessThan(1e-9);
       expect(Math.abs(rest.pitch), variant).toBeLessThan(1e-9);
+      if (COMPOSED_SPIN[variant]) continue;
+      expect(Math.abs(rest.yaw), variant).toBeLessThan(1e-9);
       for (const t of times(plan.endMs, 97)) {
         const p = composedObjectPose(plan, t);
         expect(p.scale, variant).toBeLessThanOrEqual(composedObjectPose(plan, plan.endMs).scale + 1e-9);
@@ -154,5 +170,102 @@ describe("Aurora Frame on the gem", () => {
       }
     }
     expect(FRAME_PLANE.size).toBeGreaterThan(0);
+  });
+});
+
+describe("Trophy Frame and Sunset Postcard: the continuous spin", () => {
+  it("turns one way only, comes up to speed smoothly and then holds a constant speed for as long as it is open", () => {
+    for (const variant of ["trophy", "postcard-box"] as const) {
+      const plan = composedScenePlan(variant, { lowEnd: false, hitMs: 1190 });
+      const speed = COMPOSED_SPIN[variant]!;
+      const angles = times(60000, 50).map((t) => spinAngle(plan, t));
+      expect(monotonic(angles)).toBe(true);
+      expect(spinAngle(plan, 0)).toBe(0);
+      // Smooth start (no jump in speed) and constant speed after the ramp.
+      expect(spinAngle(plan, 20)).toBeLessThan(speed * 20 * 0.01);
+      expect(spinAngle(plan, SPIN_RAMP_MS + 2000) - spinAngle(plan, SPIN_RAMP_MS + 1000)).toBeCloseTo(speed * 1000, 9);
+      expect(spinAngle(plan, 50000) - spinAngle(plan, 49000)).toBeCloseTo(speed * 1000, 9);
+      expect(composedSceneNeedsFrames(plan, 120000)).toBe(true);
+    }
+    expect(Object.keys(COMPOSED_SPIN).sort()).toEqual(["postcard-box", "trophy"]);
+  });
+});
+
+describe("Playful Kitten: the jump out of the box", () => {
+  const plan = composedScenePlan("kitten-box", { lowEnd: false, hitMs: 1190 });
+  it("leaves the box after the hit with the lid fully open, on a parabola, and lands exactly on the floor without bouncing", () => {
+    expect(plan.momentMs).toBe(1190 + KITTEN_JUMP_AFTER_HIT_MS);
+    expect(lidAngle(plan, plan.momentMs)).toBeLessThan(-1.8);
+    const jump = plan.momentMs;
+    const land = jump + KITTEN_FLIGHT_MS;
+    const path = times(plan.endMs, 5).map((t) => kittenPose(plan, t));
+    // Horizontal travel one way only.
+    expect(monotonic(path.map((p) => p.x))).toBe(true);
+    expect(monotonic(path.map((p) => p.z))).toBe(true);
+    // Height: up then down once in the air (a single arc), then never off the floor again.
+    const air = times(land - jump, 5).map((dt) => kittenPose(plan, jump + dt).y);
+    const top = air.indexOf(Math.max(...air));
+    expect(monotonic(air.slice(0, top + 1))).toBe(true);
+    expect(monotonic(air.slice(top))).toBe(true);
+    for (let t = land; t < plan.endMs + 2000; t += 37) expect(kittenPose(plan, t).y).toBeCloseTo(KITTEN_LAND.y, 9);
+    expect(kittenPose(plan, jump).y).toBeCloseTo(KITTEN_BOX.floorY, 9);
+    // It clears the box's front wall: wherever it is over the wall or in front of it, still within the box's width,
+    // its feet are above the rim.
+    for (let t = jump; t <= land; t += 5) {
+      const p = kittenPose(plan, t);
+      if (p.z >= KITTEN_BOX.z + 0.65 && p.x <= KITTEN_BOX.x + 0.65) expect(p.y, `t=${t}`).toBeGreaterThan(KITTEN_BOX.rimY);
+    }
+  });
+
+  it("is hidden until the lid starts to open, sits after landing, and its stretch stays in range", () => {
+    expect(kittenPose(plan, 0).visible).toBe(false);
+    expect(kittenPose(plan, plan.momentMs).visible).toBe(true);
+    for (const t of times(plan.endMs, 7)) {
+      const p = kittenPose(plan, t);
+      expect(p.stretch).toBeGreaterThanOrEqual(-1);
+      expect(p.stretch).toBeLessThanOrEqual(1);
+    }
+    expect(kittenPose(plan, plan.endMs + 1000).stretch).toBe(0);
+  });
+});
+
+describe("Kindred Spirit: the two hearts", () => {
+  it("fly in from opposite sides (one way each) and rest overlapping in view but apart in depth", () => {
+    const plan = composedScenePlan("twin-hearts", { lowEnd: false, hitMs: 1190 });
+    for (const i of [0, 1] as const) {
+      const xs = times(plan.momentMs, 5).map((t) => twinHeartPose(plan, i, t).x);
+      expect(monotonic(xs)).toBe(true);
+      expect(twinHeartPose(plan, i, plan.momentMs).x).toBeCloseTo(TWIN_HEARTS_REST[i].x, 9);
+    }
+    expect(Math.sign(twinHeartPose(plan, 0, 0).x)).toBe(-1);
+    expect(Math.sign(twinHeartPose(plan, 1, 0).x)).toBe(1);
+    expect(Math.abs(TWIN_HEARTS_REST[0].z - TWIN_HEARTS_REST[1].z)).toBeGreaterThanOrEqual(0.4);
+  });
+});
+
+describe("Supporter Star: the glint over the engraving", () => {
+  it("runs across the face on the moment, then now and then, and stops with the settle", () => {
+    const plan = composedScenePlan("star-engraved", { lowEnd: false, hitMs: 1190 });
+    expect(engraveGlint(plan, plan.momentMs)).not.toBeNull();
+    expect(engraveGlint(plan, 0)).toBeNull();
+    expect(engraveGlint(plan, plan.activeMs + 10)).toBeNull();
+  });
+});
+
+describe("Midnight Crystal on the gem", () => {
+  it("floats slowly down (y only falls) and its base rests exactly on the gem's table, staying there", () => {
+    for (const hitMs of Object.values(HITS)) {
+      const plan = composedScenePlan("gem-crystal", { lowEnd: false, hitMs });
+      expect(plan.momentMs - 250).toBeGreaterThanOrEqual(2500);
+      const ys = times(plan.endMs, 5).map((t) => crystalPose(plan, t).y);
+      expect(monotonic(ys)).toBe(true);
+      const rest = crystalPose(plan, plan.momentMs);
+      const base = rest.y - CRYSTAL_PLANE.size * (0.5 - CRYSTAL_PLANE.bottomInset);
+      expect(base).toBeCloseTo(GEM_TABLE.y, 9);
+      expect(rest.x).toBeCloseTo(0, 6);
+      expect(crystalPose(plan, plan.endMs + 3000).y).toBeCloseTo(crystalRestY(), 9);
+      // Never below its rest (it can't sink into the gem).
+      for (const y of ys) expect(y).toBeGreaterThanOrEqual(crystalRestY() - 1e-9);
+    }
   });
 });

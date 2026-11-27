@@ -9,7 +9,18 @@ import {
   goldHeartGeometry,
   starGeometry,
 } from "@/components/gift-composed-graph";
-import { COMPOSED_USES_ART, COMPOSED_VARIANTS, GEM_TABLE, composedScenePlan, type ComposedVariant } from "@/lib/gift-composed-plan";
+import { bowGeometry, boxShellGeometry, trophyGeometries, wrappedSidesGeometry } from "@/components/gift-composed-objects";
+import { buildKitten } from "@/components/gift-kitten";
+import {
+  COMPOSED_USES_ART,
+  COMPOSED_VARIANTS,
+  GEM_TABLE,
+  STAR_FACE_Z,
+  TROPHY_BASE_Y,
+  composedScenePlan,
+  kittenPose,
+  type ComposedVariant,
+} from "@/lib/gift-composed-plan";
 
 // The composed scenes' three.js objects, built for real (three.js needs no WebGL to create them) with fake textures:
 // the procedural objects' shapes, the gold being real metal, finite poses over the whole timeline, and every geometry
@@ -77,7 +88,8 @@ describe.each(COMPOSED_VARIANTS)("buildComposedGraph (%s)", (variant) => {
       const { plan, graph } = build(variant, lowEnd);
       let nodes = 0;
       graph.root.traverse(() => nodes++);
-      expect(nodes).toBeLessThanOrEqual(24);
+      // The kitten is a dozen nodes of its own (head, eyes, legs and tail move); everything else stays small.
+      expect(nodes).toBeLessThanOrEqual(variant === "kitten-box" ? 40 : 24);
       for (let t = 0; t <= plan.endMs + 3000; t += 331) {
         graph.update(t, { pixelRatio: 2 });
         graph.root.traverse((node) => {
@@ -95,9 +107,11 @@ describe.each(COMPOSED_VARIANTS)("buildComposedGraph (%s)", (variant) => {
     const physical = [...collect(graph.root).materials].filter((m): m is MeshPhysicalMaterial => (m as MeshPhysicalMaterial).isMeshPhysicalMaterial);
     expect(physical.length).toBeGreaterThan(0);
     for (const m of physical) expect(m.envMap).toBe(envMap);
-    if (variant === "gold-heart" || variant === "star-badge") {
+    if (variant === "gold-heart" || variant === "star-badge" || variant === "trophy") {
       expect(physical.some((m) => m.metalness === 1 && m.roughness <= 0.3)).toBe(true);
     }
+    // Gold has no clear coat: a clear coat reflects the studio untinted, which is what made gold faces pale or white.
+    for (const m of physical) if (m.metalness === 1) expect(m.clearcoat).toBe(0);
     graph.dispose();
   });
 
@@ -151,5 +165,86 @@ describe("the studio environment", () => {
     studio.dispose();
     for (const item of [...materials, ...geometries]) expect(disposed.has(item)).toBe(true);
     expect(studio.scene.children).toHaveLength(0);
+  });
+});
+
+describe("the new procedural objects", () => {
+  it("the trophy: a deep cup with a lip, two handles meeting the cup, a stem and foot on a plinth, standing on y = TROPHY_BASE_Y", () => {
+    const { cup, handles, plinth, plate } = trophyGeometries();
+    for (const g of [cup, handles, plinth, plate]) g.computeBoundingBox();
+    expect(plinth.boundingBox!.min.y).toBeCloseTo(TROPHY_BASE_Y, 5);
+    // The foot stands on the plinth's top, the cup rises well above it, the handles stick out to both sides.
+    expect(cup.boundingBox!.min.y).toBeCloseTo(plinth.boundingBox!.max.y, 5);
+    expect(cup.boundingBox!.max.y - cup.boundingBox!.min.y).toBeGreaterThan(1.2);
+    expect(handles.boundingBox!.max.x).toBeGreaterThan(cup.boundingBox!.max.x + 0.2);
+    expect(handles.boundingBox!.min.x).toBeLessThan(cup.boundingBox!.min.x - 0.2);
+    for (const g of [cup, handles, plinth, plate]) g.dispose();
+  });
+
+  it("box shells have real walls: outside, lining and rim groups, the lining inside the outside", () => {
+    const shell = boxShellGeometry(1.4, 0.24, 1.4, 0.04, "bottom");
+    expect(new Set(shell.groups.map((g) => g.materialIndex))).toEqual(new Set([0, 1, 2]));
+    shell.computeBoundingBox();
+    expect(shell.boundingBox!.max.x).toBeCloseTo(0.7, 5);
+    shell.dispose();
+  });
+
+  it("the postcard box's wrap runs once round the four sides: u from 0 to 1 continuously, corners shared", () => {
+    const g = wrappedSidesGeometry(1.3, 1, 1.3, [0, 0.8], { top: false, bottom: true });
+    const uv = g.getAttribute("uv");
+    const pos = g.getAttribute("position");
+    const sides = g.groups.find((x) => x.materialIndex === 0)!;
+    const us = new Map<string, Set<number>>();
+    for (let i = sides.start; i < sides.start + sides.count; i++) {
+      const key = `${pos.getX(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
+      if (!us.has(key)) us.set(key, new Set());
+      us.get(key)!.add(Number(uv.getX(i).toFixed(6)));
+    }
+    // Every corner column gets one u (two at the front-left corner: 0 and 1, where the wrap meets itself).
+    expect(us.size).toBe(4);
+    const all = [...us.values()].flatMap((s) => [...s]).sort((a, b) => a - b);
+    expect(all).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    g.dispose();
+  });
+
+  it("the bow sits on its base: nothing below y = 0, so it never pokes through a lid", () => {
+    const bow = bowGeometry();
+    bow.computeBoundingBox();
+    expect(bow.boundingBox!.min.y).toBeGreaterThanOrEqual(-0.005);
+    bow.dispose();
+  });
+
+  it("the engraved star's front face maps onto the engraving texture; every other face samples its plain corner", () => {
+    const star = starGeometry(true);
+    const pos = star.getAttribute("position");
+    const uv = star.getAttribute("uv");
+    let front = 0;
+    for (let i = 0; i < pos.count; i++) {
+      if (pos.getZ(i) > STAR_FACE_Z - 1e-4) {
+        front++;
+        expect(uv.getX(i)).toBeCloseTo(0.5 + pos.getX(i) / 2, 5);
+      } else expect(uv.getX(i)).toBeLessThan(0.01);
+    }
+    expect(front).toBeGreaterThan(10);
+    star.dispose();
+  });
+
+  it("the kitten is a kitten: head bigger than half the body, two eyes, ears, whiskers, legs and a tail, posed in the box and sitting", () => {
+    const kitten = buildKitten(null);
+    let meshes = 0;
+    kitten.root.traverse((n) => {
+      if ((n as Mesh).isMesh) meshes++;
+    });
+    // Body, two legs, tail, head (with ears, muzzle, nose and whiskers merged), eyes.
+    expect(meshes).toBe(6);
+    expect(kitten.materials.length).toBe(6);
+    const plan = composedScenePlan("kitten-box", { lowEnd: false, hitMs: 1190 });
+    for (let t = 0; t < plan.endMs; t += 97) {
+      kitten.pose(kittenPose(plan, t));
+      kitten.root.updateMatrixWorld(true);
+      kitten.root.traverse((n) => expect(n.matrixWorld.elements.every(Number.isFinite)).toBe(true));
+    }
+    for (const g of kitten.geometries) g.dispose();
+    for (const m of kitten.materials) m.dispose();
   });
 });

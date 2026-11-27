@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CUTOUT_PRESETS, CUTOUT_UPSCALE, GIFT_ART_BACKDROP, cutOutGiftArt, scaledCutout } from "@/lib/gift-art-cutout";
+import {
+  CUTOUT_PRESETS,
+  CUTOUT_UPSCALE,
+  GIFT_ART_BACKDROP,
+  LEVEL_UP_SILHOUETTE,
+  SUPPORTER_STAR_OUTLINE,
+  cutOutGiftArt,
+  pointInPolygon,
+  scaledCutout,
+} from "@/lib/gift-art-cutout";
 
 // The icon cut-out the composed 3D reveals use: the backdrop connected to the border goes, enclosed dark parts stay,
 // soft edges become translucent without a navy fringe.
@@ -58,18 +67,56 @@ describe("cutOutGiftArt", () => {
     expect(CUTOUT_PRESETS.standard.hi).toBeGreaterThan(0);
   });
 
-  it("cuts warm dark glow (the Level Up wings' maroon) harder than cool dark art with the badge preset", () => {
-    const width = 3;
-    // A maroon glow pixel and a dark purple art pixel, both reachable from the border.
-    const maroon: [number, number, number, number] = [60, 30, 40, 255];
-    const purple: [number, number, number, number] = [40, 30, 80, 255];
-    const run = (px: [number, number, number, number]) => {
-      const data = image(width, 1, (x) => (x === 1 ? px : [br, bg, bb, 255]));
-      cutOutGiftArt(data, width, 1, { ...CUTOUT_PRESETS.badge, speck: 0, soften: false });
-      return at(data, width, 1, 0)[3];
+  it("with `harden`, a faint leftover glow around the art goes (no pale speckled rim) and solid art stays", () => {
+    const width = 5;
+    // A faint pale glow pixel next to solid art, on the backdrop.
+    const glow: [number, number, number, number] = [br + 40, bg + 40, bb + 40, 255];
+    const run = (harden: number) => {
+      const data = image(width, 1, (x) => (x === 1 ? glow : x >= 3 ? [230, 240, 255, 255] : [br, bg, bb, 255]));
+      cutOutGiftArt(data, width, 1, { ...CUTOUT_PRESETS.frame, seal: 0, speck: 0, soften: false, harden });
+      return [at(data, width, 1, 0)[3], at(data, width, 4, 0)[3]];
     };
-    expect(run(maroon)).toBe(0);
-    expect(run(purple)).toBeGreaterThan(0);
+    expect(run(0)[0]).toBeGreaterThan(0);
+    expect(run(CUTOUT_PRESETS.frame.harden)).toEqual([0, 255]);
+  });
+
+  it("the Level Up silhouette is a closed outline round the wings, arrow and shield, and leaves the glow outside it", () => {
+    expect(LEVEL_UP_SILHOUETTE.length).toBeGreaterThan(40);
+    for (const [x, y] of LEVEL_UP_SILHOUETTE) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(384);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(384);
+    }
+    // Inside (icon px): the arrow, the LEVEL UP lettering, both wings, the shield's bottom.
+    for (const [x, y] of [
+      [193, 120],
+      [190, 210],
+      [70, 170],
+      [320, 170],
+      [195, 280],
+    ])
+      expect(pointInPolygon(LEVEL_UP_SILHOUETTE, x, y), `${x},${y}`).toBe(true);
+    // Outside: the maroon glow above the arrow and between wing and arrow, the sparkles, the corners.
+    for (const [x, y] of [
+      [193, 90],
+      [140, 125],
+      [250, 135],
+      [130, 150],
+      [118, 280],
+      [20, 20],
+      [60, 240],
+    ])
+      expect(pointInPolygon(LEVEL_UP_SILHOUETTE, x, y), `${x},${y}`).toBe(false);
+  });
+
+  it("the Supporter Star outline is the icon's five-pointed star", () => {
+    expect(SUPPORTER_STAR_OUTLINE).toHaveLength(10);
+    expect(pointInPolygon(SUPPORTER_STAR_OUTLINE, 188, 187)).toBe(true);
+    expect(pointInPolygon(SUPPORTER_STAR_OUTLINE, 188, 60)).toBe(true);
+    // Between two points (the glow) is outside.
+    expect(pointInPolygon(SUPPORTER_STAR_OUTLINE, 280, 100)).toBe(false);
+    expect(pointInPolygon(SUPPORTER_STAR_OUTLINE, 188, 300)).toBe(false);
   });
 
   it("removes small specks floating around the art and keeps the art itself", () => {

@@ -133,16 +133,21 @@ describe("the scene registry", () => {
       expect(GIFT_MODEL_FOR_ITEM[slug], slug).toBeUndefined();
       expect(resolveGiftModel([{ slug }]), slug).toBeNull();
     }
-    expect(resolveGiftScene([{ slug: "kindred-spirit" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.heart });
   });
 
-  it("the five composed gifts get their own procedural scene (with their own icon where it is placed on the object), and no shared model", () => {
+  it("the eleven composed gifts get their own procedural scene (with their own icon where it is placed on the object), and no shared model", () => {
     expect(GIFT_COMPOSED_SCENE_FOR_ITEM).toEqual({
       "keepsake-locket": "gold-heart",
       fireworks: "fireworks-box",
       "level-up": "star-badge",
       "aurora-sweep": "gem-sweep",
       "aurora-frame": "gem-frame",
+      "trophy-frame": "trophy",
+      "playful-kitten": "kitten-box",
+      "kindred-spirit": "twin-hearts",
+      "supporter-star": "star-engraved",
+      "midnight-crystal-frame": "gem-crystal",
+      "sunset-postcard": "postcard-box",
     });
     expect(resolveGiftScene([{ slug: "keepsake-locket" }])).toEqual({ kind: "composed", variant: "gold-heart", artSrc: null });
     expect(resolveGiftScene([{ slug: "fireworks" }])).toEqual({ kind: "composed", variant: "fireworks-box", artSrc: null });
@@ -153,11 +158,16 @@ describe("the scene registry", () => {
       expect(GIFT_MODEL_FOR_ITEM[slug], slug).toBeUndefined();
       expect(giftSignatureFor([{ slug }]), slug).toBeNull();
     }
-    // The gifts that shared those models keep them, unchanged.
-    expect(resolveGiftScene([{ slug: "kindred-spirit" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.heart });
-    expect(resolveGiftScene([{ slug: "supporter-star" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.star });
-    expect(resolveGiftScene([{ slug: "midnight-crystal-frame" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.diamond });
-    expect(resolveGiftScene([{ slug: "playful-kitten" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES["gift-box"] });
+    expect(resolveGiftScene([{ slug: "trophy-frame" }])).toEqual({ kind: "composed", variant: "trophy", artSrc: null });
+    expect(resolveGiftScene([{ slug: "playful-kitten" }])).toEqual({ kind: "composed", variant: "kitten-box", artSrc: null });
+    expect(resolveGiftScene([{ slug: "kindred-spirit" }])).toEqual({ kind: "composed", variant: "twin-hearts", artSrc: null });
+    for (const slug of ["supporter-star", "midnight-crystal-frame", "sunset-postcard"] as const) {
+      expect(resolveGiftScene([{ slug }])).toEqual({ kind: "composed", variant: GIFT_COMPOSED_SCENE_FOR_ITEM[slug], artSrc: GIFT_ART_IMAGES[slug].src });
+    }
+    // Only Birthday Balloons keeps a model entry (its signature motion plays instead); the heart, star and diamond
+    // placeholders went with the last gifts that used them.
+    expect(GIFT_MODEL_FOR_ITEM).toEqual({ "birthday-balloons": "gift-box" });
+    expect(Object.keys(GIFT_MODEL_FILES)).toEqual(["gift-box"]);
   });
 
   it("every model file is still used by some gift", () => {
@@ -216,6 +226,8 @@ describe("loading boundaries", () => {
     expect(importing(/from\s*["'](three|@react-three\/[^"']+)["']|import\(\s*["'](three|@react-three)/)).toEqual([
       "src/components/gift-canvas.tsx",
       "src/components/gift-composed-graph.ts",
+      "src/components/gift-composed-objects.ts",
+      "src/components/gift-kitten.ts",
       "src/components/gift-legendary-graph.ts",
       "src/components/gift-scene-3d.tsx",
       "src/components/gift-scene-composed.tsx",
@@ -242,6 +254,12 @@ describe("loading boundaries", () => {
     ]);
     expect(importing(/@\/components\/gift-legendary-graph["']/)).toEqual(["src/components/gift-scene-legendary.tsx"]);
     expect(importing(/@\/components\/gift-composed-graph["']/)).toEqual(["src/components/gift-scene-composed.tsx"]);
+    expect(importing(/@\/components\/gift-composed-objects["']/)).toEqual([
+      "src/components/gift-composed-graph.ts",
+      "src/components/gift-kitten.ts",
+      "src/components/gift-scene-composed.tsx",
+    ]);
+    expect(importing(/@\/components\/gift-kitten["']/)).toEqual(["src/components/gift-composed-graph.ts"]);
   });
 
   it("models load without Draco or Meshopt, and the scenes render on demand with a capped DPR", () => {
@@ -277,9 +295,10 @@ describe("loading boundaries", () => {
   it("the composed scene cuts its icon out locally, sets up its textures properly and disposes everything on close", () => {
     const scene = read("src/components/gift-scene-composed.tsx");
     expect(scene).toContain("cutOutGiftArt(");
-    expect(scene).toContain("colorSpace = SRGBColorSpace");
-    expect(scene).toContain("anisotropy = Math.min(MAX_ANISOTROPY");
-    expect(scene).toContain("art?.dispose()");
+    // Colour maps are sRGB; the relief, roughness and engraving-tone maps are data (no colour conversion).
+    expect(scene).toContain('colorSpace = kind === "color" ? SRGBColorSpace : NoColorSpace');
+    expect(scene).toContain("Math.min(MAX_ANISOTROPY, gl.capabilities.getMaxAnisotropy())");
+    expect(scene).toContain("for (const t of textures) t.dispose()");
     expect(scene).toContain("envMap?.dispose()");
     expect(scene).toContain("pmrem.dispose()");
     expect(scene).toContain("studio.dispose()");
@@ -289,7 +308,7 @@ describe("loading boundaries", () => {
     expect(scene).toContain("cancelAnimationFrame(frame)");
     expect(scene).toContain("composedSceneNeedsFrames(");
     // The environment is a procedural studio built in code: no HDR file, nothing downloaded.
-    expect(scene).toContain("buildStudioEnvironment()");
+    expect(scene).toContain("buildStudioEnvironment(kind)");
     expect(scene).not.toMatch(/\.hdr|\.exr|RGBELoader|EXRLoader/);
   });
 

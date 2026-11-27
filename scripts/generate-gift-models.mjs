@@ -33,44 +33,8 @@ if (typeof globalThis.FileReader === "undefined") {
 
 const OUT = path.join(process.cwd(), "public", "gifts", "models");
 
-const material = (color, { metalness = 0.4, roughness = 0.35, emissive = 0x000000, flat = false } = {}) =>
-  new THREE.MeshStandardMaterial({ color, metalness, roughness, emissive, flatShading: flat });
-
-function centred(geometry) {
-  geometry.computeBoundingBox();
-  const box = geometry.boundingBox;
-  geometry.translate(-(box.min.x + box.max.x) / 2, -(box.min.y + box.max.y) / 2, -(box.min.z + box.max.z) / 2);
-  return geometry;
-}
-
-function heart() {
-  const s = new THREE.Shape();
-  s.moveTo(0, -0.9);
-  s.bezierCurveTo(-0.15, -0.65, -1.0, -0.25, -1.0, 0.25);
-  s.bezierCurveTo(-1.0, 0.7, -0.55, 0.95, -0.25, 0.85);
-  s.bezierCurveTo(-0.1, 0.8, 0, 0.65, 0, 0.55);
-  s.bezierCurveTo(0, 0.65, 0.1, 0.8, 0.25, 0.85);
-  s.bezierCurveTo(0.55, 0.95, 1.0, 0.7, 1.0, 0.25);
-  s.bezierCurveTo(1.0, -0.25, 0.15, -0.65, 0, -0.9);
-  const geometry = centred(
-    new THREE.ExtrudeGeometry(s, { depth: 0.35, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.1, bevelSegments: 2, curveSegments: 8 }),
-  );
-  const group = new THREE.Group();
-  group.add(new THREE.Mesh(geometry, material(0xd8324f, { metalness: 0.3, roughness: 0.3, emissive: 0x2a0008 })));
-  return group;
-}
-
-function diamond() {
-  const group = new THREE.Group();
-  const gem = material(0x9fd8ff, { metalness: 0.1, roughness: 0.08, emissive: 0x0a1a2a, flat: true });
-  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.95, 0.35, 10, 1), gem);
-  crown.position.y = 0.32;
-  const pavilion = new THREE.Mesh(new THREE.ConeGeometry(0.95, 1.1, 10, 1), gem);
-  pavilion.rotation.x = Math.PI;
-  pavilion.position.y = -0.4;
-  group.add(crown, pavilion);
-  return group;
-}
+const material = (color, { metalness = 0.4, roughness = 0.35, emissive = 0x000000 } = {}) =>
+  new THREE.MeshStandardMaterial({ color, metalness, roughness, emissive });
 
 function giftBox() {
   const group = new THREE.Group();
@@ -94,26 +58,9 @@ function giftBox() {
   return group;
 }
 
-function star() {
-  const s = new THREE.Shape();
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? 1 : 0.45;
-    const a = Math.PI / 2 + (i * Math.PI) / 5;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-    if (i === 0) s.moveTo(x, y);
-    else s.lineTo(x, y);
-  }
-  s.closePath();
-  const geometry = centred(
-    new THREE.ExtrudeGeometry(s, { depth: 0.3, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.06, bevelSegments: 2 }),
-  );
-  const group = new THREE.Group();
-  group.add(new THREE.Mesh(geometry, material(0xf0b429, { metalness: 0.75, roughness: 0.25, emissive: 0x2a1a00 })));
-  return group;
-}
-
-const MODELS = { heart, diamond, "gift-box": giftBox, star };
+// The heart, diamond and star placeholders were retired once every gift that used them got its own composed scene
+// (src/components/gift-composed-graph.ts); only the gift box remains (mapped to Birthday Balloons).
+const MODELS = { "gift-box": giftBox };
 
 const exporter = new GLTFExporter();
 mkdirSync(OUT, { recursive: true });

@@ -31,6 +31,7 @@ import type { GiftTierName } from "@/lib/gift-market";
 import { registerOverlay } from "@/lib/overlay-registry";
 import { useBackDismiss } from "@/lib/use-back-dismiss";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { giftSoundAccentFor } from "@/lib/gift-sound-plan";
 import { useGiftSound } from "@/lib/use-gift-sound";
 import { holdPageMedia, releasePageMedia } from "@/lib/video-playback-guard";
 import { format } from "@/lib/i18n/locales";
@@ -115,7 +116,7 @@ export function GiftReveal({
   const step = (name: GiftRevealStep) => ({ "--step-delay": `${delays.get(name) ?? 0}ms` }) as CSSProperties;
   const [playKey, setPlayKey] = useState(0);
   const [announced, setAnnounced] = useState("");
-  const sound = useGiftSound({ tier: stageTier, lowEnd, hitMs: delays.get("name") ?? 0 });
+  const sound = useGiftSound({ tier: stageTier, lowEnd, hitMs: delays.get("name") ?? 0, accent: giftSoundAccentFor(items) });
   const stopSound = sound.stop;
 
   const senderLine =

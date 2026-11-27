@@ -241,6 +241,19 @@ describe("playGiftScore", () => {
     expect(ctx.nodes.length - MASTER_CHAIN_NODES).toBe(nodesFor(plan.events));
   });
 
+  it("renders the kitten's meow exactly as voiceNodeCount says, with a click-free envelope", () => {
+    const plan = giftSoundPlan("EPIC", { lowEnd: false, hitMs: 1190, accent: "meow" });
+    start(plan);
+    runTo(plan.durationMs / 1000);
+    expect(ctx.nodes.length - MASTER_CHAIN_NODES).toBe(plan.events.reduce((n, ev) => n + voiceNodeCount(ev), 0));
+    const gains = ctx.nodes.filter((n): n is FakeGain => n instanceof FakeGain && n.gain.calls.length > 0);
+    for (const g of gains) {
+      const valued = g.gain.calls.filter((c) => c[0] !== "cancel");
+      expect(valued[0][1]).toBe(0);
+      expect(valued[valued.length - 1]).toEqual(["linear", 0, expect.any(Number)]);
+    }
+  });
+
   it("every enveloped gain starts at 0 and ends at 0 (no clicks), and every source stops after its envelope", () => {
     const plan = giftSoundPlan("EPIC", { lowEnd: false, hitMs: 1190 });
     start(plan);

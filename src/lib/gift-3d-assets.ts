@@ -11,7 +11,7 @@ import type { LegendaryVariant } from "@/lib/gift-legendary-plan";
 //
 //   three  Epic and Legendary: a small React Three Fiber scene, either a self-hosted GLB model (gift-scene-3d.tsx), for
 //          the Luxury Red Rose, the Gold Orchid and the Diamond Jewelry Gift Box the cinematic scene around the owner's artwork
-//          (gift-scene-legendary.tsx, plan in gift-legendary-plan.ts), or for five gifts a procedural object with the
+//          (gift-scene-legendary.tsx, plan in gift-legendary-plan.ts), or for eleven gifts a procedural object with the
 //          gift's own icon or effect placed on it (gift-scene-composed.tsx, plan in gift-composed-plan.ts).
 //          resolveGiftScene says which.
 //   stage  everything else, and the fallback for all of the above: the CSS layers + static art.
@@ -40,29 +40,22 @@ const generated = (name: string): GiftModelAsset => ({
 });
 
 export const GIFT_MODEL_FILES = {
-  heart: generated("heart"),
-  diamond: generated("diamond"),
   "gift-box": generated("gift-box"),
-  star: generated("star"),
 } as const satisfies Record<string, GiftModelAsset>;
 
 export type GiftModelKey = keyof typeof GIFT_MODEL_FILES;
 
 /** The model each Epic / Legendary marketplace gift's item is revealed with (by item slug). */
 export const GIFT_MODEL_FOR_ITEM: Readonly<Record<string, GiftModelKey>> = {
-  "kindred-spirit": "heart",
   "birthday-balloons": "gift-box",
-  "playful-kitten": "gift-box",
-  "sunset-postcard": "gift-box",
-  "supporter-star": "star",
-  "trophy-frame": "star",
-  "midnight-crystal-frame": "diamond",
 };
 
 /**
  * The gifts revealed with a composed scene (gift-scene-composed.tsx), by item slug: the Keepsake Locket's gold heart,
- * the Fireworks launching from the opened box, the Level Up badge on the gold star, the Aurora Sweep across the gem and
- * the Aurora Frame standing on it. Their objects are procedural (no GLB); the other gifts keep their models.
+ * the Fireworks launching from the opened box, the Level Up badge on the gold star, the Aurora Sweep across the gem,
+ * the Aurora Frame standing on it, the Trophy Frame's spinning gold trophy, the Playful Kitten jumping out of its box,
+ * the Kindred Spirit's two red hearts, the Supporter Star engraved into the gold star, the Midnight Crystal floating
+ * down onto the gem and the Sunset Postcard wrapped round a turning gift box. Their objects are procedural (no GLB).
  */
 export const GIFT_COMPOSED_SCENE_FOR_ITEM: Readonly<Record<string, ComposedVariant>> = {
   "keepsake-locket": "gold-heart",
@@ -70,6 +63,12 @@ export const GIFT_COMPOSED_SCENE_FOR_ITEM: Readonly<Record<string, ComposedVaria
   "level-up": "star-badge",
   "aurora-sweep": "gem-sweep",
   "aurora-frame": "gem-frame",
+  "trophy-frame": "trophy",
+  "playful-kitten": "kitten-box",
+  "kindred-spirit": "twin-hearts",
+  "supporter-star": "star-engraved",
+  "midnight-crystal-frame": "gem-crystal",
+  "sunset-postcard": "postcard-box",
 };
 
 /** The gifts revealed with the cinematic scene around their artwork (gift-scene-legendary.tsx), by item slug. */

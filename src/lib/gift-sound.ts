@@ -7,6 +7,7 @@ import {
   giftSoundPlan,
   isArmFresh,
   mayStartGiftSound,
+  type GiftSoundAccent,
   type GiftSoundCueName,
 } from "@/lib/gift-sound-plan";
 import { readGiftSoundMuted, writeGiftSoundMuted } from "@/lib/gift-sound-pref";
@@ -31,6 +32,8 @@ export type GiftSoundRequest = {
   lowEnd: boolean;
   /** When the reveal shows the gift's name, in ms after it opened (the score's hit lands there). */
   hitMs: number;
+  /** The gift's own sound on top of the score (the Playful Kitten's meow), timed from the same hit. */
+  accent?: GiftSoundAccent | null;
   onCue?: (cue: GiftSoundCueName) => void;
   onEnded?: () => void;
 };
@@ -164,7 +167,7 @@ export function createGiftSoundController(env: GiftSoundEnv) {
             try {
               // The reveal has been running while the synth loaded: keep the hit on the name.
               const hitMs = Math.max(0, req.hitMs - (env.now() - startedAt));
-              const plan = giftSoundPlan(req.tier, { lowEnd: req.lowEnd, hitMs });
+              const plan = giftSoundPlan(req.tier, { lowEnd: req.lowEnd, hitMs, accent: req.accent ?? null });
               s.handle = engine.playGiftScore(ctx, plan, {
                 startDelayS,
                 onCue: req.onCue,

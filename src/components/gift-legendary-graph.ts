@@ -11,7 +11,6 @@ import {
   Group,
   InstancedBufferAttribute,
   InstancedMesh,
-  LatheGeometry,
   Mesh,
   MeshStandardMaterial,
   Object3D,
@@ -20,7 +19,6 @@ import {
   Points,
   ShaderMaterial,
   TubeGeometry,
-  Vector2,
   Vector3,
   type Material,
   type PerspectiveCamera,
@@ -79,36 +77,104 @@ export function petalGeometry(lengthSegments = 6, widthSegments = 4): BufferGeom
   return geometry;
 }
 
+/** A round brilliant's proportions (diameter 1): table, crown and pavilion as a jeweller would cut them. */
+export const BRILLIANT = { radius: 0.5, table: 0.28, star: 0.39, crown: 0.16, girdle: 0.03, pavilion: 0.43, lowerGirdle: 0.78 } as const;
+
 /**
- * A small brilliant-cut diamond (the jewelry box's floating diamonds), the classic silhouette: a wide flat table, a
- * two-tier crown (star and bezel facets), a thin girdle and a deep pavilion to a point, sixteen facets round. Height 1
- * (it scales like a petal), widest 1. Non-indexed with one normal per facet, so every facet is one flat tone (crisp facet
- * contrast in the shader instead of a smooth pebble).
+ * A small round brilliant (the jewelry box's floating diamonds), cut facet by facet like the real thing: an octagonal
+ * table, 8 star facets, 8 kite (bezel) facets and 16 upper girdle facets on the crown, a thin girdle, and on the
+ * pavilion 8 long main facets and 16 lower girdle facets meeting at the culet. Diameter 1, about 0.62 high, centred.
+ * Non-indexed, every facet one flat normal, and each vertex carries `aEdge` (barycentric, with the diagonals inside a
+ * kite or the table hidden), so the shader can draw the facet outlines: the brilliant's pattern reads at any angle.
  */
-export function diamondGeometry(segments = 16): BufferGeometry {
-  const profile = [
-    new Vector2(0, -0.6),
-    new Vector2(0.5, 0.06),
-    new Vector2(0.5, 0.1),
-    new Vector2(0.43, 0.24),
-    new Vector2(0.3, 0.38),
-    new Vector2(0, 0.38),
-  ];
-  const lathe = new LatheGeometry(profile, segments);
-  const geometry = lathe.toNonIndexed();
-  lathe.dispose();
-  geometry.computeVertexNormals();
+export function diamondGeometry(): BufferGeometry {
+  const B = BRILLIANT;
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const edges: number[] = [];
+  const top = B.crown;
+  const girdleTop = 0;
+  const girdleBottom = -B.girdle;
+  const culetY = girdleBottom - B.pavilion;
+  const at = (r: number, angle: number, y: number) => new Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r);
+  const step = Math.PI / 4;
+  const T = (k: number) => at(B.table, k * step, top);
+  const S = (k: number) => at(B.star, (k + 0.5) * step, top * ((B.radius - B.star) / (B.radius - B.table)));
+  const G = (angle: number, y: number) => at(B.radius, angle, y);
+  const P = (k: number) => at(B.radius * (1 - B.lowerGirdle), (k + 0.5) * step, girdleBottom - B.pavilion * B.lowerGirdle);
+  const culet = new Vector3(0, culetY, 0);
+  const centre = new Vector3(0, (top + culetY) / 2, 0);
+  const facet = (points: Vector3[]) => {
+    // Newell's normal, turned to face out of the stone; then a fan, the fan's inner diagonals hidden.
+    const n = new Vector3();
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i];
+      const b = points[(i + 1) % points.length];
+      n.x += (a.y - b.y) * (a.z + b.z);
+      n.y += (a.z - b.z) * (a.x + b.x);
+      n.z += (a.x - b.x) * (a.y + b.y);
+    }
+    n.normalize();
+    const mid = points.reduce((acc, p) => acc.add(p), new Vector3()).multiplyScalar(1 / points.length);
+    const outward = n.dot(mid.clone().sub(centre)) >= 0;
+    const ordered = outward ? points : [...points].reverse();
+    if (!outward) n.negate();
+    for (let i = 1; i < ordered.length - 1; i++) {
+      const tri = [ordered[0], ordered[i], ordered[i + 1]];
+      // Edge opposite vertex 0 is always a facet edge; v0-v(i) is one only for the first triangle, v(i+1)-v0 only for the last.
+      const hideAB = i > 1 ? 1 : 0;
+      const hideCA = i + 1 < ordered.length - 1 ? 1 : 0;
+      const bary = [
+        [1, 0 + hideCA, 0 + hideAB],
+        [0, 1 + hideCA, 0 + hideAB],
+        [0, 0 + hideCA, 1 + hideAB],
+      ];
+      tri.forEach((p, j) => {
+        positions.push(p.x, p.y, p.z);
+        normals.push(n.x, n.y, n.z);
+        edges.push(...bary[j]);
+      });
+    }
+  };
+  facet(Array.from({ length: 8 }, (_, k) => T(k)));
+  for (let k = 0; k < 8; k++) {
+    const a = k * step;
+    const h = (k + 0.5) * step;
+    facet([T(k), T(k + 1), S(k)]);
+    facet([T(k), S(k), G(a, girdleTop), S(k - 1)]);
+    facet([S(k), G(a, girdleTop), G(h, girdleTop)]);
+    facet([S(k), G(h, girdleTop), G(a + step, girdleTop)]);
+    for (const [from, to] of [
+      [a, h],
+      [h, a + step],
+    ]) {
+      facet([G(from, girdleTop), G(to, girdleTop), G(to, girdleBottom), G(from, girdleBottom)]);
+    }
+    facet([G(a, girdleBottom), G(h, girdleBottom), P(k)]);
+    facet([G(h, girdleBottom), G(a + step, girdleBottom), P(k)]);
+    facet([G(a, girdleBottom), P(k), culet, P(k - 1)]);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+  geometry.setAttribute("aEdge", new Float32BufferAttribute(edges, 3));
+  geometry.translate(0, -(top + culetY) / 2, 0);
   return geometry;
 }
 
-// The floating diamonds: an unlit, faceted "studio" look in the shader (cheap: no environment map, no transmission).
-// Each flat facet takes a tone from where its reflection points (bright ceiling and softboxes, a dark floor, deep blue
-// sides), a cool-violet dispersion tint that changes facet to facet, a white rim, sharp specular glints from two light
-// directions and a per-diamond twinkle. So a diamond reads clear-white with cool/violet reflections and crisp contrast.
+// The floating diamonds: an unlit, faceted look in the shader (cheap: no environment map, no transmission). A real
+// diamond is a mosaic of bright and dark facets (it reflects a bright room through itself), so each flat facet takes its
+// tone from a "kaleidoscope" studio of bright and dark sectors around and bands up the stone, which neighbouring facets
+// see differently, and which changes as the stone turns (the sparkle). Never washed out: the brightest facets are a
+// warm white, the darkest a deep blue-violet, with a little colour (fire) per facet and the art's warm light in it.
+// Every facet edge is drawn as a thin bright line (from `aEdge`), so the table, the star and kite facets and the
+// pavilion's mains read at any angle and at phone size; plus a rim and a per-diamond twinkle.
 const DIAMOND_VERTEX = /* glsl */ `
 attribute float aPhase;
+attribute vec3 aEdge;
 varying vec3 vNormal;
 varying vec3 vView;
+varying vec3 vEdge;
 varying float vPhase;
 void main() {
   vec4 local = vec4(position, 1.0);
@@ -120,6 +186,7 @@ void main() {
   vec4 world = modelMatrix * local;
   vNormal = normalize(mat3(model) * normal);
   vView = normalize(cameraPosition - world.xyz);
+  vEdge = aEdge;
   vPhase = aPhase;
   gl_Position = projectionMatrix * viewMatrix * world;
 }`;
@@ -128,30 +195,31 @@ const DIAMOND_FRAGMENT = /* glsl */ `
 uniform float uTime;
 varying vec3 vNormal;
 varying vec3 vView;
+varying vec3 vEdge;
 varying float vPhase;
 void main() {
   vec3 n = normalize(vNormal);
   vec3 v = normalize(vView);
   vec3 r = reflect(-v, n);
   float facing = max(dot(n, v), 0.0);
-  // The studio: dark floor, deep blue sides, bright soft ceiling and two softboxes.
-  float ceiling = smoothstep(-0.1, 0.8, r.y);
-  float box1 = pow(max(dot(r, normalize(vec3(0.6, 0.7, 0.4))), 0.0), 18.0);
-  float box2 = pow(max(dot(r, normalize(vec3(-0.7, 0.3, 0.6))), 0.0), 14.0);
-  vec3 col = mix(vec3(0.04, 0.05, 0.16), vec3(0.3, 0.36, 0.68), smoothstep(-0.6, 0.2, r.y));
-  col = mix(col, vec3(0.95, 0.97, 1.0), ceiling);
-  col += vec3(1.0) * box1 * 2.0 + vec3(0.9, 0.85, 1.0) * box2 * 1.4;
-  // Dispersion: a cool / violet / pale-gold tint that changes from facet to facet, and every few facets a bright one.
+  float az = atan(r.z, r.x);
+  float sectors = smoothstep(0.3, 0.7, 0.5 + 0.5 * sin(az * 5.0 + r.y * 4.0 + vPhase));
+  float bands = smoothstep(0.15, 0.85, 0.5 + 0.5 * sin(r.y * 6.0 - 0.6 + vPhase * 0.5));
+  float tone = 0.1 + 0.9 * sectors * (0.5 + 0.5 * bands);
   float k = dot(n, vec3(12.9898, 78.233, 37.719));
   float h = fract(sin(k) * 43758.5453);
   vec3 fire = 0.5 + 0.5 * cos(6.2831 * (h + vec3(0.0, 0.33, 0.67)));
-  col *= mix(vec3(1.0), mix(vec3(0.8, 0.86, 1.0), fire, 0.5), 0.3);
-  col += vec3(0.95, 0.97, 1.0) * step(0.72, h) * 0.45;
-  // White rim, and a twinkle: now and then one facet flashes.
-  col += vec3(0.9, 0.93, 1.0) * pow(1.0 - facing, 3.0) * 0.6;
+  vec3 white = vec3(1.0, 0.95, 0.92);
+  vec3 col = mix(white, fire, 0.26) * tone;
+  col = max(col, vec3(0.07, 0.07, 0.17) + 0.06 * fire);
+  vec3 width = fwidth(vEdge) * 1.3;
+  vec3 line = smoothstep(vec3(0.0), width, vEdge);
+  float edge = 1.0 - min(min(line.x, line.y), line.z);
+  col = mix(col, vec3(1.0, 0.97, 0.94), edge * 0.6);
+  col += vec3(0.85, 0.9, 1.0) * pow(1.0 - facing, 3.0) * 0.3;
   float twinkle = pow(max(sin(uTime * 1.7 + vPhase + k * 0.01), 0.0), 24.0);
-  col += vec3(1.0) * twinkle * smoothstep(0.6, 1.0, facing) * 1.4;
-  gl_FragColor = vec4(col, 1.0);
+  col += vec3(1.0) * twinkle * smoothstep(0.6, 1.0, facing) * 1.1;
+  gl_FragColor = vec4(min(col, vec3(1.5)), 1.0);
   #include <colorspace_fragment>
 }`;
 
@@ -187,8 +255,24 @@ void main() {
   float d = vUv.x + (1.0 - vUv.y) * 0.6 - uSweep;
   float band = exp(-d * d / 0.012);
   vec3 col = tex.rgb + uSweepColor * band * smoothstep(0.18, 0.7, lum) * uSweepStrength;
-  gl_FragColor = vec4(col, tex.a * uOpacity);
-  #include <colorspace_fragment>
+  #ifdef EDGE_BLEND
+    // The picture's edges dissolve into the scene instead of ending as a card: its dark backdrop fades out over the
+    // outer third (a rounded-square falloff), while the light painted in it (the gold rings, the sparkles) carries on
+    // to the very edge and is added like light, so the rings thin out into the scene's glow rather than stopping at a
+    // border. Premultiplied output (the material blends ONE, ONE_MINUS_SRC_ALPHA). Nothing in the middle changes.
+    vec2 p = abs(vUv - 0.5) * 2.0;
+    float edge = pow(pow(p.x, 4.0) + pow(p.y, 4.0), 0.25);
+    float backdrop = 1.0 - smoothstep(0.62, 0.97, edge);
+    float light = 1.0 - smoothstep(0.84, 1.0, edge);
+    float bright = smoothstep(0.16, 0.5, lum);
+    gl_FragColor = vec4(col, 1.0);
+    #include <colorspace_fragment>
+    float a = tex.a * uOpacity;
+    gl_FragColor = vec4(gl_FragColor.rgb * a * mix(backdrop, light, bright), a * backdrop);
+  #else
+    gl_FragColor = vec4(col, tex.a * uOpacity);
+    #include <colorspace_fragment>
+  #endif
 }`;
 
 const GLOW_FRAGMENT = /* glsl */ `
@@ -359,6 +443,7 @@ export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture, 
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
+      ...(look.edgeBlend ? { defines: { EDGE_BLEND: "" }, premultipliedAlpha: true } : {}),
     }),
   );
   const art = new Mesh(artGeometry, artMaterial);
@@ -460,6 +545,8 @@ export function buildLegendaryGraph(plan: LegendaryScenePlan, texture: Texture, 
   root.add(ring);
 
   const dummy = new Object3D();
+  // A diamond turns about its own axis first (y), then leans sideways (z), then tips its table towards the camera (x).
+  if (look.particle === "diamond") dummy.rotation.order = "XZY";
   const placePetals = (specs: PetalSpec[], mesh: InstancedMesh, t: number, level: number) => {
     specs.forEach((spec, i) => {
       const pose = legendaryPetalPose(plan, spec, t, level);

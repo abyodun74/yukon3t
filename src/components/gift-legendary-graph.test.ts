@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BufferGeometry, InstancedMesh, Material, Matrix4, Mesh, PerspectiveCamera, Points, ShaderMaterial, Texture, type Object3D } from "three";
-import { buildLegendaryGraph, diamondGeometry, petalGeometry } from "@/components/gift-legendary-graph";
+import { BRILLIANT, buildLegendaryGraph, diamondGeometry, petalGeometry } from "@/components/gift-legendary-graph";
 import { legendaryPetalPose, legendaryScenePlan, type LegendaryVariant } from "@/lib/gift-legendary-plan";
 
 // The legendary scene's three.js objects, built for real (three.js needs no WebGL to create them) with a fake texture:
@@ -98,13 +98,17 @@ describe.each(["rose", "orchid", "jewelry"] as LegendaryVariant[])("buildLegenda
 });
 
 describe("the jewelry box's floating diamonds", () => {
-  it("are brilliant-cut: a flat table, about as wide as tall, pointed below, one flat normal per facet", () => {
+  it("are round brilliants: an octagonal table, a low crown, a deeper pavilion to a point, one flat normal per facet", () => {
     const geometry = diamondGeometry();
     expect(geometry.getIndex()).toBeNull();
     geometry.computeBoundingBox();
     const box = geometry.boundingBox!;
-    expect(box.max.y - box.min.y).toBeCloseTo(0.98, 2);
+    // A jeweller's proportions: diameter 1, crown 0.16, girdle 0.03, pavilion 0.43.
+    expect(box.max.y - box.min.y).toBeCloseTo(BRILLIANT.crown + BRILLIANT.girdle + BRILLIANT.pavilion, 5);
     expect(box.max.x - box.min.x).toBeCloseTo(1, 1);
+    // 57 facets as on a real brilliant (table, 8 star, 8 kite, 16 upper girdle, 8 main, 16 lower girdle), plus the
+    // girdle band: 1 + 8 + 8 + 16 + 8 + 16 = 57, triangulated.
+    expect(geometry.getAttribute("aEdge").count).toBe(geometry.getAttribute("position").count);
     const position = geometry.getAttribute("position");
     const normal = geometry.getAttribute("normal");
     // Flat facets: the three vertices of every triangle share one normal.
@@ -122,8 +126,15 @@ describe("the jewelry box's floating diamonds", () => {
       if (Math.abs(position.getY(i) - box.max.y) < 1e-6) top = Math.max(top, r);
       if (Math.abs(position.getY(i) - box.min.y) < 1e-6) bottom = Math.max(bottom, r);
     }
-    expect(top).toBeGreaterThan(0.25);
+    expect(top).toBeCloseTo(BRILLIANT.table, 5);
     expect(bottom).toBeLessThan(1e-6);
+    // Every facet faces out of the stone.
+    for (let t = 0; t < position.count; t += 3) {
+      const cx = (position.getX(t) + position.getX(t + 1) + position.getX(t + 2)) / 3;
+      const cy = (position.getY(t) + position.getY(t + 1) + position.getY(t + 2)) / 3 - (box.max.y + box.min.y) / 2;
+      const cz = (position.getZ(t) + position.getZ(t + 1) + position.getZ(t + 2)) / 3;
+      expect(cx * normal.getX(t) + cy * normal.getY(t) + cz * normal.getZ(t)).toBeGreaterThan(0);
+    }
     geometry.dispose();
   });
 
@@ -144,11 +155,18 @@ describe("the jewelry box's floating diamonds", () => {
     expect(instanced[0].geometry).not.toBe(instanced[1].geometry);
     expect(art).toHaveLength(1);
     expect(art[0].scale.y).toBeCloseTo(0.8, 6);
+    // The jewelry box's picture dissolves into the scene at its edges (premultiplied, its own blend); the rose and
+    // orchid keep their plain fade.
+    const artMaterial = art[0].material as ShaderMaterial;
+    expect(artMaterial.defines).toHaveProperty("EDGE_BLEND");
+    expect(artMaterial.premultipliedAlpha).toBe(true);
     for (const spec of plan.petals) {
       for (const t of [0, 3000, 9000]) {
         const pose = legendaryPetalPose(plan, spec, t, 1);
-        expect(Math.abs(pose.rx)).toBeLessThanOrEqual(0.5 + 1e-9);
-        expect(Math.abs(pose.rz)).toBeLessThanOrEqual(0.4 + 1e-9);
+        // The table always tips towards the camera (never a cone from below or a disc from above).
+        expect(pose.rx).toBeGreaterThanOrEqual(0.3 - 1e-9);
+        expect(pose.rx).toBeLessThanOrEqual(0.54 + 1e-9);
+        expect(Math.abs(pose.rz)).toBeLessThanOrEqual(0.18 + 1e-9);
       }
     }
     graph.update(5000, view());

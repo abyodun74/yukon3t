@@ -5,6 +5,7 @@ import {
   GIFT_SOUND_STOP_FADE_MS,
   GIFT_SOUND_TICK_MS,
   GIFT_SOUND_UNMUTE_FADE_MS,
+  MEOW,
   dueWindows,
   eventsInWindow,
   impulseResponseSamples,
@@ -336,6 +337,36 @@ export function playGiftScore(ctx: AudioContext, plan: GiftSoundPlan, opts: Gift
         bp.frequency.exponentialRampToValueAtTime(5200, end);
         src.connect(bp);
         bp.connect(voice);
+        break;
+      }
+      case "meow": {
+        // A kitten's meow, synthesized: a bright buzzy source (a sawtooth, like vocal folds) whose pitch rises and falls
+        // (freqs = start, peak, end) with a little vibrato, shaped by three formant band-passes that glide from an
+        // "ee" through an open "ah" to a rounded "ow" (mi-a-ow), set high for a small cat's mouth.
+        const [startHz, peakHz, endHz] = e.freqs;
+        const peakAt = at + dur * MEOW.peakAt;
+        const source = osc("sawtooth", startHz);
+        source.frequency.linearRampToValueAtTime(peakHz, peakAt);
+        source.frequency.exponentialRampToValueAtTime(endHz, end);
+        const lfo = osc("sine", 6.2);
+        const depth = gainNode(22);
+        lfo.connect(depth);
+        depth.connect(source.detune);
+        const formants: [number, number, number, number, number][] = [
+          // start, middle, end (Hz), Q, level
+          [1000, 1600, 700, 5, 1],
+          [2600, 2100, 1300, 7, 0.7],
+          [4200, 4200, 3600, 8, 0.25],
+        ];
+        for (const [f0, f1, f2, q, level] of formants) {
+          const bp = filter("bandpass", f0, q);
+          bp.frequency.linearRampToValueAtTime(f1, peakAt);
+          bp.frequency.exponentialRampToValueAtTime(f2, end);
+          const g = gainNode(level);
+          source.connect(bp);
+          bp.connect(g);
+          g.connect(voice);
+        }
         break;
       }
     }
