@@ -65,7 +65,7 @@ describe("legendaryScenePlan", () => {
         expect(Math.abs(p.x)).toBeLessThanOrEqual(0.8);
         expect(Math.abs(p.z)).toBeLessThanOrEqual(0.85);
         expect(p.scale).toBeGreaterThan(0.03);
-        expect(p.scale).toBeLessThan(variant === "jewelry" ? 0.105 : 0.09);
+        expect(p.scale).toBeLessThan(variant === "jewelry" ? 0.145 : 0.09);
         // A whole fall takes at least ~16 s.
         expect((LEGENDARY_FALL.top - LEGENDARY_FALL.bottom) / p.fallSpeed).toBeGreaterThan(16);
         for (const spin of p.spin) expect(Math.abs(spin)).toBeLessThanOrEqual(1.1);
@@ -243,6 +243,6 @@ describe("the Diamond Jewelry Gift Box", () => {
     }
     expect(plan.look.baseY).toBeLessThan(0);
     // The ones in front of the picture keep to its sides (never over the necklace or the plaque).
-    for (const p of plan.petals.filter((q) => q.side === "front")) expect(Math.abs(p.x)).toBeGreaterThanOrEqual(0.42);
+    for (const p of plan.petals.filter((q) => q.side === "front")) expect(Math.abs(p.x)).toBeGreaterThanOrEqual(0.5);
   });
 });

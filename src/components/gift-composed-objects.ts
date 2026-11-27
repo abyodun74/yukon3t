@@ -16,7 +16,7 @@ import {
 } from "three";
 
 // Procedural geometry for the composed reveals (gift-composed-graph.ts): the trophy, open and closed box shells, the
-// postcard box's continuously wrapped sides, and the star with planar UVs for its engraving. No React, no DOM, no files:
+// postcard box's carved sides and lid top (displaced by the carving's height), and the star with planar UVs for its engraving. No React, no DOM, no files:
 // everything is built from numbers, so it is unit-tested in node (gift-composed-graph.test.ts).
 
 /**
@@ -140,22 +140,43 @@ export function boxShellGeometry(w: number, h: number, d: number, wall: number, 
   return merged;
 }
 
-/** Material slots of the postcard box: the wrapped sides, its plain ends (top / bottom). */
+/** Material slots of the postcard box: the carved sides, its plain ends (top / bottom). */
 export const WRAP_SIDES = 0;
 export const WRAP_ENDS = 1;
 
+/** The carving on a surface: its height (0..1) at texture (u, v), how far 1 stands out, and how finely it is meshed. */
+export type Relief = {
+  height: (u: number, v: number) => number;
+  depth: number;
+  /** Grid cells along each side (or across the lid top) and up the height. */
+  columns: number;
+  rows: number;
+  /** Within this distance (units) of a box corner the carving eases out to the plain surface, so corners stay clean. */
+  cornerEase: number;
+  /** Above this v the carving eases out over `fadeSpan` (the body's top, hidden under the lid, stays plain). */
+  fadeAboveV?: number;
+  fadeSpan?: number;
+};
+
+const ease = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
 /**
- * The four sides of a `w` x `h` x `d` box with ONE picture wrapped round them: u runs along the perimeter (front, right,
+ * The four sides of a `w` x `h` x `d` box with ONE picture carved round them: u runs along the perimeter (front, right,
  * back, left, as seen turning the box), so the picture continues across every corner and meets itself where the left
  * side ends at the front; v runs from `v0` at the bottom to `v1` at the top. A periodic picture (gift-postcard-wrap.ts)
- * therefore has no seam anywhere. Sides only (group WRAP_SIDES), plus the bottom (WRAP_ENDS) when `bottom`, plus the top
- * when `top`.
+ * therefore has no seam anywhere. Each side is a fine grid whose vertices stand out along the side's normal by the
+ * relief's height (real displaced geometry, its normals recomputed, so the carving catches light and casts its edges),
+ * easing to the plain surface right at the corners. Sides only (group WRAP_SIDES), plus the bottom (WRAP_ENDS) when
+ * `bottom`, plus the top when `top`.
  */
-export function wrappedSidesGeometry(w: number, h: number, d: number, v: [number, number], ends: { top: boolean; bottom: boolean }): BufferGeometry {
+export function carvedSidesGeometry(w: number, h: number, d: number, v: [number, number], ends: { top: boolean; bottom: boolean }, relief: Relief): BufferGeometry {
   const perimeter = 2 * (w + d);
   const positions: number[] = [];
-  const normals: number[] = [];
   const uvs: number[] = [];
+  const indices: number[] = [];
   const hw = w / 2;
   const hd = d / 2;
   const hh = h / 2;
@@ -166,28 +187,40 @@ export function wrappedSidesGeometry(w: number, h: number, d: number, v: [number
     { a: [hw, -hd], b: [-hw, -hd], n: [0, -1] },
     { a: [-hw, -hd], b: [-hw, hd], n: [-1, 0] },
   ];
+  const { columns, rows } = relief;
   let along = 0;
-  for (const s of sides) {
-    const length = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
-    const u0 = along / perimeter;
-    const u1 = (along + length) / perimeter;
-    along += length;
-    const quad = [
-      [s.a, -hh, u0, v[0]],
-      [s.b, -hh, u1, v[0]],
-      [s.b, hh, u1, v[1]],
-      [s.a, -hh, u0, v[0]],
-      [s.b, hh, u1, v[1]],
-      [s.a, hh, u0, v[1]],
-    ] as const;
-    for (const [xz, y, u, vv] of quad) {
-      positions.push(xz[0], y, xz[1]);
-      normals.push(s.n[0], 0, s.n[1]);
-      uvs.push(u, vv);
+  for (const side of sides) {
+    const length = Math.hypot(side.b[0] - side.a[0], side.b[1] - side.a[1]);
+    const first = positions.length / 3;
+    for (let j = 0; j <= rows; j++) {
+      const fy = j / rows;
+      const y = -hh + h * fy;
+      const vv = v[0] + (v[1] - v[0]) * fy;
+      const fade = relief.fadeAboveV === undefined ? 1 : 1 - ease(relief.fadeAboveV, relief.fadeAboveV + (relief.fadeSpan ?? 0.02), vv);
+      for (let i = 0; i <= columns; i++) {
+        const fx = i / columns;
+        const s = length * fx;
+        const u = (along + s) / perimeter;
+        const corner = ease(0, relief.cornerEase, Math.min(s, length - s));
+        const out = relief.depth * relief.height(u, vv) * corner * fade;
+        const x = side.a[0] + (side.b[0] - side.a[0]) * fx + side.n[0] * out;
+        const z = side.a[1] + (side.b[1] - side.a[1]) * fx + side.n[1] * out;
+        positions.push(x, y, z);
+        uvs.push(u, vv);
+      }
     }
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < columns; i++) {
+        const a = first + j * (columns + 1) + i;
+        const b = a + 1;
+        const c = a + columns + 1;
+        const e = c + 1;
+        indices.push(a, b, e, a, e, c);
+      }
+    }
+    along += length;
   }
-  const geometry = new BufferGeometry();
-  const sideCount = positions.length / 3;
+  const sideIndexCount = indices.length;
   const endFaces: { y: number; up: boolean }[] = [];
   if (ends.bottom) endFaces.push({ y: -hh, up: false });
   if (ends.top) endFaces.push({ y: hh, up: true });
@@ -205,18 +238,56 @@ export function wrappedSidesGeometry(w: number, h: number, d: number, v: [number
           [hw, hd],
           [-hw, hd],
         ];
-    for (const i of [0, 1, 2, 0, 2, 3]) {
-      const [x, z] = corners[i];
+    const first = positions.length / 3;
+    for (const [x, z] of corners) {
       positions.push(x, e.y, z);
-      normals.push(0, e.up ? 1 : -1, 0);
       uvs.push(x / w + 0.5, (e.up ? -z : z) / d + 0.5);
     }
+    indices.push(first, first + 1, first + 2, first, first + 2, first + 3);
   }
+  const geometry = new BufferGeometry();
   geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("normal", new Float32BufferAttribute(normals, 3));
   geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-  geometry.addGroup(0, sideCount, WRAP_SIDES);
-  if (endFaces.length) geometry.addGroup(sideCount, positions.length / 3 - sideCount, WRAP_ENDS);
+  geometry.setIndex(indices);
+  geometry.addGroup(0, sideIndexCount, WRAP_SIDES);
+  if (indices.length > sideIndexCount) geometry.addGroup(sideIndexCount, indices.length - sideIndexCount, WRAP_ENDS);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * A square lid top (`size` across, lying flat at y = 0, facing up) carved by `relief` (u, v over the square, v = 1 at
+ * the back edge), easing to the plain surface at its four edges so it meets the lid's rim cleanly.
+ */
+export function carvedTopGeometry(size: number, relief: Relief): BufferGeometry {
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const n = relief.columns;
+  for (let j = 0; j <= n; j++) {
+    const fv = j / n;
+    for (let i = 0; i <= n; i++) {
+      const fu = i / n;
+      const edge = Math.min(fu, 1 - fu, fv, 1 - fv) * size;
+      const up = relief.depth * relief.height(fu, fv) * ease(0, relief.cornerEase, edge);
+      positions.push((fu - 0.5) * size, up, (0.5 - fv) * size);
+      uvs.push(fu, fv);
+    }
+  }
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const a = j * (n + 1) + i;
+      const b = a + 1;
+      const c = a + n + 1;
+      const e = c + 1;
+      indices.push(a, b, e, a, e, c);
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
   return geometry;
 }
 

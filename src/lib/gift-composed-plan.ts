@@ -1,4 +1,4 @@
-import type { CutoutPreset } from "@/lib/gift-art-cutout";
+import { MIDNIGHT_CRYSTAL_GROUND_Y, type CutoutPreset } from "@/lib/gift-art-cutout";
 import { seededRandom, smoothstep } from "@/lib/gift-legendary-plan";
 
 // The composed 3D reveals: a procedural object with the gift's own artwork or effect placed physically on it (what
@@ -24,8 +24,9 @@ import { seededRandom, smoothstep } from "@/lib/gift-legendary-plan";
 //                  hit, then sway together.
 //   star-engraved  Supporter Star: the gold star with the Supporter Star icon engraved into its front face (relief in the
 //                  metal, lit with it); a glint of light runs across the engraving on the hit.
-//   gem-crystal    Midnight Crystal: the gem arrives, the Midnight Crystal (its icon, cut out) floats slowly down onto the
-//                  gem's flat table, stands on it on the moment, and sparkles.
+//   gem-crystal    Midnight Crystal: the gem arrives, the Midnight Crystal (the whole cluster with its rock bed, kept by its
+//                  traced outline) floats slowly down onto the gem's flat table, stands flush on it on the moment, and
+//                  sparkles.
 //   postcard-box   Sunset Postcard: a gift box wrapped all round in the postcard's sunset (one continuous picture around
 //                  the four sides and the lid's rim, engraved into the paper), turning continuously so every side shows.
 //
@@ -63,7 +64,7 @@ export const COMPOSED_VARIANTS: readonly ComposedVariant[] = [
   "postcard-box",
 ];
 
-/** Which variants place the gift's icon (cut out of its backdrop, or for the postcard its picture) on the object. */
+/** Which variants place the gift's icon (cut out of its backdrop) on the object (the postcard box draws its sunset from code). */
 export const COMPOSED_USES_ART: Readonly<Record<ComposedVariant, boolean>> = {
   "gold-heart": false,
   "fireworks-box": false,
@@ -75,26 +76,26 @@ export const COMPOSED_USES_ART: Readonly<Record<ComposedVariant, boolean>> = {
   "twin-hearts": false,
   "star-engraved": true,
   "gem-crystal": true,
-  "postcard-box": true,
+  "postcard-box": false,
 };
 
 /**
- * How each icon is prepared (gift-art-cutout.ts): a colour cut-out preset, the Level Up badge's hand-traced silhouette
- * ("silhouette"), or the postcard's picture taken from inside its border ("postcard", gift-postcard-wrap.ts). Unused
- * for the variants without art.
+ * How each icon is prepared (gift-art-cutout.ts): a colour cut-out preset, a hand-traced outline (the Level Up badge,
+ * "level-up-outline"; the Midnight Crystal's cluster and rock bed, "crystal-outline"), or the postcard's sunset redrawn
+ * as a carving round the box ("postcard", gift-postcard-wrap.ts). Unused for the variants without art.
  */
-export type ComposedArtPrep = CutoutPreset | "silhouette" | "postcard";
+export type ComposedArtPrep = CutoutPreset | "level-up-outline" | "crystal-outline" | "postcard";
 export const COMPOSED_CUTOUT: Readonly<Record<ComposedVariant, ComposedArtPrep>> = {
   "gold-heart": "standard",
   "fireworks-box": "standard",
-  "star-badge": "silhouette",
+  "star-badge": "level-up-outline",
   "gem-sweep": "standard",
   "gem-frame": "frame",
   trophy: "standard",
   "kitten-box": "standard",
   "twin-hearts": "standard",
   "star-engraved": "standard",
-  "gem-crystal": "crystal",
+  "gem-crystal": "crystal-outline",
   "postcard-box": "postcard",
 };
 
@@ -591,10 +592,14 @@ export function engraveGlint(plan: ComposedScenePlan, t: number): { x: number; s
 // --- Midnight Crystal ----------------------------------------------------------------------------------------------
 
 /**
- * The crystal plane (gem units): its side, and where the cluster's flat base is painted (fraction of the icon from the
- * bottom; measured on the 384px icon: the rocks' lowest row is at 302.5 of 384). Its base is centred on the icon.
+ * The crystal plane (gem units): its side, and where the rock bed's flat underside is (fraction of the icon from the
+ * bottom: the icon's ground line, MIDNIGHT_CRYSTAL_GROUND_Y, at 304.5 of 384). The cut-out continues the bed's bottom
+ * row a few px below that line (CRYSTAL_UNDERFILL_PX), so at rest the texture's filtered edge is inside the gem (hidden
+ * by its table) and the visible base meets the table exactly: no gap, no soft seam.
  */
-export const CRYSTAL_PLANE = { size: 1.5, bottomInset: 0.212 } as const;
+export const CRYSTAL_PLANE = { size: 1.5, bottomInset: (384 - MIDNIGHT_CRYSTAL_GROUND_Y) / 384 } as const;
+/** How far (icon px) the rock bed's bottom row is continued below the ground line (hidden in the gem at rest). */
+export const CRYSTAL_UNDERFILL_PX = 3;
 /** How high above its resting place the crystal starts (gem units). */
 export const CRYSTAL_DROP = 2.6;
 

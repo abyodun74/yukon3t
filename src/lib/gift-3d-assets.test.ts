@@ -161,9 +161,11 @@ describe("the scene registry", () => {
     expect(resolveGiftScene([{ slug: "trophy-frame" }])).toEqual({ kind: "composed", variant: "trophy", artSrc: null });
     expect(resolveGiftScene([{ slug: "playful-kitten" }])).toEqual({ kind: "composed", variant: "kitten-box", artSrc: null });
     expect(resolveGiftScene([{ slug: "kindred-spirit" }])).toEqual({ kind: "composed", variant: "twin-hearts", artSrc: null });
-    for (const slug of ["supporter-star", "midnight-crystal-frame", "sunset-postcard"] as const) {
+    for (const slug of ["supporter-star", "midnight-crystal-frame"] as const) {
       expect(resolveGiftScene([{ slug }])).toEqual({ kind: "composed", variant: GIFT_COMPOSED_SCENE_FOR_ITEM[slug], artSrc: GIFT_ART_IMAGES[slug].src });
     }
+    // The Sunset Postcard's sunset is redrawn from code as a carving round its box: no icon is loaded for it.
+    expect(resolveGiftScene([{ slug: "sunset-postcard" }])).toEqual({ kind: "composed", variant: "postcard-box", artSrc: null });
     // Only Birthday Balloons keeps a model entry (its signature motion plays instead); the heart, star and diamond
     // placeholders went with the last gifts that used them.
     expect(GIFT_MODEL_FOR_ITEM).toEqual({ "birthday-balloons": "gift-box" });

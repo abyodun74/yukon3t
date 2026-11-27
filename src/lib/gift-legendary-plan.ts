@@ -104,7 +104,7 @@ export const LEGENDARY_LOOKS: Record<LegendaryVariant, LegendaryLook> = {
     petalEmissive: "#141c34",
     petalMetalness: 0.65,
     petalRoughness: 0.08,
-    petalScale: [0.065, 0.1],
+    petalScale: [0.095, 0.14],
     glowColor: "#ffbf4a",
     sparkleColor: "#ffffff",
     ribbonFrom: "#ffd36b",
@@ -224,7 +224,7 @@ export function legendaryScenePlan(variant: LegendaryVariant, opts: { lowEnd: bo
     return {
       side,
       // Diamonds in front of the picture keep to its sides, so they never hide the jewellery or the plaque.
-      x: look.particle === "diamond" && side === "front" ? signed(0.42, 0.8) : between(-0.8, 0.8),
+      x: look.particle === "diamond" && side === "front" ? signed(0.5, 0.8) : between(-0.8, 0.8),
       z: side === "front" ? between(0.12, 0.75) : -between(0.12, 0.85),
       phase: random(),
       fallSpeed: between(0.045, 0.085),
@@ -324,11 +324,12 @@ export function legendaryPetalPose(plan: LegendaryScenePlan, petal: PetalSpec, t
     x: petal.x + petal.swayAmp * Math.sin(seconds * petal.swayRate + petal.swayPhase),
     y: plan.look.drift === "rise" ? LEGENDARY_FALL.bottom + progress * range : LEGENDARY_FALL.top - progress * range,
     z: petal.z,
-    // A diamond keeps its table tipped towards the camera (0.3 to 0.54 rad: the table, crown and pavilion all show, never
-    // a bare cone from below or a flat disc from above) and turns about its own axis with a gentle rock; a petal tumbles.
+    // A diamond is seen nearly side-on, its table tipped only a little towards the camera (0.14 to 0.34 rad): the classic
+    // diamond silhouette (a flat-topped crown over the pointed pavilion) with a sliver of the table, never a flat disc
+    // from above or a bare cone from below; it turns about its own axis with a gentle rock. A petal tumbles.
     ...(plan.look.particle === "diamond"
       ? {
-          rx: 0.42 + 0.12 * Math.sin(petal.rot[0] + 0.35 * petal.spin[0] * seconds),
+          rx: 0.24 + 0.1 * Math.sin(petal.rot[0] + 0.35 * petal.spin[0] * seconds),
           ry: petal.rot[1] + 1.6 * petal.spin[1] * seconds,
           rz: 0.18 * Math.sin(petal.rot[2] + 0.3 * petal.spin[2] * seconds),
         }

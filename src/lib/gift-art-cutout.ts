@@ -1,6 +1,6 @@
 // Cuts a gift icon out of its navy backdrop, in the browser, for the 3D reveals that place an icon on an object
-// (gift-scene-composed.tsx: the Aurora Sweep across the gem, the Aurora Frame and the Midnight Crystal on it), plus the
-// hand-traced outlines of the two icons no colour key can separate (the Level Up badge, the Supporter Star's star). The icon files keep the sheet's backdrop on purpose (see CLAUDE.md "Art pipeline": a colour key alone can't
+// (gift-scene-composed.tsx: the Aurora Sweep across the gem, the Aurora Frame on it), plus the hand-traced outlines of
+// the icons no colour key can separate (the Level Up badge, the Supporter Star's star, the Midnight Crystal's cluster). The icon files keep the sheet's backdrop on purpose (see CLAUDE.md "Art pipeline": a colour key alone can't
 // separate dark parts such as the graduation cap's top), so this does not key by colour alone: it flood-fills from the
 // picture's border through backdrop-coloured (or already faded) pixels only. Dark parts enclosed by the art (the Level
 // Up shield's navy face, the night sky inside the Aurora Frame) are not reachable from the border and stay opaque.
@@ -47,9 +47,6 @@ export const CUTOUT_PRESETS = {
   /** The Aurora Frame: nothing dark is enclosed by its outer edge, so the fill reaches all of its dark-blue glow
    *  (sealed by 2 px), which is cut; what is left of that glow is hardened (no pale speckled rim) and specks go. */
   frame: { reach: 130, lo: 24, hi: 130, cool: [0.14, 0.45], warm: [0.14, 0.45], seal: 2, speck: 40, soften: true, harden: 0.42 },
-  /** The Midnight Crystal: its blue glow and the navy between the crystals go (sealed so the fill can't get into the
-   *  crystals' dark facets), the crystals' edges stay crisp. */
-  crystal: { reach: 120, lo: 30, hi: 120, cool: [0.12, 0.4], warm: [0.12, 0.4], seal: 2, speck: 60, soften: true, harden: 0.4 },
 } as const satisfies Record<string, CutoutOptions>;
 
 /**
@@ -153,6 +150,66 @@ export const SUPPORTER_STAR_OUTLINE: readonly (readonly [number, number])[] = [
   [42, 148],
   [142, 129],
 ];
+
+/**
+ * The Midnight Crystal's outline (the whole cluster: five crystals and the dark-blue rock bed they grow from), traced by
+ * hand on the 384px icon, clockwise from the centre crystal's tip; its bottom edge is the bed's flat underside, on the
+ * icon's ground line (MIDNIGHT_CRYSTAL_GROUND_Y). The earlier colour cut-out took the navy rocks and the crystals' dark
+ * lower facets for backdrop: it left holes, a hanging purple wisp and only broken bits of the base on the gem. Each
+ * notch between two crystals follows the dark gap between them; the purple glow wisps at the lower left stay outside.
+ */
+export const MIDNIGHT_CRYSTAL_SILHOUETTE: readonly (readonly [number, number])[] = [
+  // The centre crystal's tip and right shoulder, down into the notch before the right crystal.
+  [202, 79],
+  [219, 100],
+  [237, 123],
+  [244.5, 139],
+  [236, 192],
+  // The right crystal: its top edge to its tip, its right edge down to the lower right crystal.
+  [260, 156.5],
+  [276, 139],
+  [307.5, 127],
+  [324, 124.5],
+  [328, 127],
+  [321, 192.5],
+  [275, 247],
+  // The lower right crystal: top edge to its tip, then its underside down to the rock bed.
+  [279, 250],
+  [303.5, 245.5],
+  [330, 253],
+  [334, 257],
+  [326, 268],
+  [318, 280],
+  [312, 292],
+  // The rock bed's flat underside, on the ground line.
+  [318, 304.5],
+  [102, 304.5],
+  // The lower left crystal: its underside up to its tip, its top edge in to the left crystal.
+  [110, 293],
+  [95, 283],
+  [80, 270],
+  [66, 247],
+  [67, 244],
+  [101, 238.5],
+  [106, 239],
+  [120, 246],
+  [123, 243],
+  // The left crystal: lower edge up to its tip, its top edge, then down into the notch before the centre crystal.
+  [85.5, 198],
+  [85.5, 147],
+  [89, 144],
+  [124, 156],
+  [137, 163],
+  [147, 182],
+  [160, 206],
+  // The centre crystal's left side back up to the tip.
+  [153.5, 149],
+  [156, 132],
+  [171, 110.5],
+  [181, 105],
+];
+/** The icon's ground line (icon px): the rock bed's underside, where the cluster stands on the gem's table. */
+export const MIDNIGHT_CRYSTAL_GROUND_Y = 304.5;
 
 /** Whether the point (x, y) lies inside `polygon` (even-odd rule). */
 export function pointInPolygon(polygon: readonly (readonly [number, number])[], x: number, y: number): boolean {

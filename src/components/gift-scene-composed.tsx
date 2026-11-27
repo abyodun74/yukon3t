@@ -5,23 +5,33 @@ import { useThree } from "@react-three/fiber";
 import { CanvasTexture, NoColorSpace, PMREMGenerator, RepeatWrapping, SRGBColorSpace, type Texture } from "three";
 import { GiftCanvas } from "@/components/gift-canvas";
 import { STAR_ENGRAVE_HALF } from "@/components/gift-composed-objects";
-import { STUDIO_FOR_VARIANT, buildComposedGraph, buildStudioEnvironment, type ComposedAssets, type ComposedGraph } from "@/components/gift-composed-graph";
-import { CUTOUT_PRESETS, CUTOUT_UPSCALE, LEVEL_UP_SILHOUETTE, SUPPORTER_STAR_OUTLINE, cutOutGiftArt, scaledCutout, type CutoutPreset } from "@/lib/gift-art-cutout";
+import { STUDIO_FOR_VARIANT, buildComposedGraph, buildStudioEnvironment, type ComposedAssets, type ComposedGraph, type HeightField } from "@/components/gift-composed-graph";
+import {
+  CUTOUT_PRESETS,
+  CUTOUT_UPSCALE,
+  LEVEL_UP_SILHOUETTE,
+  MIDNIGHT_CRYSTAL_GROUND_Y,
+  MIDNIGHT_CRYSTAL_SILHOUETTE,
+  SUPPORTER_STAR_OUTLINE,
+  cutOutGiftArt,
+  scaledCutout,
+  type CutoutPreset,
+} from "@/lib/gift-art-cutout";
 import {
   COMPOSED_CUTOUT,
   COMPOSED_USES_ART,
+  CRYSTAL_UNDERFILL_PX,
   ENGRAVE_MOTIF_RADIUS,
   ENGRAVE_TEXTURE_SIZE,
   STAR_FACE_CENTRE,
   SUPPORTER_STAR_ICON,
-  POSTCARD_WRAP_ASPECT,
   composedScenePlan,
   composedSceneNeedsFrames,
   type ComposedScenePlan,
   type ComposedVariant,
 } from "@/lib/gift-composed-plan";
 import { engraveMaps } from "@/lib/gift-engrave";
-import { POSTCARD_PICTURE_QUAD, POSTCARD_PICTURE_SIZE, lidTopMaps, rectifyQuad, wrapPanorama, wrapReliefNormal } from "@/lib/gift-postcard-wrap";
+import { POSTCARD_LID_SIZE, POSTCARD_WRAP_REPEAT, POSTCARD_WRAP_SIZE, carveMaps, drawPostcardLid, drawPostcardWrap } from "@/lib/gift-postcard-wrap";
 
 // The composed 3D reveals (Keepsake Locket, Fireworks, Level Up, Aurora Sweep, Aurora Frame, Trophy Frame, Playful
 // Kitten, Kindred Spirit, Supporter Star, Midnight Crystal, Sunset Postcard): a procedural object with the gift's own
@@ -33,7 +43,7 @@ import { POSTCARD_PICTURE_QUAD, POSTCARD_PICTURE_SIZE, lidTopMaps, rectifyQuad, 
 // The icon (where the variant uses one) is the same same-origin 384px WebP the stage shows as its poster (already in
 // the browser's cache), drawn into a canvas and prepared there (prepareArt): cut out of its navy backdrop
 // (gift-art-cutout.ts; the Level Up badge by its hand-traced outline), turned into engraving maps (the Supporter Star,
-// gift-engrave.ts) or into the seamless wrap round the box (the Sunset Postcard, gift-postcard-wrap.ts), then uploaded
+// gift-engrave.ts); the Sunset Postcard's sunset is drawn from code and carved round its box (gift-postcard-wrap.ts). Then uploaded
 // as textures with mipmaps (colour maps sRGB, relief / roughness / tone maps as data). The reflections come from a studio
 // per kind of material (buildStudioEnvironment), prefiltered once (PMREM) per open reveal. The shared GiftCanvas gives the one-canvas slot, frameloop "demand", the DPR cap and the
 // context-loss fallback; an icon that fails to load hands back to the stage too. Frames are drawn only while the plan
@@ -84,16 +94,45 @@ function cutOut(image: HTMLImageElement, preset: CutoutPreset): HTMLCanvasElemen
   return canvas;
 }
 
-/** The Level Up badge: the icon kept only inside its hand-traced outline (an anti-aliased fill of the path). */
-function silhouetteCut(image: HTMLImageElement): HTMLCanvasElement {
+/**
+ * The icon kept only inside a hand-traced outline (an anti-aliased fill of the path): the Level Up badge, or the
+ * Midnight Crystal's whole cluster. For the crystal the outline is grown by `grow` icon px (so the crystals' own dark
+ * outline comes along), and its rock bed's flat underside is cut hard on the ground line, with the bed's bottom row
+ * continued CRYSTAL_UNDERFILL_PX below it (that strip sits inside the gem at rest, under the table).
+ */
+function silhouetteCut(
+  image: HTMLImageElement,
+  outline: readonly (readonly [number, number])[],
+  options: { grow: number; ground?: { y: number; underfill: number } } = { grow: 0 },
+): HTMLCanvasElement {
   const scale = CUTOUT_UPSCALE * (image.naturalWidth / 384);
   const { canvas, context } = canvas2d(image.naturalWidth * CUTOUT_UPSCALE, image.naturalHeight * CUTOUT_UPSCALE);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const ground = options.ground ? Math.round(options.ground.y * scale) : null;
+  const underfill = options.ground ? Math.round(options.ground.underfill * scale) : 0;
+  if (ground !== null && underfill > 0) {
+    // The bed's last painted row, repeated downwards.
+    context.drawImage(canvas, 0, ground - 1, canvas.width, 1, 0, ground, canvas.width, underfill);
+  }
+  const { canvas: maskCanvas, context: mask } = canvas2d(canvas.width, canvas.height);
   const path = new Path2D();
-  LEVEL_UP_SILHOUETTE.forEach(([x, y], i) => (i === 0 ? path.moveTo(x * scale, y * scale) : path.lineTo(x * scale, y * scale)));
+  outline.forEach(([x, y], i) => {
+    const py = ground !== null && y * scale >= ground - 0.5 ? ground + underfill : y * scale;
+    if (i === 0) path.moveTo(x * scale, py);
+    else path.lineTo(x * scale, py);
+  });
   path.closePath();
+  mask.fillStyle = "#fff";
+  mask.fill(path);
+  if (options.grow > 0) {
+    mask.strokeStyle = "#fff";
+    mask.lineJoin = "round";
+    mask.lineWidth = 2 * options.grow * scale;
+    mask.stroke(path);
+  }
+  if (ground !== null) mask.clearRect(0, ground + underfill, canvas.width, canvas.height);
   context.globalCompositeOperation = "destination-in";
-  context.fill(path);
+  context.drawImage(maskCanvas, 0, 0);
   context.globalCompositeOperation = "source-over";
   return canvas;
 }
@@ -125,57 +164,95 @@ function engravingCanvases(image: HTMLImageElement): { color: HTMLCanvasElement;
   return { color: canvasFrom(maps.color, size, size), normal: canvasFrom(maps.normal, size, size), roughness: canvasFrom(maps.roughness, size, size) };
 }
 
-/** The Sunset Postcard's wrap (the picture squared up and made seamless round the box), its relief, and the lid's top. */
-function postcardCanvases(image: HTMLImageElement): { wrap: HTMLCanvasElement; wrapNormal: HTMLCanvasElement; lidTop: HTMLCanvasElement; lidTopNormal: HTMLCanvasElement } {
-  const { context } = canvas2d(384, 384);
-  context.drawImage(image, 0, 0, 384, 384);
-  const icon = context.getImageData(0, 0, 384, 384);
-  const { width: w, height: h } = POSTCARD_PICTURE_SIZE;
-  const picture = rectifyQuad(icon.data, 384, 384, POSTCARD_PICTURE_QUAD, w, h);
-  // Two copies end to end make exactly the box's proportions once each join overlaps by this much.
-  const overlap = w - (POSTCARD_WRAP_ASPECT * h) / 2;
-  const outH = 360;
-  const outW = Math.round(outH * POSTCARD_WRAP_ASPECT);
-  const wrap = wrapPanorama(picture, w, h, overlap, outW, outH);
-  const lid = lidTopMaps(256);
+/** One pass of a carved drawing (colour or height) into a fresh canvas, read back as RGBA. */
+function drawn(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void): Uint8ClampedArray {
+  const { context } = canvas2d(width, height);
+  draw(context);
+  return context.getImageData(0, 0, width, height).data;
+}
+
+/** Hands the main thread back for a moment (the postcard's carving is prepared in steps, between frames). */
+const yieldToFrame = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/**
+ * The Sunset Postcard carved round its box (gift-postcard-wrap.ts): the scene and the lid's top, each drawn in colour
+ * and as height, turned into the shaded colour map, the normal map and the height field that displaces the geometry.
+ * About half a second of work on a desktop (headless Chrome), done in steps with the main thread handed back between
+ * them so the opening reveal keeps animating.
+ */
+async function postcardCarving(): Promise<{
+  wrap: HTMLCanvasElement;
+  wrapNormal: HTMLCanvasElement;
+  lidTop: HTMLCanvasElement;
+  lidTopNormal: HTMLCanvasElement;
+  sides: HeightField;
+  lid: HeightField;
+}> {
+  const { width: W, height: H } = POSTCARD_WRAP_SIZE;
+  const color = drawn(W, H, (ctx) => drawPostcardWrap(ctx, "color"));
+  await yieldToFrame();
+  const height = drawn(W, H, (ctx) => drawPostcardWrap(ctx, "height"));
+  await yieldToFrame();
+  const sides = carveMaps(color, height, W, H, true);
+  await yieldToFrame();
+  const L = POSTCARD_LID_SIZE;
+  const lid = carveMaps(
+    drawn(L, L, (ctx) => drawPostcardLid(ctx, "color")),
+    drawn(L, L, (ctx) => drawPostcardLid(ctx, "height")),
+    L,
+    L,
+    false,
+  );
   return {
-    wrap: canvasFrom(wrap, outW, outH),
-    wrapNormal: canvasFrom(wrapReliefNormal(wrap, outW, outH), outW, outH),
-    lidTop: canvasFrom(lid.color, 256, 256),
-    lidTopNormal: canvasFrom(lid.normal, 256, 256),
+    wrap: canvasFrom(sides.color, W, H),
+    wrapNormal: canvasFrom(sides.normal, W, H),
+    lidTop: canvasFrom(lid.color, L, L),
+    lidTopNormal: canvasFrom(lid.normal, L, L),
+    sides: { data: sides.height, width: W, height: H },
+    lid: { data: lid.height, width: L, height: L },
   };
 }
 
-type PreparedArt = { art: Texture | null; maps: NonNullable<ComposedAssets["maps"]>; textures: Texture[] };
+type PreparedArt = { art: Texture | null; maps: NonNullable<ComposedAssets["maps"]>; carving?: ComposedAssets["carving"]; textures: Texture[] };
 
-/** Everything a variant draws from its icon, as textures (sRGB colour, linear data maps), or nothing. */
+/** Everything a variant draws from its icon (or, for the postcard, its carving), as textures, or nothing. */
 async function prepareArt(variant: ComposedVariant, src: string | null, maxAnisotropy: number): Promise<PreparedArt | null> {
-  if (!COMPOSED_USES_ART[variant]) return { art: null, maps: {}, textures: [] };
-  if (!src) return null;
-  const image = await loadImage(src);
   const textures: Texture[] = [];
   const texture = (canvas: HTMLCanvasElement, kind: "color" | "data", wrap = false) => {
     const t = new CanvasTexture(canvas);
     t.colorSpace = kind === "color" ? SRGBColorSpace : NoColorSpace;
     t.anisotropy = maxAnisotropy;
-    if (wrap) t.wrapS = RepeatWrapping;
+    if (wrap) {
+      t.wrapS = RepeatWrapping;
+      t.repeat.set(POSTCARD_WRAP_REPEAT, 1);
+    }
     textures.push(t);
     return t;
   };
   const prep = COMPOSED_CUTOUT[variant];
+  if (prep === "postcard") {
+    // Drawn from code (the owner's postcard, redrawn at full resolution as a carving), so it needs no icon.
+    const c = await postcardCarving();
+    return {
+      art: texture(c.wrap, "color", true),
+      maps: { normal: texture(c.wrapNormal, "data", true), lidTop: texture(c.lidTop, "color"), lidTopNormal: texture(c.lidTopNormal, "data") },
+      carving: { sides: c.sides, lid: c.lid },
+      textures,
+    };
+  }
+  if (!COMPOSED_USES_ART[variant]) return { art: null, maps: {}, textures };
+  if (!src) return null;
+  const image = await loadImage(src);
   if (variant === "star-engraved") {
     const maps = engravingCanvases(image);
     return { art: texture(maps.color, "data"), maps: { normal: texture(maps.normal, "data"), roughness: texture(maps.roughness, "data") }, textures };
   }
-  if (prep === "postcard") {
-    const c = postcardCanvases(image);
-    return {
-      art: texture(c.wrap, "color", true),
-      maps: { normal: texture(c.wrapNormal, "data", true), lidTop: texture(c.lidTop, "color"), lidTopNormal: texture(c.lidTopNormal, "data") },
-      textures,
-    };
-  }
-  const canvas = prep === "silhouette" ? silhouetteCut(image) : cutOut(image, prep);
+  const canvas =
+    prep === "level-up-outline"
+      ? silhouetteCut(image, LEVEL_UP_SILHOUETTE)
+      : prep === "crystal-outline"
+        ? silhouetteCut(image, MIDNIGHT_CRYSTAL_SILHOUETTE, { grow: 1.25, ground: { y: MIDNIGHT_CRYSTAL_GROUND_Y, underfill: CRYSTAL_UNDERFILL_PX } })
+        : cutOut(image, prep);
   return { art: texture(canvas, "color"), maps: {}, textures };
 }
 
@@ -227,7 +304,7 @@ function ComposedContent({
         envMap = pmrem.fromScene(studio.scene, kind === "room" ? 0.04 : 0.02).texture;
         studio.dispose();
         pmrem.dispose();
-        built = buildComposedGraph(plan, { art: prepared.art, envMap, maps: prepared.maps });
+        built = buildComposedGraph(plan, { art: prepared.art, envMap, maps: prepared.maps, carving: prepared.carving });
         scene.add(built.root);
         setGraph(built);
       },

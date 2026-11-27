@@ -162,19 +162,21 @@ export function diamondGeometry(): BufferGeometry {
   return geometry;
 }
 
-// The floating diamonds: an unlit, faceted look in the shader (cheap: no environment map, no transmission). A real
-// diamond is a mosaic of bright and dark facets (it reflects a bright room through itself), so each flat facet takes its
-// tone from a "kaleidoscope" studio of bright and dark sectors around and bands up the stone, which neighbouring facets
-// see differently, and which changes as the stone turns (the sparkle). Never washed out: the brightest facets are a
-// warm white, the darkest a deep blue-violet, with a little colour (fire) per facet and the art's warm light in it.
-// Every facet edge is drawn as a thin bright line (from `aEdge`), so the table, the star and kite facets and the
-// pavilion's mains read at any angle and at phone size; plus a rim and a per-diamond twinkle.
+// The floating diamonds: an unlit, faceted look in the shader (cheap: no environment map, no transmission), made to
+// read as a 3D diamond at phone size, not a white disc. A real diamond is a mosaic of bright and dark facets (it
+// reflects a bright room through itself), so each flat facet takes its tone from a "kaleidoscope" studio of bright and
+// dark sectors that neighbouring facets see differently and that changes as the stone turns (the sparkle); on top of
+// that the cut itself sets the contrast: the table and crown are mostly bright (white with a little fire), the
+// pavilion's facets alternate between deep blue-black and bright white round the stone, so its pointed silhouette and
+// the classic dark "arrows" read even when the stone is only a few px tall. Facet edges are only a faint line (at phone
+// size full-strength lines filled the whole stone with white), plus a cool rim and a per-diamond twinkle.
 const DIAMOND_VERTEX = /* glsl */ `
 attribute float aPhase;
 attribute vec3 aEdge;
 varying vec3 vNormal;
 varying vec3 vView;
 varying vec3 vEdge;
+varying vec3 vLocal;
 varying float vPhase;
 void main() {
   vec4 local = vec4(position, 1.0);
@@ -185,6 +187,7 @@ void main() {
   #endif
   vec4 world = modelMatrix * local;
   vNormal = normalize(mat3(model) * normal);
+  vLocal = normal;
   vView = normalize(cameraPosition - world.xyz);
   vEdge = aEdge;
   vPhase = aPhase;
@@ -196,6 +199,7 @@ uniform float uTime;
 varying vec3 vNormal;
 varying vec3 vView;
 varying vec3 vEdge;
+varying vec3 vLocal;
 varying float vPhase;
 void main() {
   vec3 n = normalize(vNormal);
@@ -205,21 +209,33 @@ void main() {
   float az = atan(r.z, r.x);
   float sectors = smoothstep(0.3, 0.7, 0.5 + 0.5 * sin(az * 5.0 + r.y * 4.0 + vPhase));
   float bands = smoothstep(0.15, 0.85, 0.5 + 0.5 * sin(r.y * 6.0 - 0.6 + vPhase * 0.5));
-  float tone = 0.1 + 0.9 * sectors * (0.5 + 0.5 * bands);
+  float studio = sectors * (0.5 + 0.5 * bands);
+  // Where the facet is on the cut (its own normal, before the stone turns).
+  float up = vLocal.y;
+  float around = atan(vLocal.z, vLocal.x);
+  // Pavilion: of each eighth of the stone (a main facet and its two lower girdle facets), one lower girdle facet is
+  // bright and the other two dark, so dark and bright alternate all round the pointed half.
+  float alternate = step(0.5, fract(around * 1.273240));
+  // (Tones are linear light: 0.06 is already a mid-dark grey on screen.)
+  float pavilion = alternate > 0.5 ? mix(0.45, 1.0, studio) : mix(0.0, 0.05, studio);
+  // Crown and table: bright, with the studio's sectors darkening some kites.
+  float crown = 0.06 + 0.94 * studio * studio;
+  float table = 0.4 + 0.6 * bands;
+  float tone = up > 0.97 ? table : up > 0.02 ? crown : up < -0.02 ? pavilion : 0.55;
   float k = dot(n, vec3(12.9898, 78.233, 37.719));
   float h = fract(sin(k) * 43758.5453);
   vec3 fire = 0.5 + 0.5 * cos(6.2831 * (h + vec3(0.0, 0.33, 0.67)));
-  vec3 white = vec3(1.0, 0.95, 0.92);
-  vec3 col = mix(white, fire, 0.26) * tone;
-  col = max(col, vec3(0.07, 0.07, 0.17) + 0.06 * fire);
-  vec3 width = fwidth(vEdge) * 1.3;
+  vec3 white = vec3(1.0, 0.97, 0.95);
+  vec3 dark = vec3(0.03, 0.05, 0.16);
+  vec3 col = mix(dark, mix(white, fire, 0.22), tone);
+  vec3 width = fwidth(vEdge) * 1.1;
   vec3 line = smoothstep(vec3(0.0), width, vEdge);
   float edge = 1.0 - min(min(line.x, line.y), line.z);
-  col = mix(col, vec3(1.0, 0.97, 0.94), edge * 0.6);
-  col += vec3(0.85, 0.9, 1.0) * pow(1.0 - facing, 3.0) * 0.3;
+  col = mix(col, vec3(0.95, 0.97, 1.0), edge * 0.22);
+  col += vec3(0.7, 0.8, 1.0) * pow(1.0 - facing, 3.0) * 0.1;
   float twinkle = pow(max(sin(uTime * 1.7 + vPhase + k * 0.01), 0.0), 24.0);
-  col += vec3(1.0) * twinkle * smoothstep(0.6, 1.0, facing) * 1.1;
-  gl_FragColor = vec4(min(col, vec3(1.5)), 1.0);
+  col += vec3(1.0) * twinkle * smoothstep(0.6, 1.0, facing) * 0.9;
+  gl_FragColor = vec4(min(col, vec3(1.4)), 1.0);
   #include <colorspace_fragment>
 }`;
 

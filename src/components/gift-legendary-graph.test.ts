@@ -164,8 +164,8 @@ describe("the jewelry box's floating diamonds", () => {
       for (const t of [0, 3000, 9000]) {
         const pose = legendaryPetalPose(plan, spec, t, 1);
         // The table always tips towards the camera (never a cone from below or a disc from above).
-        expect(pose.rx).toBeGreaterThanOrEqual(0.3 - 1e-9);
-        expect(pose.rx).toBeLessThanOrEqual(0.54 + 1e-9);
+        expect(pose.rx).toBeGreaterThanOrEqual(0.14 - 1e-9);
+        expect(pose.rx).toBeLessThanOrEqual(0.34 + 1e-9);
         expect(Math.abs(pose.rz)).toBeLessThanOrEqual(0.18 + 1e-9);
       }
     }

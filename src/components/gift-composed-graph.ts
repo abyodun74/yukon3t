@@ -28,7 +28,8 @@ import {
   type Texture,
 } from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { bowGeometry, boxShellGeometry, mergeParts, starGeometry, trophyGeometries, wrappedSidesGeometry } from "@/components/gift-composed-objects";
+import { bowGeometry, boxShellGeometry, carvedSidesGeometry, carvedTopGeometry, mergeParts, starGeometry, trophyGeometries } from "@/components/gift-composed-objects";
+import { CARVE_LEVEL, POSTCARD_CARVE, POSTCARD_CORNER_EASE, POSTCARD_WRAP_REPEAT, sampleHeight } from "@/lib/gift-postcard-wrap";
 import { buildKitten, type Kitten } from "@/components/gift-kitten";
 import { seededRandom } from "@/lib/gift-legendary-plan";
 import {
@@ -428,6 +429,49 @@ export function gemGeometries(): { crown: BufferGeometry; pavilion: BufferGeomet
   return { crown, pavilion };
 }
 
+/** Where the gem's light starts to be compressed, and the most any channel may reach (before tone mapping). */
+export const GEM_HUE_KNEE = 0.6;
+export const GEM_HUE_CEILING = 0.9;
+/** In a bright facet, the weakest channel is held to at most this share of the strongest (the facet keeps its colour). */
+export const GEM_HIGHLIGHT_WHITENESS = 0.08;
+
+/**
+ * Keeps every facet of the gem its own colour, however hard it catches the light. The faceted gem is flat-shaded, so
+ * when the key light's (or a studio panel's) mirror direction lines up with one facet, the whole facet gets one very
+ * bright highlight, which the clear coat and the thin-film glint make paler still; the filmic tone mapping then turns
+ * any colour that bright into flat white (it desaturates highlights), which is the solid white facet seen mid-sway.
+ * Here, before tone mapping and only for bright pixels: the light level above GEM_HUE_KNEE is compressed smoothly
+ * towards GEM_HUE_CEILING (all channels by the same factor), and the weakest channel is held to at most
+ * GEM_HIGHLIGHT_WHITENESS of the strongest along the pixel's own hue (a pure white pixel takes the stone's hue, `hue`,
+ * 0..1 per channel with its weakest at 0). So a facet in the light reads as a bright ruby (or sapphire) facet, never
+ * white; the rest of the stone (below the knee, not bright) is untouched, so the gem is no duller.
+ */
+export function keepGemHue(material: MeshPhysicalMaterial, hue: readonly [number, number, number]): void {
+  const f = (v: number) => v.toFixed(4);
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <tonemapping_fragment>",
+      /* glsl */ `{
+        vec3 c = gl_FragColor.rgb;
+        float peak = max(c.r, max(c.g, c.b));
+        if (peak > ${f(GEM_HUE_KNEE)}) {
+          float span = ${f(GEM_HUE_CEILING - GEM_HUE_KNEE)};
+          float soft = ${f(GEM_HUE_KNEE)} + span * (1.0 - exp(-(peak - ${f(GEM_HUE_KNEE)}) / span));
+          c *= soft / peak;
+          peak = soft;
+        }
+        float lo = min(c.r, min(c.g, c.b));
+        float bright = smoothstep(0.45, 1.0, peak);
+        float target = mix(lo, min(lo, ${f(GEM_HIGHLIGHT_WHITENESS)} * peak), bright);
+        vec3 dir = peak - lo > 0.0001 ? (c - vec3(lo)) / (peak - lo) : vec3(${f(hue[0])}, ${f(hue[1])}, ${f(hue[2])});
+        gl_FragColor.rgb = vec3(target) + dir * (peak - target);
+      }
+      #include <tonemapping_fragment>`,
+    );
+  };
+  material.customProgramCacheKey = () => `gem-keep-hue-${hue.join(",")}`;
+}
+
 /**
  * Polished gold: a warm, saturated base colour that every reflection takes as its tint. No clear coat: a clear coat
  * reflects the studio untinted, which is what turned the brightest faces pale lemon or white.
@@ -440,15 +484,20 @@ export const ROCKET_TRAIL_STEP = 8;
 
 export type ComposedView = { pixelRatio: number };
 
+/** A height field (0..1, row 0 at the top), for geometry the carving displaces. */
+export type HeightField = { data: Float32Array; width: number; height: number };
+
 /**
- * What the scene hands the graph: the icon (cut out) or, for the engraved star and the postcard box, the colour map it
- * made from the icon; the environment map; and the extra maps those two need (relief normals, roughness, the postcard
- * lid's top). All owned and disposed by the scene.
+ * What the scene hands the graph: the icon (cut out) or, for the engraved star, the colour map it made from the icon
+ * and, for the postcard box, the carving's colour map; the environment map; and the extra maps those two need (relief
+ * normals, roughness, the postcard lid's top, and the carving's height fields that displace the box's sides and lid).
+ * All owned and disposed by the scene.
  */
 export type ComposedAssets = {
   art: Texture | null;
   envMap: Texture | null;
   maps?: { normal?: Texture | null; roughness?: Texture | null; lidTop?: Texture | null; lidTopNormal?: Texture | null };
+  carving?: { sides: HeightField; lid: HeightField };
 };
 
 export type ComposedGraph = {
@@ -521,6 +570,9 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: ComposedAsse
   const glow = new Mesh(glowGeometry, glowMaterial);
   glow.position.set(0, variant === "fireworks-box" ? -0.2 : 0.05, -1.2);
   glow.renderOrder = ORDER.glow;
+  // The carved postcard box hides the glow behind it (otherwise the glow, drawn over everything, washes a pale veil
+  // over the carving's colours and shadows). The gems keep it over them: it is part of the ruby's bright crimson.
+  if (variant === "postcard-box") glowMaterial.depthTest = true;
   root.add(glow);
 
   // The object, in a group that carries its entrance and sway (everything placed on it is a child, so it follows).
@@ -690,6 +742,7 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: ComposedAsse
         envMapIntensity: midnight ? 0.3 : 0.55,
       }),
     );
+    keepGemHue(gem, midnight ? [0, 0.11, 1] : [1, 0, 0.1]);
     object.add(new Mesh(crown, gem), new Mesh(pavilion, gem));
     if (variant === "gem-sweep" && assets.art) {
       sweepMaterial = ownMaterial(
@@ -753,56 +806,83 @@ export function buildComposedGraph(plan: ComposedScenePlan, assets: ComposedAsse
       object.add(points);
     }
   } else if (variant === "postcard-box") {
-    // The sunset wrapped round the box: one picture round the four sides and on up the lid's rim, its relief in the
-    // paper (normal map), the lid's top a sunset of its own (sun and rays) under a gold bow.
+    // The sunset carved round the box: one panorama round the four sides and on up the lid's rim, the box's sides and
+    // the lid's top displaced by the carving's height (real relief) with its normal map for the bevels, finished in a
+    // clear lacquer so highlights run over the raised edges as the box turns; a gold bow on top.
     const maps = assets.maps ?? {};
+    const carving = assets.carving;
     const B = POSTCARD_BOX;
-    const wrap = ownMaterial(
-      new MeshPhysicalMaterial({
-        color: new Color("#ffffff"),
-        map: assets.art,
-        normalMap: maps.normal ?? null,
-        normalScale: new Vector2(0.9, 0.9),
-        roughness: 0.42,
-        clearcoat: 0.35,
-        clearcoatRoughness: 0.3,
-        envMap: assets.envMap,
-        envMapIntensity: 0.6,
-      }),
-    );
+    const lacquer = (map: Texture | null | undefined, normal: Texture | null | undefined) =>
+      ownMaterial(
+        new MeshPhysicalMaterial({
+          color: new Color("#ffffff"),
+          map: map ?? null,
+          normalMap: normal ?? null,
+          normalScale: new Vector2(1, 1),
+          roughness: 0.55,
+          clearcoat: 0.6,
+          clearcoatRoughness: 0.18,
+          envMap: assets.envMap,
+          envMapIntensity: 0.14,
+        }),
+      );
+    const wrap = lacquer(assets.art, maps.normal);
     const base = ownMaterial(new MeshPhysicalMaterial({ color: new Color("#2b1640"), roughness: 0.6, envMap: assets.envMap, envMapIntensity: 0.4 }));
-    const top = ownMaterial(
-      new MeshPhysicalMaterial({
-        map: maps.lidTop ?? null,
-        normalMap: maps.lidTopNormal ?? null,
-        normalScale: new Vector2(0.9, 0.9),
-        roughness: 0.42,
-        clearcoat: 0.35,
-        clearcoatRoughness: 0.3,
-        envMap: assets.envMap,
-        envMapIntensity: 0.6,
-      }),
-    );
+    const top = lacquer(maps.lidTop, maps.lidTopNormal);
     const ribbon = ownMaterial(
       new MeshPhysicalMaterial({ color: new Color("#f6cd62"), metalness: 0.8, roughness: 0.32, clearcoat: 0.4, envMap: assets.envMap, envMapIntensity: 1.1, side: DoubleSide }),
     );
+    const sides = carving?.sides;
+    const sideHeight = sides ? (u: number, v: number) => sampleHeight(sides.data, sides.width, sides.height, u * POSTCARD_WRAP_REPEAT, v, true) : () => 0;
+    const fine = plan.lowEnd ? 0.5 : 1;
     const bodyHeight = B.bodyTop - B.bodyBottom;
+    const lidV = postcardWrapV(B.lidBottom);
     const body = new Mesh(
-      ownGeometry(wrappedSidesGeometry(B.width, bodyHeight, B.width, [postcardWrapV(B.bodyBottom), postcardWrapV(B.bodyTop)], { top: true, bottom: true })),
+      ownGeometry(
+        carvedSidesGeometry(B.width, bodyHeight, B.width, [postcardWrapV(B.bodyBottom), postcardWrapV(B.bodyTop)], { top: true, bottom: true }, {
+          height: sideHeight,
+          depth: POSTCARD_CARVE.depth,
+          columns: Math.round(240 * fine),
+          rows: Math.round(200 * fine),
+          cornerEase: POSTCARD_CORNER_EASE,
+          // Under the lid the body stays plain (the carving must not reach the lid's walls).
+          fadeAboveV: lidV - 0.045,
+          fadeSpan: 0.03,
+        }),
+      ),
       [wrap, base],
     );
     body.position.y = (B.bodyTop + B.bodyBottom) / 2;
     const lidHeight = B.lidTop - B.lidBottom;
     const lidSides = new Mesh(
-      ownGeometry(wrappedSidesGeometry(B.lidWidth, lidHeight, B.lidWidth, [postcardWrapV(B.lidBottom), postcardWrapV(B.lidTop)], { top: false, bottom: true })),
+      ownGeometry(
+        carvedSidesGeometry(B.lidWidth, lidHeight, B.lidWidth, [lidV, postcardWrapV(B.lidTop)], { top: false, bottom: true }, {
+          height: sideHeight,
+          depth: POSTCARD_CARVE.depth,
+          columns: Math.round(240 * fine),
+          rows: Math.round(50 * fine),
+          cornerEase: POSTCARD_CORNER_EASE,
+        }),
+      ),
       [wrap, base],
     );
     lidSides.position.y = (B.lidTop + B.lidBottom) / 2;
-    const lidTop = new Mesh(ownGeometry(new PlaneGeometry(B.lidWidth, B.lidWidth)), top);
-    lidTop.rotation.x = -Math.PI / 2;
+    const lid = carving?.lid;
+    const lidTop = new Mesh(
+      ownGeometry(
+        carvedTopGeometry(B.lidWidth, {
+          height: lid ? (u, v) => sampleHeight(lid.data, lid.width, lid.height, u, v, false) : () => 0,
+          depth: POSTCARD_CARVE.depth,
+          columns: Math.round(160 * fine),
+          rows: Math.round(160 * fine),
+          cornerEase: POSTCARD_CORNER_EASE,
+        }),
+      ),
+      top,
+    );
     lidTop.position.y = B.lidTop;
     const bow = new Mesh(ownGeometry(bowGeometry()), ribbon);
-    bow.position.set(0, B.lidTop, 0);
+    bow.position.set(0, B.lidTop + POSTCARD_CARVE.depth * CARVE_LEVEL.sun, 0);
     bow.scale.setScalar(0.85);
     object.add(body, lidSides, lidTop, bow);
   } else {

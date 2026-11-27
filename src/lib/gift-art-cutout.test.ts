@@ -6,6 +6,8 @@ import {
   CUTOUT_UPSCALE,
   GIFT_ART_BACKDROP,
   LEVEL_UP_SILHOUETTE,
+  MIDNIGHT_CRYSTAL_GROUND_Y,
+  MIDNIGHT_CRYSTAL_SILHOUETTE,
   SUPPORTER_STAR_OUTLINE,
   cutOutGiftArt,
   pointInPolygon,
@@ -108,6 +110,41 @@ describe("cutOutGiftArt", () => {
       [60, 240],
     ])
       expect(pointInPolygon(LEVEL_UP_SILHOUETTE, x, y), `${x},${y}`).toBe(false);
+  });
+
+  it("the Midnight Crystal outline keeps the whole cluster and its rock bed, flat on the ground line", () => {
+    expect(MIDNIGHT_CRYSTAL_SILHOUETTE.length).toBeGreaterThan(30);
+    const ys = MIDNIGHT_CRYSTAL_SILHOUETTE.map(([, y]) => y);
+    // Nothing below the ground line, and the bed's underside lies on it: a flat run at least 200 px wide.
+    expect(Math.max(...ys)).toBe(MIDNIGHT_CRYSTAL_GROUND_Y);
+    const bottom = MIDNIGHT_CRYSTAL_SILHOUETTE.filter(([, y]) => y === MIDNIGHT_CRYSTAL_GROUND_Y).map(([x]) => x);
+    expect(bottom).toHaveLength(2);
+    expect(Math.abs(bottom[0] - bottom[1])).toBeGreaterThan(200);
+    // Inside (icon px): the five crystals, the rocks in the bed and the dark crystal bottoms between them.
+    for (const [x, y] of [
+      [202, 100],
+      [110, 175],
+      [300, 150],
+      [90, 255],
+      [315, 260],
+      [192, 296],
+      [150, 300],
+      [250, 300],
+      [190, 240],
+      [230, 260],
+    ])
+      expect(pointInPolygon(MIDNIGHT_CRYSTAL_SILHOUETTE, x, y), `${x},${y}`).toBe(true);
+    // Outside: the glow above, the notches between crystals, the purple wisp at the lower left, the ground.
+    for (const [x, y] of [
+      [202, 70],
+      [160, 120],
+      [250, 125],
+      [45, 290],
+      [60, 300],
+      [192, 310],
+      [20, 20],
+    ])
+      expect(pointInPolygon(MIDNIGHT_CRYSTAL_SILHOUETTE, x, y), `${x},${y}`).toBe(false);
   });
 
   it("the Supporter Star outline is the icon's five-pointed star", () => {

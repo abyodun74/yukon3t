@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { BufferGeometry, Material, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, Points, Texture, type Object3D } from "three";
 import {
+  GEM_HIGHLIGHT_WHITENESS,
+  GEM_HUE_CEILING,
+  GEM_HUE_KNEE,
   ROCKET_TRAIL_MAX_LAG,
   ROCKET_TRAIL_STEP,
   buildComposedGraph,
+  keepGemHue,
   buildStudioEnvironment,
   gemGeometries,
   goldHeartGeometry,
   starGeometry,
 } from "@/components/gift-composed-graph";
-import { bowGeometry, boxShellGeometry, trophyGeometries, wrappedSidesGeometry } from "@/components/gift-composed-objects";
+import { bowGeometry, boxShellGeometry, carvedSidesGeometry, carvedTopGeometry, trophyGeometries } from "@/components/gift-composed-objects";
 import { buildKitten } from "@/components/gift-kitten";
 import {
   COMPOSED_USES_ART,
@@ -189,22 +193,97 @@ describe("the new procedural objects", () => {
     shell.dispose();
   });
 
-  it("the postcard box's wrap runs once round the four sides: u from 0 to 1 continuously, corners shared", () => {
-    const g = wrappedSidesGeometry(1.3, 1, 1.3, [0, 0.8], { top: false, bottom: true });
+  it("the postcard box's carved sides: the wrap runs once round (u 0 -> 1, the corners shared), displaced by the carving", () => {
+    // A carving that is 1 everywhere except a groove (0) round u = 0.125 (the front side's middle).
+    const height = (u: number) => (Math.abs(u - 0.125) < 0.01 ? 0 : 1);
+    const g = carvedSidesGeometry(1.3, 1, 1.3, [0, 0.8], { top: false, bottom: true }, { height, depth: 0.05, columns: 40, rows: 4, cornerEase: 0.03 });
     const uv = g.getAttribute("uv");
     const pos = g.getAttribute("position");
+    const index = g.getIndex()!;
     const sides = g.groups.find((x) => x.materialIndex === 0)!;
-    const us = new Map<string, Set<number>>();
-    for (let i = sides.start; i < sides.start + sides.count; i++) {
-      const key = `${pos.getX(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
-      if (!us.has(key)) us.set(key, new Set());
-      us.get(key)!.add(Number(uv.getX(i).toFixed(6)));
+    const corners = new Map<string, Set<number>>();
+    let maxOut = 0;
+    let grooveOut = Infinity;
+    for (let k = sides.start; k < sides.start + sides.count; k++) {
+      const i = index.getX(k);
+      const u = Number(uv.getX(i).toFixed(6));
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      // The front side (u in 0..0.25): how far it stands out of the plain surface at z = 0.65.
+      if (u > 0 && u < 0.25) {
+        maxOut = Math.max(maxOut, z - 0.65);
+        if (Math.abs(u - 0.125) < 0.005) grooveOut = Math.min(grooveOut, z - 0.65);
+      }
+      if ([0, 0.25, 0.5, 0.75, 1].includes(u)) {
+        const key = `${x.toFixed(3)},${z.toFixed(3)}`;
+        if (!corners.has(key)) corners.set(key, new Set());
+        corners.get(key)!.add(u);
+      }
     }
-    // Every corner column gets one u (two at the front-left corner: 0 and 1, where the wrap meets itself).
-    expect(us.size).toBe(4);
-    const all = [...us.values()].flatMap((s) => [...s]).sort((a, b) => a - b);
-    expect(all).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    // Corners stay on the plain box (the carving eases out there), each with one u, the front-left with 0 and 1.
+    expect(corners.size).toBe(4);
+    expect([...corners.values()].flatMap((s) => [...s]).sort((a, b) => a - b)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    // Real relief: the face stands out by the full depth, and the groove is cut back down to the surface.
+    expect(maxOut).toBeCloseTo(0.05, 6);
+    expect(grooveOut).toBeCloseTo(0, 6);
+    expect(g.getAttribute("normal")).toBeDefined();
     g.dispose();
+  });
+
+  it("the carving fades out under the lid and the carved lid top eases to its edges", () => {
+    const side = carvedSidesGeometry(1, 1, 1, [0, 1], { top: false, bottom: false }, { height: () => 1, depth: 0.04, columns: 8, rows: 20, cornerEase: 0.03, fadeAboveV: 0.7, fadeSpan: 0.1 });
+    const pos = side.getAttribute("position");
+    const uv = side.getAttribute("uv");
+    for (let i = 0; i < pos.count; i++) {
+      if (uv.getY(i) >= 0.8 - 1e-9) expect(Math.max(Math.abs(pos.getX(i)), Math.abs(pos.getZ(i)))).toBeCloseTo(0.5, 6);
+    }
+    side.dispose();
+    const top = carvedTopGeometry(1.36, { height: () => 1, depth: 0.04, columns: 20, rows: 20, cornerEase: 0.03 });
+    const tp = top.getAttribute("position");
+    let peak = 0;
+    for (let i = 0; i < tp.count; i++) {
+      const edge = Math.max(Math.abs(tp.getX(i)), Math.abs(tp.getZ(i)));
+      if (edge >= 0.68 - 1e-6) expect(tp.getY(i)).toBeCloseTo(0, 6);
+      peak = Math.max(peak, tp.getY(i));
+    }
+    expect(peak).toBeCloseTo(0.04, 6);
+    top.dispose();
+  });
+
+  it("the gem keeps its hue: bright facets are compressed before tone mapping and never turn white", () => {
+    const material = new MeshPhysicalMaterial();
+    keepGemHue(material, [1, 0, 0.1]);
+    const shader = { fragmentShader: "void main() {\n#include <tonemapping_fragment>\n}", vertexShader: "", uniforms: {} };
+    material.onBeforeCompile(shader as never, undefined as never);
+    expect(shader.fragmentShader.indexOf("peak")).toBeLessThan(shader.fragmentShader.indexOf("#include <tonemapping_fragment>"));
+    expect(shader.fragmentShader).toContain(GEM_HUE_KNEE.toFixed(4));
+    expect(shader.fragmentShader).toContain((GEM_HUE_CEILING - GEM_HUE_KNEE).toFixed(4));
+    expect(GEM_HUE_KNEE).toBeLessThan(GEM_HUE_CEILING);
+    expect(GEM_HUE_CEILING).toBeLessThanOrEqual(1.2);
+    expect(GEM_HIGHLIGHT_WHITENESS).toBeLessThanOrEqual(0.2);
+    expect(material.customProgramCacheKey()).toContain("gem-keep-hue");
+    // The same rule in numbers: the brightest facet's weakest channel stays a small share of its strongest.
+    const keep = (c: [number, number, number]) => {
+      let peak = Math.max(...c);
+      if (peak > GEM_HUE_KNEE) {
+        const span = GEM_HUE_CEILING - GEM_HUE_KNEE;
+        const soft = GEM_HUE_KNEE + span * (1 - Math.exp(-(peak - GEM_HUE_KNEE) / span));
+        c = c.map((v) => (v * soft) / peak) as [number, number, number];
+        peak = soft;
+      }
+      const lo = Math.min(...c);
+      const t = Math.min(1, Math.max(0, (peak - 0.45) / 0.55));
+      const bright = t * t * (3 - 2 * t);
+      const target = lo + (Math.min(lo, GEM_HIGHLIGHT_WHITENESS * peak) - lo) * bright;
+      return c.map((v) => target + ((v - lo) / (peak - lo)) * (peak - target));
+    };
+    const blown = keep([40, 9, 9]);
+    expect(Math.max(...blown)).toBeLessThanOrEqual(GEM_HUE_CEILING + 1e-9);
+    // A blown-out facet stays deep red: its weakest channel is about a tenth of its strongest (white would be 1).
+    expect(Math.min(...blown) / Math.max(...blown)).toBeLessThan(0.12);
+    const dim = keep([0.3, 0.02, 0.03]);
+    expect(dim[0]).toBeCloseTo(0.3, 9);
+    material.dispose();
   });
 
   it("the bow sits on its base: nothing below y = 0, so it never pokes through a lid", () => {
