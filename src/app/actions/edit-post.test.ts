@@ -145,3 +145,82 @@ describe("editPost: colored backgrounds", () => {
     expect(postUpdateMany).not.toHaveBeenCalled();
   });
 });
+
+// A video's colored frame and a post's optional music (src/lib/post-music.ts) can be set, changed or removed in the
+// edit, on the same posts createPost allows them on.
+describe("editPost: video frames and music", () => {
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: POST,
+    authorId: ME,
+    moderationStatus: "PUBLISHED",
+    mediaType: "VIDEO",
+    eventAt: null,
+    repostOfId: null,
+    sharedPostId: null,
+    albumId: null,
+    albumIndex: null,
+    backgroundStyle: null,
+    musicTrack: null,
+    ...over,
+  });
+  function editForm(content: string, fields: Record<string, string>) {
+    const fd = form(content);
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+    return fd;
+  }
+
+  it("frames a video, with a caption longer than a styled text post may be", async () => {
+    postFindUnique.mockResolvedValue(row());
+    const result = await editPost(POST, editForm("y".repeat(600), { backgroundStyle: "neon" }));
+    expect(result).toMatchObject({ error: null, post: { backgroundStyle: "neon" } });
+  });
+
+  it("refuses a frame on an embedded video", async () => {
+    postFindUnique.mockResolvedValue(row({ mediaType: "EMBED" }));
+    expect(await editPost(POST, editForm("hi", { backgroundStyle: "neon" }))).toEqual({ error: "background_not_allowed" });
+  });
+
+  it.each(["VIDEO", "IMAGE", "NONE"])("sets, changes and removes music on a %s post", async (mediaType) => {
+    postFindUnique.mockResolvedValue(row({ mediaType }));
+    expect(await editPost(POST, editForm("hello", { musicTrack: "groove" }))).toMatchObject({
+      error: null,
+      post: { musicTrack: "groove" },
+    });
+    expect(postUpdateMany.mock.calls[0][0].data.musicTrack).toBe("groove");
+    postFindUnique.mockResolvedValue(row({ mediaType, musicTrack: "groove" }));
+    expect(await editPost(POST, editForm("hello", { musicTrack: "" }))).toMatchObject({ post: { musicTrack: null } });
+    expect(postUpdateMany.mock.calls[1][0].data.musicTrack).toBeNull();
+  });
+
+  it("leaves the music alone when the field isn't sent", async () => {
+    postFindUnique.mockResolvedValue(row({ musicTrack: "focus" }));
+    const result = await editPost(POST, editForm("new caption", {}));
+    expect(result).toMatchObject({ post: { musicTrack: "focus" } });
+    expect(postUpdateMany.mock.calls[0][0].data).not.toHaveProperty("musicTrack");
+  });
+
+  it.each([
+    ["an embed", { mediaType: "EMBED" }],
+    ["a link", { mediaType: "LINK" }],
+    ["a GIF", { mediaType: "GIF" }],
+    ["an event", { mediaType: "NONE", eventAt: new Date("2030-01-01T10:00:00Z") }],
+    ["a repost", { repostOfId: "cpost000000002" }],
+    ["a share", { sharedPostId: "cpost000000002" }],
+    ["an album photo other than the lead", { mediaType: "IMAGE", albumId: "album-1", albumIndex: 2 }],
+  ])("refuses music on %s", async (_label, over) => {
+    postFindUnique.mockResolvedValue(row(over));
+    expect(await editPost(POST, editForm("hello", { musicTrack: "island" }))).toEqual({ error: "music_not_allowed" });
+    expect(postUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("allows music on an album's lead photo", async () => {
+    postFindUnique.mockResolvedValue(row({ mediaType: "IMAGE", albumId: "album-1", albumIndex: 0 }));
+    expect(await editPost(POST, editForm("hello", { musicTrack: "island" }))).toMatchObject({ error: null });
+  });
+
+  it.each(["https://example.com/a.mp3", "Sunrise", "__proto__"])("refuses a music value that isn't a key (%s)", async (bad) => {
+    postFindUnique.mockResolvedValue(row());
+    expect(await editPost(POST, editForm("hello", { musicTrack: bad }))).toEqual({ error: "invalid" });
+    expect(postUpdateMany).not.toHaveBeenCalled();
+  });
+});

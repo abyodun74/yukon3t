@@ -7,8 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { deleteTranslationsOf } from "@/lib/translation-server";
 import { deleteMediaIfUnreferenced } from "@/lib/media-cleanup";
 import { likeGroupIdsOf, recomputeLikeGroups } from "@/lib/like-groups";
-import { postBackgroundKeySchema, postSchema } from "@/lib/validations";
+import { postBackgroundKeySchema, postMusicKeySchema, postSchema } from "@/lib/validations";
 import { styledPostRefusal } from "@/lib/post-backgrounds";
+import { postMusicRefusal } from "@/lib/post-music";
 import { moderateText } from "@/lib/moderation";
 import { postCardInclude, attachViewerState } from "@/lib/post-card-data";
 import { getVisiblePostsWhere, LEAD_POST_ONLY } from "@/lib/post-visibility";
@@ -17,8 +18,10 @@ const POSTS_PAGE_SIZE = 20;
 
 /**
  * Author-only: updates a post's text content and stamps editedAt. Media/type/event fields are immutable after posting.
- * A `backgroundStyle` field, when sent, sets ("sunset", ...) or removes ("") a text-only post's colored background
- * (src/lib/post-backgrounds.ts); without it the background stays as it is.
+ * A `backgroundStyle` field, when sent, sets ("sunset", ...) or removes ("") a text-only post's colored background or
+ * a video's colored frame (src/lib/post-backgrounds.ts); without it the background stays as it is. A `musicTrack`
+ * field does the same for the post's optional music (src/lib/post-music.ts): a key sets it, "" removes it, absent keeps
+ * it. Music can't go on an album photo other than the lead (the album's one track lives there).
  */
 export async function editPost(postId: string, formData: FormData) {
   const user = await requireVerifiedUser();
@@ -36,6 +39,16 @@ export async function editPost(postId: string, formData: FormData) {
       const key = postBackgroundKeySchema.safeParse(backgroundField);
       if (!key.success) return { error: "invalid" as const };
       newBackground = key.data;
+    }
+  }
+  const musicField = formData.get("musicTrack");
+  let newMusic: string | null | undefined;
+  if (musicField !== null) {
+    if (musicField === "") newMusic = null;
+    else {
+      const key = postMusicKeySchema.safeParse(musicField);
+      if (!key.success) return { error: "invalid" as const };
+      newMusic = key.data;
     }
   }
 
@@ -63,21 +76,40 @@ export async function editPost(postId: string, formData: FormData) {
     });
     if (refusal) return { error: refusal };
   }
+  // Music is checked only when this edit sets it: an existing track stays whatever the text becomes.
+  const musicTrack = newMusic === undefined ? (post.musicTrack ?? null) : newMusic;
+  if (newMusic) {
+    const refusal =
+      post.albumId && post.albumIndex !== 0
+        ? ("music_not_allowed" as const)
+        : postMusicRefusal({
+            mediaType: post.mediaType,
+            hasEvent: Boolean(post.eventAt),
+            isRepostOrShare: Boolean(post.repostOfId || post.sharedPostId),
+          });
+    if (refusal) return { error: refusal };
+  }
 
   const modResult = await moderateText(content);
   const moderationStatus = modResult.allowed ? "PUBLISHED" : "FLAGGED";
 
   // Guarded on PUBLISHED: a hold that lands between the read above and this write (the Hive cron, an admin) must
-  // stay a hold. Only content/editedAt/backgroundStyle go back — post-card.tsx's saveEdit reads nothing else.
+  // stay a hold. Only content/editedAt/backgroundStyle/musicTrack go back — post-card.tsx's saveEdit reads nothing else.
   const editedAt = new Date();
   const written = await prisma.post.updateMany({
     where: { id: postId, authorId: user.id, moderationStatus: "PUBLISHED" },
-    data: { content, moderationStatus, editedAt, ...(newBackground === undefined ? {} : { backgroundStyle }) },
+    data: {
+      content,
+      moderationStatus,
+      editedAt,
+      ...(newBackground === undefined ? {} : { backgroundStyle }),
+      ...(newMusic === undefined ? {} : { musicTrack }),
+    },
   });
   if (written.count === 0) {
     return { error: "under_review" as const };
   }
-  const updated = { content, editedAt, backgroundStyle };
+  const updated = { content, editedAt, backgroundStyle, musicTrack };
   // Translations of the old wording are never served again (keyed by a hash of the text); drop them now too.
   await deleteTranslationsOf("post", postId);
 

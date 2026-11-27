@@ -23,6 +23,8 @@ export type OptimisticPost = {
   createdAt: Date;
   /** A text-only post's colored background (src/lib/post-backgrounds.ts): the placeholder shows it styled already. */
   backgroundStyle?: string | null;
+  /** The post's built-in music (src/lib/post-music.ts): named on the placeholder, not played. */
+  musicTrack?: string | null;
   /** "held": the post was stored but is hidden until an admin reviews it (createPost's `held`); not a failure. */
   status: "sending" | "error" | "held";
   errorMessage?: string;

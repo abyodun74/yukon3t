@@ -77,8 +77,12 @@ const LATIN_LOANWORDS = [
   "vocab.interests.Fitness",
   "collab.session.recording",
 ];
+// Post music (src/lib/post-music.ts): "Groove" (a track) and "Funky" (its mood) are the music words Spanish, French,
+// German, Italian and Portuguese use too.
+const MUSIC_LOANWORDS = ["feed.composer.music.names.groove", "feed.composer.music.moods.funky"];
 const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
   es: [
+    ...MUSIC_LOANWORDS,
     ...PRODUCT_NAME_TITLES,
     ...NAME_THEN_TEXT,
     ...LATIN_SCRIPT_SHARED,
@@ -97,6 +101,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
   ],
   // French puts a space before the colon, so its "{name} : {text}" differs.
   fr: [
+    ...MUSIC_LOANWORDS,
     "onboarding.bio",
     ...PRODUCT_NAME_TITLES,
     ...LATIN_SCRIPT_SHARED,
@@ -154,6 +159,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
     "settings.gifts.occasionsHeading",
   ],
   pt: [
+    ...MUSIC_LOANWORDS,
     "onboarding.bio",
     ...PRODUCT_NAME_TITLES,
     ...NAME_THEN_TEXT,
@@ -179,6 +185,9 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
   // German uses these English words as they are (loanwords, the months spelled alike, "Name", "Text", "Event",
   // "Option", "Details (optional)", "Online", "Story", "Challenges"...).
   de: [
+    ...MUSIC_LOANWORDS,
+    // "Party" is German too (a post-music mood).
+    "feed.composer.music.moods.party",
     ...PRODUCT_NAME_TITLES,
     ...NAME_THEN_TEXT,
     ...LATIN_SCRIPT_SHARED,
@@ -249,6 +258,7 @@ const SAME_AS_ENGLISH: Record<Exclude<Locale, "en">, string[]> = {
   ],
   // Italian uses "Privacy", "Password", "Home", "Co-admin", "Co-host", "Badge", "Sticker", "Emoji" and "No" as they are.
   it: [
+    ...MUSIC_LOANWORDS,
     ...PRODUCT_NAME_TITLES,
     ...NAME_THEN_TEXT,
     ...LATIN_SCRIPT_SHARED,

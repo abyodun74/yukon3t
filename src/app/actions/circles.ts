@@ -44,6 +44,7 @@ import { deleteOwnedUploads } from "@/lib/owned-uploads";
 import { isCircleCoverKey, isOwnedUploadKey } from "@/lib/media-keys";
 import { parseVideoEmbedUrl, fetchEmbedTitle, type ParsedEmbed } from "@/lib/video-embed";
 import { styledPostRefusal } from "@/lib/post-backgrounds";
+import { postMusicRefusal } from "@/lib/post-music";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { normalizeLinkUrl } from "@/lib/link-url";
 import { track } from "@/lib/analytics";
@@ -1056,6 +1057,7 @@ export async function createPost(formData: FormData) {
     eventAt: formData.get("eventAt") || undefined,
     eventLocation: formData.get("eventLocation") || undefined,
     backgroundStyle: formData.get("backgroundStyle") || undefined,
+    musicTrack: formData.get("musicTrack") || undefined,
   });
   if (!parsed.success) {
     // Was a bare { error: "invalid" } with nothing else — the client-side
@@ -1072,7 +1074,8 @@ export async function createPost(formData: FormData) {
     parsed.data;
 
   // A colored background (src/lib/post-backgrounds.ts; the key is already allow-listed by postSchema) only on a
-  // text-only post of at most STYLED_POST_MAX_CHARS: no photo, video, embed, link, GIF or event.
+  // text-only post of at most STYLED_POST_MAX_CHARS (no photo, embed, link, GIF or event), or as a frame around the
+  // author's own uploaded video (any caption length).
   const backgroundStyle = parsed.data.backgroundStyle ?? null;
   if (backgroundStyle) {
     const refusal = styledPostRefusal({
@@ -1081,6 +1084,13 @@ export async function createPost(formData: FormData) {
       isRepostOrShare: false,
       content: parsed.data.content,
     });
+    if (refusal) return { error: refusal };
+  }
+  // Optional music (src/lib/post-music.ts; the key is allow-listed by postSchema): only on the author's own video,
+  // photo(s) or text post, never an embed, link, GIF or event. An album keeps one track, on its lead post.
+  const musicTrack = parsed.data.musicTrack ?? null;
+  if (musicTrack) {
+    const refusal = postMusicRefusal({ mediaType, hasEvent: Boolean(eventAt), isRepostOrShare: false });
     if (refusal) return { error: refusal };
   }
 
@@ -1366,6 +1376,8 @@ export async function createPost(formData: FormData) {
             data: {
               ...sharedPostData,
               content: i === 0 ? parsed.data.content : "",
+              // One track for the whole album, on the lead (like the caption); PostCard plays it on every photo.
+              musicTrack: i === 0 ? musicTrack : null,
               mediaUrls: [url],
               albumId,
               albumIndex: i,
@@ -1382,6 +1394,7 @@ export async function createPost(formData: FormData) {
           content: parsed.data.content,
           mediaUrls: mediaType === "IMAGE" || mediaType === "GIF" ? mediaUrls : [],
           backgroundStyle,
+          musicTrack,
           clientRequestId,
         },
       });

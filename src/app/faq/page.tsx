@@ -633,7 +633,9 @@ const sections: Section[] = [
             camera/photo icons in the composer — each opens a small menu for
             device, camera, or link, so there&apos;s one button for photos
             and one for videos rather than a row of separate buttons. A short
-            text-only post can also go on a colored background.
+            text-only post can also go on a colored background. You can also
+            add one of YuKon3t&apos;s own music tracks, and put a video you
+            upload in a colored frame.
           </>
         ),
       },
@@ -646,18 +648,60 @@ const sections: Section[] = [
             composer and pick a background: plain colors, gradients and a few
             multicolor mixes. The writing box turns into a preview of the
             post, with large centred text that gets smaller as you write
-            more. A post with a background can be up to 220 characters, and
-            the counter under it shows how many you have used. Pick &ldquo;No
-            background&rdquo; to go back to an ordinary post.
+            more. A text post with a background can be up to 220 characters,
+            and the counter under it shows how many you have used. Pick
+            &ldquo;No background&rdquo; to go back to an ordinary post.
             <br />
             <br />
-            A background is for text only: adding a photo, video, link, GIF
-            or event details takes it off (remove the attachment and it comes
-            back). You can change or remove it later by editing the post.
-            Every background is chosen so the text stays easy to read in
+            The same colors can also frame a video you upload yourself: with
+            the video attached, tap the palette icon and pick a frame. The
+            whole video shows inside the frame, uncropped, at its own shape;
+            the frame is drawn by the app, so your video file isn&apos;t
+            changed, and the caption stays ordinary text with no 220-character
+            limit. A background or frame doesn&apos;t go on a photo, a link, a
+            GIF, a linked (YouTube, TikTok&hellip;) video or event details:
+            adding one of those takes it off (remove it and the background
+            comes back). You can change or remove it later by editing the
+            post. Every background is chosen so text stays easy to read in
             light and dark mode, and links in the text are underlined in the
             same color. The text is screened, shown and can be reported
             exactly like any other post.
+          </>
+        ),
+      },
+      {
+        id: "post-music",
+        q: "Can I add music to a post?",
+        a: (
+          <>
+            Yes, one of YuKon3t&apos;s own original tracks. Tap the music note
+            in the composer, play a short preview of any track, and pick one
+            (or &ldquo;No music&rdquo;). There are ten, each with its own
+            mood, from calm to party. You can add music to a text post, to a
+            photo or a set of photos (one track for the whole set), or to a
+            video you upload; not to a link, a GIF, a linked video or an
+            event. You can change or remove it later by editing the post.
+            <br />
+            <br />
+            On a video the music replaces the video&apos;s own sound: the
+            video plays muted and the music plays along with it, also in full
+            screen. Because the video file itself still has its original
+            sound, a video with music is shared as a link (not as a file) and
+            can&apos;t be shared to your story or to Muse; a photo with music
+            can still go to your story, as the photo.
+            <br />
+            <br />
+            Music never starts by itself with sound: on a video it follows
+            your sound setting for videos (the speaker button), and on a photo
+            or text post it plays only when you tap its music button. Only one
+            post plays at a time, and the music stops when you scroll past,
+            leave the app or the screen, open a full-screen viewer or a call
+            starts.
+            <br />
+            <br />
+            The tracks are written and played by YuKon3t&apos;s own code on
+            your device, so no audio file is downloaded or uploaded for them, and
+            only the track&apos;s name is saved with your post.
           </>
         ),
       },

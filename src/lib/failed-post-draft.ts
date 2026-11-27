@@ -3,6 +3,7 @@
 import { discardUpload, releaseUploads } from "@/lib/upload-client";
 import type { RetryAdvice } from "@/lib/post-submit-attempt";
 import type { PostBackgroundKey } from "@/lib/post-backgrounds";
+import type { PostMusicKey } from "@/lib/post-music";
 
 /**
  * A Home/profile post that couldn't be sent, kept so it goes back into the composer instead of being lost. The
@@ -26,6 +27,8 @@ export type FailedPostDraft = {
   pendingGif: string | null;
   /** The colored background a text-only draft had (src/lib/post-backgrounds.ts), or null. */
   backgroundStyle: PostBackgroundKey | null;
+  /** The draft's built-in music (src/lib/post-music.ts), or null. */
+  musicTrack: PostMusicKey | null;
   /** The specific sentence to show again in the composer. */
   message: string;
   advice: RetryAdvice;

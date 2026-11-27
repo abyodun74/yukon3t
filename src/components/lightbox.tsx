@@ -12,6 +12,8 @@ import { blockImageSave, PROTECTED_IMAGE_CLASS } from "@/lib/protected-image";
 import { useSecureWindow } from "@/lib/secure-window";
 import { useShellText } from "@/components/ui-text";
 import { format } from "@/lib/i18n/locales";
+import { MusicVideoPlayer } from "@/components/music-video-player";
+import type { PostMusicKey } from "@/lib/post-music";
 
 function SaveButton({ url, kind }: { url: string; kind: "photo" | "video" }) {
   const { t } = useShellText();
@@ -74,6 +76,7 @@ export function Lightbox({
   alt,
   protect = false,
   blockScreenCapture = false,
+  videoMusic,
 }: {
   images?: string[];
   index?: number;
@@ -87,6 +90,11 @@ export function Lightbox({
    * viewer is open (FLAG_SECURE via src/lib/secure-window.ts). No effect on the web, iOS or older app builds.
    */
   blockScreenCapture?: boolean;
+  /**
+   * The video's sound is its post's music (src/lib/post-music.ts): the music plays instead, the native controls (whose
+   * volume would bring the original sound back) are replaced, and there is no Save (the file has the original sound).
+   */
+  videoMusic?: PostMusicKey;
 }) {
   const { t } = useShellText();
   useSecureWindow(blockScreenCapture);
@@ -154,7 +162,7 @@ export function Lightbox({
           image/video doesn't carry over when navigating to the next one —
           simpler than resetting state in an effect for the same reason
           ZoomableImage below is keyed on index. */}
-      {currentMediaUrl && !protect && <SaveButton key={currentMediaUrl} url={currentMediaUrl} kind={video ? "video" : "photo"} />}
+      {currentMediaUrl && !protect && !(video && videoMusic) && <SaveButton key={currentMediaUrl} url={currentMediaUrl} kind={video ? "video" : "photo"} />}
 
       {isGallery && images && index !== undefined && onIndexChange && (
         <>
@@ -192,7 +200,8 @@ export function Lightbox({
         </>
       )}
 
-      {video && (
+      {video && videoMusic && <MusicVideoPlayer src={video} music={videoMusic} label={alt || t.viewer.videoLabel} />}
+      {video && !videoMusic && (
         <video
           src={video}
           controls

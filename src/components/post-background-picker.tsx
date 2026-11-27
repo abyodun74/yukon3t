@@ -27,7 +27,8 @@ export function nextBackgroundOption(current: Option, key: string, rtl: boolean)
 }
 
 /**
- * The composer's background picker for a text-only post: "No background" then every preset, as one radio group in a
+ * The composer's background picker for a text-only post, or the frame picker for the author's own video (`forVideo`:
+ * same presets, named as a frame): "No background" / "No frame" then every preset, as one radio group in a
  * horizontally scrolling row. 44px targets; one tab stop (the checked option), arrow keys move and select (mirrored in
  * right-to-left languages), Home/End jump to the ends; every swatch is named in the reader's language.
  */
@@ -35,10 +36,12 @@ export function PostBackgroundPicker({
   value,
   onChange,
   disabled,
+  forVideo = false,
 }: {
   value: Option;
   onChange: (next: Option) => void;
   disabled?: boolean;
+  forVideo?: boolean;
 }) {
   const { t } = useFeedText();
   const text = t.composer.background;
@@ -60,7 +63,7 @@ export function PostBackgroundPicker({
     <div className="mt-2">
       <div
         role="radiogroup"
-        aria-label={text.label}
+        aria-label={forVideo ? text.frameLabel : text.label}
         aria-describedby={hintId}
         aria-disabled={disabled || undefined}
         onKeyDown={onKeyDown}
@@ -69,7 +72,7 @@ export function PostBackgroundPicker({
         {OPTIONS.map((option) => {
           const checked = option === value;
           const style = postBackgroundStyle(option);
-          const name = option ? text.names[option] : text.none;
+          const name = option ? text.names[option] : forVideo ? text.frameNone : text.none;
           return (
             <button
               key={option ?? "none"}
@@ -97,14 +100,14 @@ export function PostBackgroundPicker({
               ) : checked ? (
                 <Check size={18} strokeWidth={3} aria-hidden />
               ) : (
-                <span aria-hidden>Aa</span>
+                <span aria-hidden>{forVideo ? "" : "Aa"}</span>
               )}
             </button>
           );
         })}
       </div>
       <p id={hintId} className="mt-0.5 text-[0.6875rem] text-foreground-soft">
-        {text.hint}
+        {forVideo ? text.frameHint : text.hint}
       </p>
     </div>
   );

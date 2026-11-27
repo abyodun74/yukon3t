@@ -31,7 +31,7 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 25, 2026</p>
+      <p className="mt-2 text-xs text-foreground-soft">Last updated: November 26, 2026</p>
 
       <p className="mt-4 text-foreground-soft">
         YuKon3t is operated by Motiff Core Holdings, a Delaware company,
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
       <p className="mt-2 text-foreground-soft">We collect:</p>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground-soft">
         <li><b>Account information</b>: email address, optionally a username and password (stored as a salted hash, never in plain text), date of birth (used to confirm you meet our minimum age requirement and, unless you turn &ldquo;Share my birthday&rdquo; off, to remind your connections and members of your Circles of your birthday by its day and month only, including a birthday card those same people see on your profile on the day itself — your date of birth is never shown on your profile, and the year and your age are never shown to anyone; given at sign-up or when completing your profile, or, for an account that doesn&apos;t have one, added once under Settings &rarr; Privacy &rarr; Birthday, and not changeable afterwards), display name, bio, country, languages, interests, and profile picture.</li>
-        <li><b>Content you create</b>: Circle and Channel posts, Collab Board listings, direct messages, 24-hour Stories (including reactions, likes and replies to them), reports you file, and any photos or short videos you upload.</li>
+        <li><b>Content you create</b>: Circle and Channel posts, Collab Board listings, direct messages, 24-hour Stories (including reactions, likes and replies to them), reports you file, and any photos or short videos you upload, with the options you pick for a post such as its colored background or video frame and its built-in music track (we store only which one).</li>
         <li><b>Muse comments</b>: the comments and replies you write on a Muse (text, a GIF picked from GIPHY, or both), which comment a reply answers, and which comments and replies you like. Everyone who can see the Muse sees its comments and replies and how many people liked each one, not who liked it. The emoji you used recently in the comment picker are kept only on your device, not on our servers.</li>
         <li><b>Connection &amp; activity data</b>: Circles and Channels you join, connection requests, intent tags you select, streaks, event replies (whether you answered Going or Maybe, and when), trust score signals (account age, verification status, report history).</li>
         <li><b>Poll votes</b>: if you vote in a poll in a Circle or on a Collab Board, we store which option(s) you picked, so you can change or withdraw your vote. Everyone else, including the poll&apos;s creator and the Circle&apos;s or collaboration&apos;s admins, sees only how many people picked each option, never who voted for what. Your vote is deleted when you withdraw it, when that option or the poll is deleted, or when your account is deleted; polls you created are deleted along with your account.</li>
@@ -391,7 +391,11 @@ export default function PrivacyPage() {
         app saves a copy of YuKon3t&apos;s own app files (code, fonts and
         icons) and a &ldquo;You&apos;re offline&rdquo; page on your device;
         that copy never includes your messages, posts, photos, profile
-        pictures or other personal content. To decide whether to use less
+        pictures or other personal content. When you play a post&apos;s music,
+        the app makes that track&apos;s sound on your device (the tracks are
+        YuKon3t&apos;s own, written and played by the app&apos;s code) and keeps it
+        there so it doesn&apos;t have to make it again; it contains nothing about
+        you, and nothing is sent to us or anyone else to play it. To decide whether to use less
         data, the app reads the connection information your browser provides
         (such as whether your device&apos;s data saver is on) and how long
         its own recent requests took; this is worked out on your device and

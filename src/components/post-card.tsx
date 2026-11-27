@@ -10,7 +10,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { inAppPathFor } from "@/lib/app-links";
-import { Calendar, ChevronDown, ChevronUp, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Pause, Play, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
+import { Calendar, ChevronDown, ChevronUp, ExternalLink, Heart, Lock, Maximize2, MapPin, MessageSquare, Music2, Pause, Play, Repeat2, Share2, Users, Volume2, VolumeX } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { LikersModal } from "@/components/likers-modal";
 import { ShareModal } from "@/components/share-modal";
@@ -53,6 +53,11 @@ import {
   postBackgroundStyle,
   type PostBackgroundKey,
 } from "@/lib/post-backgrounds";
+import { musicReplacesVideoSound, postMusicKey, type PostMusicKey } from "@/lib/post-music";
+import { unlockPostMusic, useVideoMusic } from "@/lib/post-music-player";
+import { PostMusicChip } from "@/components/post-music-chip";
+import { PostMusicPicker } from "@/components/post-music-picker";
+import { VideoFrame, useVideoRatio } from "@/components/video-frame";
 import { EmojiPickerButton } from "@/components/emoji-picker-button";
 import { EmojiTypeSuggestions } from "@/components/emoji-type-suggestions";
 import { ReactionBar } from "@/components/reaction-bar";
@@ -131,8 +136,10 @@ type EmbeddedPost = {
   embedProvider: EmbedProvider | null;
   embedId: string | null;
   linkUrl: string | null;
-  /** A colored-background text post's preset key (src/lib/post-backgrounds.ts); null/absent on an ordinary post. */
+  /** A colored-background text post's or video frame's preset key (src/lib/post-backgrounds.ts); null/absent if none. */
   backgroundStyle?: string | null;
+  /** Optional built-in music (src/lib/post-music.ts); null/absent (or a key no longer in the catalogue) = none. */
+  musicTrack?: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
   // A Circle post's Circle (an event there gets "Event details"), and an organizer's cancel / reschedule of an event
@@ -164,6 +171,8 @@ export type PostCardData = EmbeddedPost & {
   membersOnly?: boolean;
   /** Set when this post shares one like count with the same video on Muse (src/lib/like-groups.ts). */
   likeGroupId?: string | null;
+  /** False on an album photo other than the lead: the album's one track can only be changed on the lead. */
+  musicEditable?: boolean;
   likeCount: number;
   commentCount: number;
   repostCount: number;
@@ -570,8 +579,10 @@ function MediaBlock({
     onCancel: () => void;
     error: string | null;
     isPending: boolean;
-    /** A text-only post's colored background, changeable while editing (absent where a post can't have one). */
+    /** A text-only post's colored background or a video's frame, changeable while editing (absent where it can't). */
     background?: { value: PostBackgroundKey | null; onChange: (next: PostBackgroundKey | null) => void };
+    /** The post's optional music, changeable while editing (absent where a post can't have any). */
+    music?: { value: PostMusicKey | null; onChange: (next: PostMusicKey | null) => void };
   };
   /** The post's own page: a colored-background post shows all its text instead of a clamp with "Show more". */
   fullText?: boolean;
@@ -685,14 +696,131 @@ function MediaBlock({
   // video is already playing, toggling it doesn't flip the element's live
   // audio output (the icon/UI updates, but sound never actually changes).
   // Setting the DOM property directly is the correct, standard fix.
+  // Optional music (src/lib/post-music.ts). On a video it replaces the video's own sound: the video is always muted and
+  // the music follows it (play, pause, buffering, seeks, loops) while the feed's sound setting is on.
+  const musicKey = postMusicKey(post.musicTrack);
+  const videoMusic = post.mediaType === "VIDEO" && musicKey ? musicKey : null;
   useEffect(() => {
-    if (videoRef.current) videoRef.current.muted = muted;
-  }, [muted, videoRef]);
+    if (videoRef.current) videoRef.current.muted = muted || videoMusic !== null;
+  }, [muted, videoRef, videoMusic]);
   // On Home, tapping a short video opens it in the Muse viewer instead of pausing it (see opensInMuse).
   const openInMuse = onOpenInMuse && !editing && opensInMuse(post) ? () => onOpenInMuse(post) : null;
   // A colored-background text post (src/lib/post-backgrounds.ts); an unknown key shows as ordinary text.
   const styled = post.mediaType === "NONE" && postBackgroundStyle(post.backgroundStyle) !== null;
   const editBackground = editing?.background?.value ?? null;
+  // A video's colored frame: while editing, the frame being picked (a live preview); otherwise the post's own.
+  const frameKey = post.mediaType === "VIDEO" ? (editing?.background ? editBackground : (post.backgroundStyle ?? null)) : null;
+  const framed = isPostBackgroundKey(frameKey);
+  const { ratio: videoRatio, fromVideo: ratioFromVideo } = useVideoRatio(post.videoThumbnailUrl, framed);
+  // Framed and unframed videos sit in different wrappers, so toggling the frame (while editing) replaces the element.
+  useVideoMusic(videoRef, videoMusic, muted, framed);
+  // A tap that may make the music audible (sound on, play): lets iOS start it later, outside the tap.
+  const unlockMusic = videoMusic ? unlockPostMusic : () => {};
+  const videoName = format(t.post.videoBy, { name: post.author.name ?? t.post.someone });
+  const videoElement = post.videoUrl ? (
+    <video
+      ref={videoRef}
+      // With music the video is always muted: the music replaces its own sound.
+      muted={muted || videoMusic !== null}
+      loop
+      playsInline
+      preload={lowData ? "none" : "metadata"}
+      poster={post.videoThumbnailUrl ?? undefined}
+      aria-label={
+        videoMusic ? `${videoName}. ${format(t.post.musicLabel, { name: t.composer.music.names[videoMusic] })}` : videoName
+      }
+      onPlay={() => setPlaying(true)}
+      onPause={() => setPlaying(false)}
+      onLoadedMetadata={framed ? (e) => ratioFromVideo(e.currentTarget) : undefined}
+      // Edge-to-edge and tall (Instagram feed video convention), not
+      // capped/boxed — native browser `controls` (a scrubber/volume
+      // slider) are deliberately omitted in favor of just the sound
+      // toggle below, matching that same reference. Tapping the video
+      // itself toggles play/pause since there's no scrubber to do it,
+      // or opens it in Muse where that's offered (the play button below
+      // still pauses it in place). In a colored frame it is the whole
+      // video instead (object-contain, in the frame's picture area).
+      className={
+        framed
+          ? "h-full w-full cursor-pointer touch-manipulation object-contain"
+          : "aspect-[4/5] w-full cursor-pointer touch-manipulation bg-black object-cover"
+      }
+      onClick={(e) => {
+        const el = e.currentTarget;
+        unlockMusic();
+        if (openInMuse) {
+          museOpenTap(e, () => {
+            el.pause();
+            openInMuse();
+          });
+        } else videoPlaybackTap(e);
+      }}
+    >
+      <source src={post.videoUrl} />
+    </video>
+  ) : null;
+  const videoControls = (
+    <>
+      {videoMusic && (
+        // Says the sound is the post's music (the sound button below turns that music on and off).
+        <span
+          aria-hidden
+          className="pointer-events-none absolute start-2 top-2 inline-flex max-w-[65%] items-center gap-1 rounded-full bg-black/50 px-2 py-1 text-[0.6875rem] font-medium text-white/90"
+        >
+          <Music2 size={12} className="shrink-0" />
+          <span dir="auto" className="truncate">
+            {t.composer.music.names[videoMusic]}
+          </span>
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          unlockMusic();
+          setMuted(!muted);
+        }}
+        title={muted ? t.post.unmute : t.post.mute}
+        aria-label={muted ? t.post.unmute : t.post.mute}
+        className="absolute bottom-2 end-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+      >
+        {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+      </button>
+      {/* Tapping the video itself is still what most people use, but a
+          bare <video> with no native controls isn't an operable element
+          to VoiceOver or Voice Control — this is the same toggle as a
+          real, named button. Seeking lives in the full-screen viewer,
+          which does use native controls. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          const el = videoRef.current;
+          if (!el) return;
+          unlockMusic();
+          if (el.paused) el.play().catch(() => {});
+          else el.pause();
+        }}
+        title={playing ? t.post.pause : t.post.play}
+        aria-label={playing ? t.post.pauseVideo : t.post.playVideo}
+        className="absolute bottom-2 start-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+      >
+        {playing ? <Pause size={16} /> : <Play size={16} />}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          unlockMusic();
+          onOpenVideo();
+        }}
+        title={t.post.fullScreen}
+        aria-label={t.post.fullScreen}
+        className="absolute end-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
+      >
+        <Maximize2 size={14} />
+      </button>
+    </>
+  );
   return (
     <>
       {editing ? (
@@ -708,13 +836,13 @@ function MediaBlock({
                 editing.onCancel();
               }
             }}
-            maxLength={editBackground ? STYLED_POST_MAX_CHARS : 50000}
+            maxLength={editBackground && post.mediaType === "NONE" ? STYLED_POST_MAX_CHARS : 50000}
             rows={3}
             autoFocus
             aria-label={t.post.editPost}
             className="w-full resize-none rounded-lg border border-line bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
           />
-          {editBackground && (
+          {editBackground && post.mediaType === "NONE" && (
             <p
               className={cn(
                 "text-end text-xs",
@@ -734,7 +862,18 @@ function MediaBlock({
             onSelect={(emoji) => editing.onDraftChange(editing.draft + emoji)}
           />
           {editing.background && (
-            <PostBackgroundPicker value={editing.background.value} onChange={editing.background.onChange} />
+            <PostBackgroundPicker
+              value={editing.background.value}
+              onChange={editing.background.onChange}
+              forVideo={post.mediaType === "VIDEO"}
+            />
+          )}
+          {editing.music && (
+            <PostMusicPicker
+              value={editing.music.value}
+              onChange={editing.music.onChange}
+              replacesVideoSound={post.mediaType === "VIDEO"}
+            />
           )}
           <div className="mt-1 flex items-center justify-end gap-2 text-xs">
             {editing.error && <span role="alert" className="me-auto text-danger">{editing.error}</span>}
@@ -852,81 +991,23 @@ function MediaBlock({
         </button>
       )}
 
-      {post.mediaType === "VIDEO" && post.videoUrl && (
-        <div className="relative mt-3">
-          <video
-            ref={videoRef}
-            muted={muted}
-            loop
-            playsInline
-            preload={lowData ? "none" : "metadata"}
-            poster={post.videoThumbnailUrl ?? undefined}
-            aria-label={format(t.post.videoBy, { name: post.author.name ?? t.post.someone })}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            // Edge-to-edge and tall (Instagram feed video convention), not
-            // capped/boxed — native browser `controls` (a scrubber/volume
-            // slider) are deliberately omitted in favor of just the sound
-            // toggle below, matching that same reference. Tapping the video
-            // itself toggles play/pause since there's no scrubber to do it,
-            // or opens it in Muse where that's offered (the play button below
-            // still pauses it in place).
-            className="aspect-[4/5] w-full cursor-pointer touch-manipulation bg-black object-cover"
-            onClick={(e) => {
-              const el = e.currentTarget;
-              if (openInMuse) {
-                museOpenTap(e, () => {
-                  el.pause();
-                  openInMuse();
-                });
-              } else videoPlaybackTap(e);
-            }}
-          >
-            <source src={post.videoUrl} />
-          </video>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setMuted(!muted);
-            }}
-            title={muted ? t.post.unmute : t.post.mute}
-            aria-label={muted ? t.post.unmute : t.post.mute}
-            className="absolute bottom-2 end-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
-          >
-            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
-          {/* Tapping the video itself is still what most people use, but a
-              bare <video> with no native controls isn't an operable element
-              to VoiceOver or Voice Control — this is the same toggle as a
-              real, named button. Seeking lives in the full-screen viewer,
-              which does use native controls. */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              const el = videoRef.current;
-              if (!el) return;
-              if (el.paused) el.play().catch(() => {});
-              else el.pause();
-            }}
-            title={playing ? t.post.pause : t.post.play}
-            aria-label={playing ? t.post.pauseVideo : t.post.playVideo}
-            className="absolute bottom-2 start-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
-          >
-            {playing ? <Pause size={16} /> : <Play size={16} />}
-          </button>
-          <button
-            type="button"
-            onClick={onOpenVideo}
-            title={t.post.fullScreen}
-            aria-label={t.post.fullScreen}
-            className="absolute end-2 top-2 rounded-full bg-black/50 p-1.5 text-white/90 hover:text-white"
-          >
-            <Maximize2 size={14} />
-          </button>
-        </div>
-      )}
+      {/* A photo or text post's music: played only from this tap (a video's music follows the video instead). */}
+      {musicKey && post.mediaType !== "VIDEO" && !editing && <PostMusicChip trackKey={musicKey} />}
+
+      {post.mediaType === "VIDEO" &&
+        post.videoUrl &&
+        (framed && frameKey ? (
+          // A colored frame (src/lib/post-backgrounds.ts): the whole video, uncropped, inset on the background.
+          <VideoFrame backgroundKey={frameKey} ratio={videoRatio}>
+            {videoElement}
+            {videoControls}
+          </VideoFrame>
+        ) : (
+          <div className="relative mt-3">
+            {videoElement}
+            {videoControls}
+          </div>
+        ))}
 
       {post.mediaType === "EMBED" && post.embedProvider && post.embedId && (
         <div
@@ -1137,9 +1218,12 @@ export function PostCard({
   // it's a repost, otherwise the post body) shadowed in local state so an
   // edit updates in place without a full server round-trip re-render.
   const [content, setContent] = useState(post.content);
-  // This row's own colored background (a text-only post's; src/lib/post-backgrounds.ts), changeable in the edit.
+  // This row's own colored background (a text-only post's, or a video's frame; src/lib/post-backgrounds.ts) and its
+  // optional music (src/lib/post-music.ts), both changeable in the edit.
   const [background, setBackground] = useState(post.backgroundStyle ?? null);
   const [editBackground, setEditBackground] = useState<PostBackgroundKey | null>(null);
+  const [music, setMusic] = useState(post.musicTrack ?? null);
+  const [editMusic, setEditMusic] = useState<PostMusicKey | null>(null);
   const [editedAt, setEditedAt] = useState(post.editedAt);
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(post.content);
@@ -1150,6 +1234,7 @@ export function PostCard({
   function startEditing() {
     setEditDraft(content);
     setEditBackground(isPostBackgroundKey(background) ? background : null);
+    setEditMusic(postMusicKey(music));
     setEditError(null);
     setEditing(true);
   }
@@ -1166,6 +1251,7 @@ export function PostCard({
       return format(t.composer.errors.background_too_long, { max: STYLED_POST_MAX_CHARS });
     }
     if (error === "background_not_allowed") return t.composer.errors.background_not_allowed;
+    if (error === "music_not_allowed") return t.composer.errors.music_not_allowed;
     return t.post.editFailed;
   }
 
@@ -1176,7 +1262,7 @@ export function PostCard({
   function saveEdit() {
     const text = editDraft.trim();
     if (!text || isEditPending) return;
-    if (canStyleOnEdit && editBackground && text.length > STYLED_POST_MAX_CHARS) {
+    if (canStyleOnEdit && editBackground && post.mediaType === "NONE" && text.length > STYLED_POST_MAX_CHARS) {
       setEditError(editErrorText("background_too_long"));
       return;
     }
@@ -1185,6 +1271,7 @@ export function PostCard({
       const fd = new FormData();
       fd.set("content", text);
       if (canStyleOnEdit) fd.set("backgroundStyle", editBackground ?? "");
+      if (canMusicOnEdit) fd.set("musicTrack", editMusic ?? "");
       const result = await editPost(post.id, fd);
       if (result.error || !result.post) {
         setEditError(editErrorText(result.error));
@@ -1192,6 +1279,7 @@ export function PostCard({
       }
       setContent(result.post.content);
       setBackground(result.post.backgroundStyle);
+      setMusic(result.post.musicTrack);
       setEditedAt(result.post.editedAt);
       setEditing(false);
     });
@@ -1200,10 +1288,21 @@ export function PostCard({
   // The hearts rise over the media on a photo / GIF / video / embed post, and over the whole card otherwise (a text or
   // link post's text alone is often a single line, too short for them). The host's height is read once per burst and
   // becomes the layer's --hb-h (rise distance, see globals.css).
-  // Only the author's own text-only post (not a repost/share caption, not an event) can take a background.
+  // Only the author's own text-only post or uploaded video (not a repost/share caption, not an event) can take a
+  // background; music goes on their own video, photo(s) or text post (src/lib/post-music.ts).
   const quotesAnother = Boolean(post.repostOf || post.sharedPost);
-  const canStyleOnEdit = !quotesAnother && post.mediaType === "NONE" && !post.eventAt;
+  const canStyleOnEdit = !quotesAnother && (post.mediaType === "NONE" || post.mediaType === "VIDEO") && !post.eventAt;
+  const canMusicOnEdit =
+    !quotesAnother &&
+    (post.mediaType === "NONE" || post.mediaType === "IMAGE" || post.mediaType === "VIDEO") &&
+    !post.eventAt &&
+    post.musicEditable !== false;
   const shownBackground = quotesAnother ? displayPost.backgroundStyle : background;
+  // The music of what this card shows: a repost/share plays its original's.
+  const shownMusic = quotesAnother ? (displayPost.musicTrack ?? null) : music;
+  const shownVideoMusic = musicReplacesVideoSound({ mediaType: displayPost.mediaType, musicTrack: shownMusic })
+    ? postMusicKey(shownMusic)
+    : null;
   const heartOnMedia =
     HEART_ON_MEDIA_TYPES.has(displayPost.mediaType) ||
     (displayPost.mediaType === "NONE" && postBackgroundStyle(shownBackground) !== null);
@@ -1439,9 +1538,9 @@ export function PostCard({
         />
       )}
 
-      <div ref={mediaHostRef} className="relative">
+      <div ref={mediaHostRef} className="relative" data-post-music-scope>
       <MediaBlock
-        post={isQuoting ? displayPost : { ...displayPost, content, backgroundStyle: background }}
+        post={isQuoting ? displayPost : { ...displayPost, content, backgroundStyle: background, musicTrack: music }}
         fullText={fullText}
         onOpenImage={(index) => setLightboxIndex(index)}
         onCloseImage={() => setLightboxIndex(null)}
@@ -1458,6 +1557,7 @@ export function PostCard({
                 error: editError,
                 isPending: isEditPending,
                 background: canStyleOnEdit ? { value: editBackground, onChange: setEditBackground } : undefined,
+                music: canMusicOnEdit ? { value: editMusic, onChange: setEditMusic } : undefined,
               }
             : undefined
         }
@@ -1621,6 +1721,8 @@ export function PostCard({
       {lightboxVideo && displayPost.videoUrl && (
         <Lightbox
           video={displayPost.videoUrl}
+          // A video whose sound is its music: the viewer plays the music, never the file's own sound, and has no Save.
+          videoMusic={shownVideoMusic ?? undefined}
           onClose={() => setLightboxVideo(false)}
           alt={format(t.post.videoBy, { name: displayPost.author.name ?? t.post.someone })}
         />
@@ -1639,6 +1741,7 @@ export function PostCard({
         mediaUrls={displayPost.mediaUrls}
         videoUrl={displayPost.videoUrl}
         videoDurationSeconds={displayPost.videoDurationSeconds}
+        musicTrack={shownMusic}
         open={shareModalOpen}
         onClose={() => setShareModalOpen(false)}
         onShareCountChange={setShareCount}

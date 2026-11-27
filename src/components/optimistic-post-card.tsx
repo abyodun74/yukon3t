@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { X } from "lucide-react";
+import { Music2, X } from "lucide-react";
 import { UserAvatar } from "@/components/user-link";
 import { removeOptimisticPost, type OptimisticPost } from "@/lib/optimistic-posts-store";
 import { dropFailedPostDraft } from "@/lib/failed-post-draft";
 import { useFeedText } from "@/components/feed-text";
 import { usePostUploadText } from "@/components/post-upload-text";
 import { StyledPostText } from "@/components/styled-post-text";
-import { postBackgroundStyle } from "@/lib/post-backgrounds";
+import { isPostBackgroundKey, postBackgroundStyle } from "@/lib/post-backgrounds";
+import { postMusicKey } from "@/lib/post-music";
+import { format } from "@/lib/i18n/locales";
+import { VideoFrame } from "@/components/video-frame";
 
 /**
  * The "still sending" placeholder PostFeedSection/ProfilePostsList render at
@@ -29,6 +32,7 @@ import { postBackgroundStyle } from "@/lib/post-backgrounds";
 export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
   const { t } = useFeedText();
   const { t: postUpload } = usePostUploadText();
+  const musicKey = postMusicKey(post.musicTrack);
   return (
     <div className="rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
       <div className="flex items-start justify-between gap-2">
@@ -73,7 +77,7 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
         )}
       </div>
 
-      {post.content && postBackgroundStyle(post.backgroundStyle) ? (
+      {post.content && post.previewKind === "none" && postBackgroundStyle(post.backgroundStyle) ? (
         <div className="opacity-90">
           <StyledPostText text={post.content} backgroundKey={post.backgroundStyle} clamp />
         </div>
@@ -81,8 +85,27 @@ export function OptimisticPostCard({ post }: { post: OptimisticPost }) {
         post.content && <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground-soft">{post.content}</p>
       )}
 
+      {musicKey && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-foreground-soft">
+          <Music2 size={13} aria-hidden />
+          <span dir="auto">{format(t.post.musicLabel, { name: t.composer.music.names[musicKey] })}</span>
+        </p>
+      )}
+
       {post.previewUrl &&
-        (post.previewKind === "video" ? (
+        (post.previewKind === "video" && isPostBackgroundKey(post.backgroundStyle) ? (
+          // The colored frame, as the posted card will show it.
+          <VideoFrame backgroundKey={post.backgroundStyle} ratio={null} className="opacity-90">
+            <video
+              src={post.previewUrl}
+              className="h-full w-full object-contain"
+              autoPlay
+              muted
+              loop
+              playsInline
+            />
+          </VideoFrame>
+        ) : post.previewKind === "video" ? (
           <video
             src={post.previewUrl}
             className="mt-3 max-h-72 w-full rounded-lg bg-black object-contain opacity-80"

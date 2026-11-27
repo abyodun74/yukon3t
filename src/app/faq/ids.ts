@@ -59,6 +59,7 @@ export const FAQ_IDS = [
   // Posts and media
   "post",
   "post-colored-background",
+  "post-music",
   "which-video-formats-upload-everyone",
   "was-photo-video-rejected",
   "photo-video-upload-failed",

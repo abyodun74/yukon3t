@@ -78,11 +78,22 @@ function textPost(fields: Record<string, string> = {}) {
   return fd;
 }
 
+function videoPost(fields: Record<string, string> = {}) {
+  return textPost({
+    mediaType: "VIDEO",
+    videoUrl: `${R2}/post-video/${ME}/v.mp4`,
+    videoThumbnailUrl: `${R2}/video-thumb/${ME}/v.jpg`,
+    videoDurationSeconds: "12",
+    ...fields,
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   postFindUnique.mockResolvedValue(null);
   moderateText.mockResolvedValue({ allowed: true, flaggedCategories: [] });
   postCreate.mockImplementation(async ({ data }) => ({ id: "cpost0000000001", ...data }));
+  moderateMediaChecks.mockResolvedValue([{ source: "caption", result: { allowed: true, flaggedCategories: [] } }]);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -162,10 +173,83 @@ describe("createPost: colored backgrounds", () => {
     });
   });
 
+  it("stores a colored frame on the author's own uploaded video, with a caption of any length", async () => {
+    const result = await createPost(videoPost({ backgroundStyle: "aurora", content: "v".repeat(800) }));
+    expect(result).toEqual({ error: null });
+    expect(postCreate.mock.calls[0][0].data).toMatchObject({ mediaType: "VIDEO", backgroundStyle: "aurora" });
+  });
+
+  it("refuses a frame on an embedded video", async () => {
+    expect(
+      await createPost(textPost({ backgroundStyle: "aurora", mediaType: "EMBED", embedUrl: "https://youtu.be/dQw4w9WgXcQ" })),
+    ).toEqual({ error: "background_not_allowed" });
+    expect(postCreate).not.toHaveBeenCalled();
+  });
+
   it("a retried submission (same request key) answers success without a second post", async () => {
     postFindUnique.mockResolvedValue({ id: "cpost0000000001" });
     const result = await createPost(textPost({ backgroundStyle: "sunset", clientRequestId: "a".repeat(32) }));
     expect(result).toEqual({ error: null });
+    expect(postCreate).not.toHaveBeenCalled();
+  });
+});
+
+// Optional music (src/lib/post-music.ts): only a catalogue key, only on the author's own video, photo(s) or text post.
+describe("createPost: music", () => {
+  it("stores the track key on a text post, a styled text post and a video", async () => {
+    await createPost(textPost({ musicTrack: "sunrise" }));
+    await createPost(textPost({ musicTrack: "tender", backgroundStyle: "blush" }));
+    await createPost(videoPost({ musicTrack: "groove", backgroundStyle: "neon" }));
+    expect(postCreate.mock.calls.map((c) => c[0].data.musicTrack)).toEqual(["sunrise", "tender", "groove"]);
+    expect(postCreate.mock.calls[2][0].data.backgroundStyle).toBe("neon");
+  });
+
+  it("leaves an ordinary post without music", async () => {
+    await createPost(textPost());
+    await createPost(videoPost());
+    expect(postCreate.mock.calls.map((c) => c[0].data.musicTrack)).toEqual([null, null]);
+  });
+
+  it("puts an album's one track on its lead photo only", async () => {
+    const photos = [1, 2, 3].map((i) => `${R2}/post-image/${ME}/p${i}.jpg`);
+    moderateMediaChecks.mockResolvedValue(
+      ["caption", "photo 1", "photo 2", "photo 3"].map((source) => ({ source, result: { allowed: true, flaggedCategories: [] } })),
+    );
+    expect(await createPost(textPost({ mediaType: "IMAGE", mediaUrls: JSON.stringify(photos), musicTrack: "island" }))).toEqual({
+      error: null,
+    });
+    expect(postCreate.mock.calls.map((c) => [c[0].data.albumIndex, c[0].data.musicTrack])).toEqual([
+      [0, "island"],
+      [1, null],
+      [2, null],
+    ]);
+  });
+
+  it.each(["https://example.com/song.mp3", "Sunrise", "../../etc/passwd", "__proto__"])(
+    "refuses a value that isn't a catalogue key (%s) and stores nothing",
+    async (musicTrack) => {
+      expect(await createPost(textPost({ musicTrack }))).toEqual({ error: "invalid" });
+      expect(postCreate).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses music on a link, a GIF, an embedded video and an event", async () => {
+    expect(await createPost(textPost({ musicTrack: "focus", mediaType: "LINK", embedUrl: "https://example.com/a" }))).toEqual({
+      error: "music_not_allowed",
+    });
+    expect(
+      await createPost(
+        textPost({ musicTrack: "focus", mediaType: "GIF", mediaUrls: JSON.stringify(["https://media.giphy.com/media/abc/giphy.gif"]) }),
+      ),
+    ).toEqual({ error: "music_not_allowed" });
+    expect(
+      await createPost(textPost({ musicTrack: "focus", mediaType: "EMBED", embedUrl: "https://youtu.be/dQw4w9WgXcQ" })),
+    ).toEqual({ error: "music_not_allowed" });
+    expect(
+      await createPost(
+        textPost({ musicTrack: "focus", eventAt: new Date(Date.now() + 86_400_000).toISOString(), eventLocation: "The park" }),
+      ),
+    ).toEqual({ error: "music_not_allowed" });
     expect(postCreate).not.toHaveBeenCalled();
   });
 });

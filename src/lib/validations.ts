@@ -29,6 +29,7 @@ import {
 import { EVENT_REPEAT_FREQUENCIES } from "@/lib/event-recurrence";
 import { FORWARD_MAX_RECIPIENTS } from "@/lib/message-forward";
 import { POST_BACKGROUND_KEYS } from "@/lib/post-backgrounds";
+import { POST_MUSIC_KEYS } from "@/lib/post-music";
 import { SHOPPING_LIST_ITEM_MAX, SHOPPING_LIST_MAX_ITEMS } from "@/lib/shopping-list";
 import {
   BIRTHDAY_AUDIENCE_VALUES,
@@ -465,8 +466,12 @@ export const updateChannelSchema = z.object({
   visibility: z.enum(["PUBLIC", "PRIVATE"]),
 });
 
-// A colored-background text post's preset (src/lib/post-backgrounds.ts): only a catalogue key, never a color or CSS.
+// A colored-background text post's or video frame's preset (src/lib/post-backgrounds.ts): only a catalogue key, never a
+// color or CSS.
 export const postBackgroundKeySchema = z.enum(POST_BACKGROUND_KEYS);
+
+// A post's optional music (src/lib/post-music.ts): only a built-in track key, never a URL or file.
+export const postMusicKeySchema = z.enum(POST_MUSIC_KEYS);
 
 export const postSchema = z
   .object({
@@ -512,8 +517,10 @@ export const postSchema = z
     embedUrl: z.string().trim().max(2000).optional(),
     eventAt: z.coerce.date().optional(),
     eventLocation: z.string().trim().min(2).max(200).optional(),
-    // Text-only posts only, up to STYLED_POST_MAX_CHARS: createPost checks that with styledPostRefusal.
+    // Text-only posts up to STYLED_POST_MAX_CHARS, or the author's own video: createPost checks with styledPostRefusal.
     backgroundStyle: postBackgroundKeySchema.optional(),
+    // Video, photo(s) or text posts only: createPost checks with postMusicRefusal.
+    musicTrack: postMusicKeySchema.optional(),
   })
   // A post needs a caption, media, or event details — never all three empty.
   .refine((data) => data.content.length > 0 || data.mediaType !== "NONE" || Boolean(data.eventAt), {

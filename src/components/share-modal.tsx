@@ -16,6 +16,7 @@ import { Sheet } from "@/components/sheet";
 import { announce } from "@/lib/announce";
 import { useFeedText } from "@/components/feed-text";
 import { format } from "@/lib/i18n/locales";
+import { musicReplacesVideoSound, postMusicKey } from "@/lib/post-music";
 
 // Duplicated from storage.ts's MAX_MUSE_VIDEO_DURATION_SECONDS rather than
 // imported — that file pulls in @aws-sdk/client-s3, which is server-only
@@ -70,6 +71,7 @@ export function ShareModal({
   mediaUrls,
   videoUrl,
   videoDurationSeconds,
+  musicTrack = null,
   open,
   onClose,
   onShareCountChange,
@@ -80,6 +82,8 @@ export function ShareModal({
   mediaUrls: string[];
   videoUrl: string | null;
   videoDurationSeconds: number | null;
+  /** The post's optional music (src/lib/post-music.ts). */
+  musicTrack?: string | null;
   open: boolean;
   onClose: () => void;
   onShareCountChange: (count: number) => void;
@@ -114,12 +118,19 @@ export function ShareModal({
   // A Story holds a photo, a video or an embedded video (StoryMediaType IMAGE/VIDEO/EMBED; shareToStory copies an
   // embed's provider + id) — a text-only, link or GIF post has nothing that fits it, same gate shareToStory itself
   // enforces server-side.
-  const canShareToStory = mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "EMBED";
+  // A video whose author replaced its sound with built-in music: its file still has the original sound, so it never
+  // goes anywhere that would play or hand out that file (Story, Muse, the device share sheet's attachment); it is
+  // shared as a link, where the post plays with its music. Same rule server-side (shareToStory / shareToMuse).
+  const musicVideo = musicReplacesVideoSound({ mediaType, musicTrack });
+  // A photo post's music doesn't travel with the photo (a Story / an attachment is the picture only): said so.
+  const photoMusic = mediaType === "IMAGE" && postMusicKey(musicTrack) !== null;
+  const canShareToStory = !musicVideo && (mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "EMBED");
   // Muse is video-only (unlike Story, no image/text variant at all) and
   // caps at MAX_MUSE_VIDEO_DURATION_SECONDS — a Post video can run up to an
   // hour, far past what a Muse allows. Same gate shareToMuse itself
   // enforces server-side.
   const canShareToMuse =
+    !musicVideo &&
     mediaType === "VIDEO" &&
     videoDurationSeconds !== null &&
     videoDurationSeconds <= MAX_MUSE_VIDEO_DURATION_SECONDS;
@@ -164,7 +175,7 @@ export function ShareModal({
   async function nativeShare() {
     const extension = mediaType === "VIDEO" ? "mp4" : mediaType === "GIF" ? "gif" : "jpg";
     const rawSources =
-      mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "GIF"
+      !musicVideo && (mediaType === "IMAGE" || mediaType === "VIDEO" || mediaType === "GIF")
         ? mediaType === "VIDEO"
           ? videoUrl
             ? [videoUrl]
@@ -307,6 +318,10 @@ export function ShareModal({
           <p role="alert" className="mt-2 break-words rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">{shareWarning}</p>
         )}
 
+        {view === "root" && musicVideo && (
+          <p className="mt-2 text-xs text-foreground-soft">{t.share.musicVideoLinkOnly}</p>
+        )}
+
         {view === "root" && (
           <div className="mt-3 space-y-1">
             <button
@@ -338,6 +353,9 @@ export function ShareModal({
                 <CirclePlus size={16} />
                 {sharedToStory ? t.share.addedToStory : sharingToStory ? t.share.addingToStory : t.share.toStory}
               </button>
+            )}
+            {canShareToStory && photoMusic && (
+              <p className="px-2 pb-1 text-[0.6875rem] text-foreground-soft">{t.share.musicStaysOnPost}</p>
             )}
             {canShareToMuse && (
               <button

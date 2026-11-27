@@ -15,6 +15,7 @@ import {
 } from "@/lib/storage";
 import { isStreamConfigured, createStreamCopy } from "@/lib/cloudflare-stream";
 import { notifySubscribers } from "@/lib/notify-subscribers";
+import { musicReplacesVideoSound } from "@/lib/post-music";
 import { inheritGroupLikers, likeGroupForNewMember, lockLikeGroup, recomputeLikeGroup } from "@/lib/like-groups";
 import type { Prisma } from "@/generated/prisma/client";
 import type { EmbedProvider } from "@/lib/video-embed";
@@ -195,6 +196,12 @@ export async function shareToStory(postId: string) {
     return { error: "not_shareable" as const };
   }
 
+  // A video whose author replaced its sound with built-in music (src/lib/post-music.ts): a Story would play the file's
+  // original sound, which the author took off, so it doesn't go there. (A photo post with music goes as the photo.)
+  if (musicReplacesVideoSound(root)) {
+    return { error: "music_video" as const };
+  }
+
   let storyData: {
     mediaType: "IMAGE" | "VIDEO" | "EMBED";
     mediaUrl?: string;
@@ -294,6 +301,11 @@ export async function shareToMuse(postId: string) {
   // Muse is public to everyone; a PRIVATE Circle's members-only video must never land there.
   if (await isMembersOnlyPost(root)) {
     return { error: "not_shareable" as const };
+  }
+
+  // The author replaced this video's sound with built-in music: Muse would play the original sound, so it doesn't go.
+  if (musicReplacesVideoSound(root)) {
+    return { error: "music_video" as const };
   }
 
   const isEmbed = root.mediaType === "EMBED" && root.embedProvider && root.embedId;

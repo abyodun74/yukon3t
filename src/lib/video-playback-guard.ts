@@ -120,10 +120,23 @@ function unfreezeEmbeds() {
 
 let pageHoldCount = 0;
 let pageHeld: HTMLMediaElement[] = [];
+const pageHoldListeners = new Set<() => void>();
+
+/**
+ * Told when a full-screen viewer starts covering the page (the first holdPageMedia). For players that hold themselves
+ * (SELF_HELD_MEDIA_ATTR), such as post music (src/lib/post-music-player.ts), which stops then rather than resuming.
+ */
+export function subscribePageMediaHold(listener: () => void): () => void {
+  pageHoldListeners.add(listener);
+  return () => {
+    pageHoldListeners.delete(listener);
+  };
+}
 
 /** A full-screen viewer opens over the page: what plays behind it pauses until the matching releasePageMedia. */
 export function holdPageMedia() {
   if (pageHoldCount === 0) {
+    pageHoldListeners.forEach((listener) => listener());
     const playing = playingMedia();
     playing.forEach((el) => el.pause());
     // What a call is already holding was playing before this viewer opened: it now waits for the viewer to close.

@@ -17,8 +17,10 @@ type EmbeddedPostRow = {
   embedProvider: EmbedProvider | null;
   embedId: string | null;
   linkUrl: string | null;
-  // A colored-background text post's preset key (src/lib/post-backgrounds.ts); null on an ordinary post.
+  // A colored-background text post's or video frame's preset key (src/lib/post-backgrounds.ts); null on an ordinary post.
   backgroundStyle: string | null;
+  // Optional built-in music (src/lib/post-music.ts); on an album only the lead carries it.
+  musicTrack: string | null;
   eventAt: Date | null;
   eventLocation: string | null;
   // Optional so a narrower select still fits; postCardInclude loads every scalar, so these are always present there.
@@ -49,6 +51,8 @@ type EmbeddedPostRow = {
 };
 
 type PostRow = EmbeddedPostRow & {
+  // Position in a multi-photo album (0 = the lead); optional so a narrower select still fits.
+  albumIndex?: number | null;
   // Not on EmbeddedPostRow: only the top-level post's own audience is shown
   // (see PostCard's visibility badge) — a repost/share's embedded original
   // doesn't render one, and is always PUBLIC for a Circle post regardless.
@@ -89,6 +93,7 @@ const embeddedPostSelect = {
   embedId: true,
   linkUrl: true,
   backgroundStyle: true,
+  musicTrack: true,
   eventAt: true,
   eventLocation: true,
   circleId: true,
@@ -176,7 +181,7 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
           ? prisma.post.findMany({
               where: { albumId: { in: albumIds } },
               orderBy: { albumIndex: "asc" },
-              select: { id: true, albumId: true, mediaUrls: true },
+              select: { id: true, albumId: true, albumIndex: true, mediaUrls: true, musicTrack: true },
             })
           : Promise.resolve([]),
       ])
@@ -195,7 +200,10 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
   // Already ordered by albumIndex (the query above) — each list is exactly
   // the carousel order PostCard should render.
   const siblingsByAlbumId = new Map<string, { id: string; url: string }[]>();
+  // An album's one track lives on its lead (createPost): every photo of the album plays it.
+  const musicByAlbumId = new Map<string, string | null>();
   for (const s of albumSiblings) {
+    if (s.albumIndex === 0) musicByAlbumId.set(s.albumId!, s.musicTrack);
     const url = s.mediaUrls[0];
     if (!url) continue;
     const list = siblingsByAlbumId.get(s.albumId!) ?? [];
@@ -219,6 +227,9 @@ export async function attachViewerState<T extends PostRow>(posts: T[], viewerId:
       embedId: post.embedId,
       linkUrl: post.linkUrl,
       backgroundStyle: post.backgroundStyle,
+      musicTrack: post.albumId ? (musicByAlbumId.get(post.albumId) ?? post.musicTrack) : post.musicTrack,
+      // Music can be added, changed or removed on this row itself: anything but an album photo other than the lead.
+      musicEditable: !post.albumId || (post.albumIndex ?? 0) === 0,
       eventAt: post.eventAt,
       eventLocation: post.eventLocation,
       circleId: post.circleId ?? null,

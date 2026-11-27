@@ -31,6 +31,12 @@ export type MuseSeedPost = {
   videoDurationSeconds: number | null;
   createdAt: Date;
   author: { id: string; name: string | null; avatarUrl: string | null };
+  /**
+   * The post's built-in music (src/lib/post-music.ts). On a video it replaces the video's own sound, so the viewer
+   * plays it (as the card's separate sound track, video muted) and keeps the post's card rather than turning it into
+   * the author's Muse copy, which has the original sound.
+   */
+  musicTrack?: string | null;
 };
 
 /**

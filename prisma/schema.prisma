@@ -934,10 +934,16 @@ model Post {
   // unlike embedProvider/embedId above) — protocol-checked at write time in
   // normalizeLinkUrl().
   linkUrl             String?
-  // A colored-background text post: a preset key from src/lib/post-backgrounds.ts (allow-listed by createPost/editPost,
-  // never a color or CSS). Only on a text-only post (mediaType NONE, no event, not a repost/share) of at most
-  // STYLED_POST_MAX_CHARS. Null = an ordinary post.
+  // A colored background: a preset key from src/lib/post-backgrounds.ts (allow-listed by createPost/editPost, never a
+  // color or CSS). On a text-only post (mediaType NONE, no event, not a repost/share) of at most STYLED_POST_MAX_CHARS,
+  // or on the author's own uploaded VIDEO (a "colored frame" around the whole, uncropped video; any caption length).
+  // Null = an ordinary post.
   backgroundStyle     String?
+  // Optional music: a built-in original track key from src/lib/post-music.ts (allow-listed by createPost/editPost).
+  // Only on the author's own video, photo(s) or text post (never an embed, link, GIF, event, repost or share); on an
+  // album only the lead (albumIndex 0) carries it. On a VIDEO it replaces the video's own sound. Null = no music; an
+  // unknown key also plays nothing.
+  musicTrack          String?
   intentTag           IntentTag?
   // Everyone/Friends only/Private, chosen at compose time — see
   // PostVisibility above and getVisiblePostsWhere for enforcement.

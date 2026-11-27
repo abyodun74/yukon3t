@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, useTransition, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Palette, Upload, Video, X } from "lucide-react";
+import { Calendar, Camera, Circle, ImageDown, ImagePlus, Link as LinkIcon, Mic, Music2, Palette, Upload, Video, X } from "lucide-react";
 import { confirmPostDeviceChallenge } from "@/app/actions/circles";
 import { abortMultipartUpload, addImageFromUrl, completeMultipartUpload, startNativeVideoUpload } from "@/app/actions/media";
 import { resolveSharedVideoLink } from "@/app/actions/embeds";
@@ -77,6 +77,10 @@ import {
 } from "@/lib/post-backgrounds";
 import { PostBackgroundPicker } from "@/components/post-background-picker";
 import { STYLED_POST_BOX } from "@/components/styled-post-text";
+import { PostMusicPicker } from "@/components/post-music-picker";
+import { ComposerVideoPreview } from "@/components/composer-video-preview";
+import type { PostMusicKey } from "@/lib/post-music";
+import { stopPostMusic } from "@/lib/post-music-player";
 
 const MAX_IMAGES = 10;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -250,6 +254,9 @@ export function PostComposer({
   // the row keeps the background; "No background" in it takes it off).
   const [background, setBackground] = useState<PostBackgroundKey | null>(null);
   const [showBackgrounds, setShowBackgrounds] = useState(false);
+  // Optional built-in music (src/lib/post-music.ts) and whether its picker is open (closing it keeps the choice).
+  const [music, setMusic] = useState<PostMusicKey | null>(null);
+  const [showMusic, setShowMusic] = useState(false);
   const counterId = useId();
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -277,9 +284,18 @@ export function PostComposer({
   const parsedEmbed = useMemo(() => (embedUrl ? parseVideoEmbedUrl(embedUrl) : null), [embedUrl]);
   // A styled post is text only: any attachment or event details hide the background (and its picker) again, and the
   // post goes out without it; removing the attachment brings the chosen background back.
-  const canStyle = imageCount === 0 && !hasOtherMedia && !isEvent;
+  // The same presets frame the author's own uploaded video (the whole video, uncropped; the file isn't changed).
+  const hasVideo = Boolean(video) || Boolean(nativeVideoUpload);
+  const textOnly = imageCount === 0 && !hasOtherMedia && !isEvent;
+  const canFrame = hasVideo && !isEvent;
+  const canStyle = textOnly || canFrame;
   const activeBackground = canStyle ? background : null;
-  const activeBackgroundStyle = postBackgroundStyle(activeBackground);
+  // The styled text box (and its 220-character cap) is for a text-only post only; a video's caption stays ordinary.
+  const textBackground = textOnly ? background : null;
+  const activeBackgroundStyle = postBackgroundStyle(textBackground);
+  // Music goes on the author's own video, photo(s) or text post: never a link, linked video, GIF or event.
+  const canMusic = !isEvent && !embedUrl && !pendingGif;
+  const activeMusic = canMusic ? music : null;
   const styledSize = styledPostTextSize(suggestionText);
   const styledLength = suggestionText.trim().length;
   // Attached media lives only in this component's state — a stale-build
@@ -292,8 +308,8 @@ export function PostComposer({
     const el = contentRef.current;
     if (!el) return;
     el.style.height = "";
-    if (activeBackground) el.style.height = `${el.scrollHeight}px`;
-  }, [activeBackground, suggestionText]);
+    if (textBackground) el.style.height = `${el.scrollHeight}px`;
+  }, [textBackground, suggestionText]);
 
   useEffect(() => {
     composerEmptyRef.current =
@@ -331,6 +347,8 @@ export function PostComposer({
     setPendingGif(draft.pendingGif);
     setBackground(draft.backgroundStyle);
     setShowBackgrounds(draft.backgroundStyle !== null);
+    setMusic(draft.musicTrack ?? null);
+    setShowMusic(false);
     setStatus("error");
     setErrorText(draft.message);
     setFailureAdvice(draft.advice);
@@ -862,6 +880,8 @@ export function PostComposer({
     setSuggestionText("");
     setBackground(null);
     setShowBackgrounds(false);
+    setMusic(null);
+    setShowMusic(false);
     formRef.current?.reset();
     router.refresh();
     return { ok: true, value: answer.held ? "held" : "posted" };
@@ -926,7 +946,7 @@ export function PostComposer({
           return;
         }
         const backgroundStyle = activeBackground;
-        if (backgroundStyle && content.length > STYLED_POST_MAX_CHARS) {
+        if (textBackground && content.length > STYLED_POST_MAX_CHARS) {
           setStatus("error");
           setErrorText(format(t.composer.errors.background_too_long, { max: STYLED_POST_MAX_CHARS }));
           setFailureAdvice(null);
@@ -934,6 +954,11 @@ export function PostComposer({
         }
         if (backgroundStyle) fd.set("backgroundStyle", backgroundStyle);
         else fd.delete("backgroundStyle");
+        const musicTrack = activeMusic;
+        if (musicTrack) fd.set("musicTrack", musicTrack);
+        else fd.delete("musicTrack");
+        // A track previewing in the picker stops on Post.
+        stopPostMusic();
         if (isEvent) {
           if (!eventAt || new Date(eventAt) <= new Date()) {
             setStatus("error");
@@ -995,6 +1020,7 @@ export function PostComposer({
           embedUrl,
           pendingGif,
           backgroundStyle,
+          musicTrack,
         };
         const files = [...images, ...(video ? [video] : [])];
         // One idempotency key per draft: a new one for every new attempt, except a retry of the same draft after an
@@ -1014,6 +1040,7 @@ export function PostComposer({
               eventRepeatUntil: String(fd.get("eventRepeatUntil") ?? ""),
               nativeVideo: nativeVideoUpload?.videoUrl,
               backgroundStyle,
+              musicTrack,
             },
             files,
             urls: [...urlImages, embedUrl, pendingGif],
@@ -1048,6 +1075,7 @@ export function PostComposer({
             createdAt: new Date(),
             status: "sending",
             backgroundStyle,
+            musicTrack,
           });
           // Same reset the success path below used to wait for the whole
           // upload + createPost round trip before doing — the feed's own
@@ -1067,6 +1095,8 @@ export function PostComposer({
           setSuggestionText("");
           setBackground(null);
           setShowBackgrounds(false);
+          setMusic(null);
+          setShowMusic(false);
           formRef.current?.reset();
           setStatus("idle");
         } else {
@@ -1155,11 +1185,11 @@ export function PostComposer({
         <textarea data-guest-block dir="auto"
           ref={contentRef}
           name="content"
-          maxLength={activeBackground ? STYLED_POST_MAX_CHARS : 50000}
-          rows={activeBackground ? 1 : 3}
+          maxLength={textBackground ? STYLED_POST_MAX_CHARS : 50000}
+          rows={textBackground ? 1 : 3}
           placeholder={placeholder}
           aria-label={placeholder || t.composer.label}
-          aria-describedby={activeBackground ? counterId : undefined}
+          aria-describedby={textBackground ? counterId : undefined}
           onChange={(e) => setSuggestionText(e.target.value)}
           onPaste={handlePaste}
           className={
@@ -1178,7 +1208,7 @@ export function PostComposer({
           }
         />
       </div>
-      {activeBackground && (
+      {textBackground && (
         <p
           id={counterId}
           className={cn(
@@ -1197,12 +1227,34 @@ export function PostComposer({
       <EmojiTypeSuggestions text={suggestionText} onSelect={insertEmoji} />
       {canStyle && showBackgrounds && (
         <PostBackgroundPicker
+          forVideo={canFrame}
           value={background}
           onChange={(next) => {
             setBackground(next);
-            if (next === null) contentRef.current?.focus();
+            if (next === null && !canFrame) contentRef.current?.focus();
           }}
         />
+      )}
+      {canMusic && showMusic && (
+        <PostMusicPicker value={music} onChange={setMusic} replacesVideoSound={hasVideo} />
+      )}
+      {activeMusic && !showMusic && (
+        <div className="mt-2 flex items-center gap-2 text-xs text-foreground-soft">
+          <Music2 size={14} aria-hidden className="shrink-0" />
+          <span dir="auto" className="truncate">
+            {format(t.post.musicLabel, { name: t.composer.music.names[activeMusic] })}
+          </span>
+          {hasVideo && <span className="hidden sm:inline">· {t.composer.music.replacesVideoSound}</span>}
+          <button
+            type="button"
+            onClick={() => setMusic(null)}
+            aria-label={t.composer.music.none}
+            title={t.composer.music.none}
+            className="-m-2 p-2 text-foreground-soft hover:text-danger"
+          >
+            <X size={14} />
+          </button>
+        </div>
       )}
 
       {(images.length > 0 || urlImages.length > 0) && (
@@ -1326,6 +1378,16 @@ export function PostComposer({
               </p>
             )}
         </div>
+      )}
+
+      {hasVideo && (activeBackground || activeMusic || (canStyle && showBackgrounds)) && (
+        <ComposerVideoPreview
+          file={video}
+          url={nativeVideoUpload?.videoUrl ?? null}
+          posterUrl={nativeVideoUpload?.videoThumbnailUrl ?? null}
+          backgroundKey={activeBackground}
+          music={activeMusic}
+        />
       )}
 
       {embedUrl && (
@@ -1673,11 +1735,25 @@ export function PostComposer({
               "rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40",
               showBackgrounds || activeBackground ? "text-accent" : "text-foreground-soft",
             )}
-            title={t.composer.background.label}
-            aria-label={t.composer.background.label}
+            title={canFrame ? t.composer.background.frameLabel : t.composer.background.label}
+            aria-label={canFrame ? t.composer.background.frameLabel : t.composer.background.label}
             aria-expanded={canStyle && showBackgrounds}
           >
             <Palette size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowMusic((v) => !v)}
+            disabled={!canMusic}
+            className={cn(
+              "rounded-lg p-2.5 -m-1 hover:bg-line disabled:opacity-40",
+              showMusic || activeMusic ? "text-accent" : "text-foreground-soft",
+            )}
+            title={t.composer.music.label}
+            aria-label={t.composer.music.label}
+            aria-expanded={canMusic && showMusic}
+          >
+            <Music2 size={16} />
           </button>
           <button
             type="button"

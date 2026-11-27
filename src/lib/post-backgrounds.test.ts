@@ -3,6 +3,7 @@ import {
   POST_BACKGROUND_KEYS,
   STYLED_POST_MAX_CHARS,
   contrastRatio,
+  isFramedVideo,
   isPostBackgroundKey,
   postBackgroundColorRun,
   postBackgroundStyle,
@@ -105,8 +106,27 @@ describe("styledPostRefusal", () => {
     expect(styledPostRefusal({ ...ok, content: "x".repeat(STYLED_POST_MAX_CHARS + 1) })).toBe("background_too_long");
   });
 
-  it.each(["IMAGE", "VIDEO", "EMBED", "LINK", "GIF"])("refuses a %s post", (mediaType) => {
+  it.each(["IMAGE", "EMBED", "LINK", "GIF"])("refuses a %s post", (mediaType) => {
     expect(styledPostRefusal({ ...ok, mediaType })).toBe("background_not_allowed");
+  });
+
+  it("allows a colored frame on an uploaded video, with a caption of any length or none", () => {
+    expect(styledPostRefusal({ ...ok, mediaType: "VIDEO" })).toBeNull();
+    expect(styledPostRefusal({ ...ok, mediaType: "VIDEO", content: "" })).toBeNull();
+    expect(styledPostRefusal({ ...ok, mediaType: "VIDEO", content: "x".repeat(STYLED_POST_MAX_CHARS * 10) })).toBeNull();
+  });
+
+  it("refuses a frame on a video event, repost or share", () => {
+    expect(styledPostRefusal({ ...ok, mediaType: "VIDEO", hasEvent: true })).toBe("background_not_allowed");
+    expect(styledPostRefusal({ ...ok, mediaType: "VIDEO", isRepostOrShare: true })).toBe("background_not_allowed");
+  });
+
+  it("knows a framed video only by its own uploaded video and a catalogue key", () => {
+    expect(isFramedVideo({ mediaType: "VIDEO", backgroundStyle: "sunset" })).toBe(true);
+    expect(isFramedVideo({ mediaType: "VIDEO", backgroundStyle: null })).toBe(false);
+    expect(isFramedVideo({ mediaType: "VIDEO", backgroundStyle: "removed-later" })).toBe(false);
+    expect(isFramedVideo({ mediaType: "EMBED", backgroundStyle: "sunset" })).toBe(false);
+    expect(isFramedVideo({ mediaType: "NONE", backgroundStyle: "sunset" })).toBe(false);
   });
 
   it("refuses an event, a repost or share, and an empty post", () => {

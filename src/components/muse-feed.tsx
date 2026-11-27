@@ -63,6 +63,8 @@ import {
 } from "@/lib/muse-controls";
 import { HeartBurstLayer } from "@/components/heart-burst-layer";
 import { useHeartBurst } from "@/lib/use-heart-burst";
+import { musicReplacesVideoSound, postMusicKey } from "@/lib/post-music";
+import { postMusicUrl } from "@/lib/post-music-player";
 import {
   createVideoTapToggle,
   likeGestureAction,
@@ -220,6 +222,29 @@ export function MuseFeed({
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // Opened on a Home video whose sound is its post's music (src/lib/post-music.ts): the card plays that music as its
+  // separate sound track (the video muted, like a Muse's own added sound), never the video's original sound. The
+  // track is rendered on the device, so its blob: URL arrives a moment after the card (the card's sound effect
+  // already reacts to audioUrl appearing).
+  const seedMusic = seedPost && musicReplacesVideoSound({ mediaType: "VIDEO", musicTrack: seedPost.musicTrack })
+    ? postMusicKey(seedPost.musicTrack)
+    : null;
+  useEffect(() => {
+    if (!seedMusic || !seedPost) return;
+    let cancelled = false;
+    postMusicUrl(seedMusic)
+      .then((url) => {
+        if (cancelled) return;
+        setItems((prev) => prev.map((it) => (it.seedPostId === seedPost.id ? { ...it, audioUrl: url } : it)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Once per opening, like the seed lookup below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [likeSyncSource] = useState(() => Symbol("muse-feed-like"));
 
   const loadMore = useCallback(async () => {
@@ -240,7 +265,8 @@ export function MuseFeed({
     void Promise.all([getMuseForPost(seedPost.id).catch(() => null), getMuseFeed().catch(() => null)]).then(
       ([seed, page]) => {
         if (cancelled) return;
-        const muse = seed?.item ?? null;
+        // A post whose sound is its music never becomes the Muse: that copy plays the video's original sound.
+        const muse = seedMusic ? null : (seed?.item ?? null);
         if (muse) setSeedItemId(muse.id);
         setItems((prev) => {
           const head = muse ? prev.map((it) => (it.seedPostId === seedPost.id ? muse : it)) : prev;

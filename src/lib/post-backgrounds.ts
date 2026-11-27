@@ -1,5 +1,7 @@
 /*
- * Colored-background ("styled") text posts: the preset catalogue and its rules. Pure and client-safe.
+ * Colored-background ("styled") text posts and colored video frames: the preset catalogue and its rules. Pure and
+ * client-safe. The same presets also frame a VIDEO post (the whole video, uncropped, inset on the background; see
+ * styledPostRefusal and PostCard's FramedVideo), in which case the text color is unused.
  *
  * A styled post is a text-only post (mediaType NONE, no event, not a repost/share) whose `Post.backgroundStyle` holds
  * one of the preset keys below. Only the key is ever stored or accepted from a client: the CSS is always built here,
@@ -163,8 +165,12 @@ export function styledPostTextSize(text: string): StyledTextSize {
 export type StyledPostRefusal = "background_not_allowed" | "background_too_long";
 
 /**
- * Whether a post may carry a background: only a text-only post (no media, embed, link, GIF, event, repost or share)
- * with text of at most STYLED_POST_MAX_CHARS. Used by createPost and editPost; the composer enforces the same.
+ * Whether a post may carry a background:
+ * - a text-only post (no media, embed, link, GIF, event, repost or share) with text of at most STYLED_POST_MAX_CHARS;
+ * - the author's own uploaded VIDEO (not an embed), as a colored frame around the whole video. Its caption stays
+ *   ordinary text with no length limit of its own, and the video file itself is never touched (the frame is drawn
+ *   by the app).
+ * Used by createPost and editPost; the composer enforces the same.
  */
 export function styledPostRefusal(input: {
   mediaType: string;
@@ -172,9 +178,16 @@ export function styledPostRefusal(input: {
   isRepostOrShare: boolean;
   content: string;
 }): StyledPostRefusal | null {
-  if (input.mediaType !== "NONE" || input.hasEvent || input.isRepostOrShare) return "background_not_allowed";
+  if (input.hasEvent || input.isRepostOrShare) return "background_not_allowed";
+  if (input.mediaType === "VIDEO") return null;
+  if (input.mediaType !== "NONE") return "background_not_allowed";
   const text = input.content.trim();
   if (text.length === 0) return "background_not_allowed";
   if (text.length > STYLED_POST_MAX_CHARS) return "background_too_long";
   return null;
+}
+
+/** A VIDEO post shown in a colored frame: its own uploaded video plus a background key the catalogue has. */
+export function isFramedVideo(post: { mediaType: string; backgroundStyle?: string | null }): boolean {
+  return post.mediaType === "VIDEO" && isPostBackgroundKey(post.backgroundStyle);
 }
