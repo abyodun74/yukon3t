@@ -7,6 +7,9 @@ import { GIFT_SOUND_DURATION_MS } from "@/lib/gift-sound-plan";
 import { GIFT_ITEMS, GIFT_MARKET, GIFT_PRODUCTS, GIFT_TIERS, type GiftTierName } from "@/lib/gifts-data";
 import {
   GIFT_SIGNATURES,
+  HEARTBEAT,
+  HEARTBEAT_CENTER,
+  HEARTBEAT_LINE,
   HIGH_FIVE_REST,
   HIGH_FIVE_SPLIT,
   SIGNATURE_MAX_MS,
@@ -22,11 +25,11 @@ import {
   type SignatureTrack,
 } from "@/lib/gift-signature-motion";
 
-// The signature motions of Wave, High five, Birthday Balloons and Confetti: the registry, the plans' determinism,
+// The signature motions of Wave, High five, Birthday Balloons, Confetti and the Heartbeat Note: the registry, the plans' determinism,
 // their timing against the reveal's timeline (and the tier sound), the reduced-motion and low-end plans, the no-bounce
 // rule for every scale they animate, and the High five seam.
 
-const KINDS: GiftSignatureKind[] = ["wave", "high-five", "balloon-release", "confetti-rise"];
+const KINDS: GiftSignatureKind[] = ["wave", "high-five", "balloon-release", "confetti-rise", "heartbeat"];
 const MOTIONS: GiftEffectMotion[] = ["full", "light", "still"];
 const SIZES = [150, 190, 240, 280];
 const options = (motion: GiftEffectMotion) => ({ reduce: motion === "still", lowEnd: motion === "light" });
@@ -39,7 +42,15 @@ const tierOf = (slug: string): GiftTierName => {
 const scalesOf = (t: SignatureTrack) =>
   t.keyframes.flatMap((k) => [...(k.transform ?? "").matchAll(/\bscale\((-?[0-9.]+)\)/g)].map((m) => Number(m[1])));
 const end = (t: SignatureTrack) => t.delayMs + t.durationMs * t.iterations;
-const STRUCTURAL = new Set(["art", "swing", "sway", "hover"]);
+const STRUCTURAL = new Set(["art", "swing", "sway", "hover", "beat"]);
+/**
+ * Tracks whose scale may rise and come back to where it started, with the reason (like KEYFRAME_ALLOW in
+ * motion-defaults.test.ts). Each is still a tween (eased keyframes, no spring) and ends exactly at rest.
+ */
+const SCALE_RETURN_ALLOW: Record<string, string> = {
+  "heartbeat/beat":
+    "the Heartbeat Note's heartbeat pulse (lub-dub swells that return to exactly scale(1), eased in and out, finite), a rhythm like the like heart's post-heart-pulse, not an entrance or a settle",
+};
 
 function* everyPlan(): Generator<[string, GiftSignaturePlan, GiftTierName, GiftEffectMotion]> {
   for (const kind of KINDS)
@@ -49,11 +60,12 @@ function* everyPlan(): Generator<[string, GiftSignaturePlan, GiftTierName, GiftE
 }
 
 describe("the registry", () => {
-  it("maps exactly the four gifts, each an existing catalogue item and marketplace gift", () => {
+  it("maps exactly the five gifts, each an existing catalogue item and marketplace gift", () => {
     expect(Object.entries(GIFT_SIGNATURES).sort()).toEqual(
       [
         ["birthday-balloons", "balloon-release"],
         ["confetti", "confetti-rise"],
+        ["heartbeat-note", "heartbeat"],
         ["high-five", "high-five"],
         ["wave", "wave"],
       ].sort(),
@@ -118,6 +130,7 @@ describe("every plan", () => {
   it("never overshoots a scale and settles back (the no-bounce rule): every scale only grows or only shrinks", () => {
     for (const [label, plan] of everyPlan()) {
       for (const [id, t] of Object.entries(plan.tracks)) {
+        if (SCALE_RETURN_ALLOW[`${plan.kind}/${id}`]) continue;
         expect(keyframesOvershoot(scalesOf(t)), `${label} ${id}: ${scalesOf(t).join(" -> ")}`).toBe(false);
       }
     }
@@ -154,8 +167,8 @@ describe("every plan", () => {
     }
   });
 
-  it("each gift's own tier: Wave, High five and Confetti are Common, Birthday Balloons Epic", () => {
-    expect(["wave", "high-five", "confetti", "birthday-balloons"].map(tierOf)).toEqual(["COMMON", "COMMON", "COMMON", "EPIC"]);
+  it("each gift's own tier: Wave, High five and Confetti are Common, Birthday Balloons Epic, the Heartbeat Note Rare", () => {
+    expect(["wave", "high-five", "confetti", "birthday-balloons", "heartbeat-note"].map(tierOf)).toEqual(["COMMON", "COMMON", "COMMON", "EPIC", "RARE"]);
   });
 });
 
@@ -294,5 +307,41 @@ describe("Confetti", () => {
     }
     const lanes = plan.particles.map((p) => (p.x < 0.3 ? "start" : p.x > 0.7 ? "end" : "centre"));
     expect(new Set(lanes)).toEqual(new Set(["start", "centre", "end"]));
+  });
+});
+
+describe("Heartbeat Note", () => {
+  it("pulsates from the name's step: smooth lub-dub swells around the note that always come back to exactly rest", () => {
+    for (const motion of ["full", "light"] as const) {
+      const plan = planFor("heartbeat", "RARE", motion);
+      const beat = plan.tracks.beat;
+      expect(beat.delayMs).toBe(plan.keyBeatMs);
+      const scales = scalesOf(beat);
+      expect(scales[0]).toBe(1);
+      expect(scales[scales.length - 1]).toBe(1);
+      expect(Math.max(...scales)).toBe(HEARTBEAT.lubScale);
+      expect(Math.min(...scales)).toBe(1);
+      const beats = motion === "full" ? HEARTBEAT.beats.full : HEARTBEAT.beats.light;
+      expect(scales.filter((s) => s === HEARTBEAT.lubScale)).toHaveLength(beats);
+      expect(scales.filter((s) => s === HEARTBEAT.dubScale)).toHaveLength(beats);
+      expect(HEARTBEAT.dubScale).toBeLessThan(HEARTBEAT.lubScale);
+      expect(HEARTBEAT.lubScale).toBeLessThanOrEqual(1.12);
+      // Every step is eased in and out (a tween), never a spring or a step.
+      for (const k of beat.keyframes.slice(0, -1)) expect(k.easing).toBe("cubic-bezier(0.45, 0, 0.55, 1)");
+      // Only the beat scales up and back; every other scaled layer (the rings) only grows.
+      for (const [id, t] of Object.entries(plan.tracks)) if (id !== "beat") expect(keyframesOvershoot(scalesOf(t)), id).toBe(false);
+    }
+  });
+
+  it("a glow with every beat, and with full motion a ring and a light along the pulse line per beat", () => {
+    const full = planFor("heartbeat", "RARE", "full");
+    const ids = Object.keys(full.tracks);
+    expect(ids.filter((id) => id.startsWith("ring"))).toHaveLength(HEARTBEAT.beats.full);
+    expect(ids.filter((id) => id.startsWith("trace"))).toHaveLength(HEARTBEAT.beats.full);
+    expect(Math.max(...full.tracks.glow.keyframes.map((k) => k.opacity ?? 0))).toBeLessThanOrEqual(0.9);
+    const light = planFor("heartbeat", "RARE", "light");
+    expect(Object.keys(light.tracks).sort()).toEqual(["art", "beat", "glow"]);
+    expect(HEARTBEAT_CENTER.x).toBeGreaterThan(0.4);
+    expect(HEARTBEAT_LINE.to).toBeGreaterThan(HEARTBEAT_LINE.from);
   });
 });

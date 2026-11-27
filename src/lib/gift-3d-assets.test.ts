@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  GIFT_COMPOSED_SCENE_FOR_ITEM,
   GIFT_LEGENDARY_SCENE_FOR_ITEM,
   GIFT_MODEL_FILES,
   GIFT_MODEL_FOR_ITEM,
@@ -13,6 +14,7 @@ import {
   resolveGiftModel,
   resolveGiftScene,
 } from "@/lib/gift-3d-assets";
+import { GIFT_ART_IMAGES } from "@/lib/gift-art-images";
 import { GIFT_LEGENDARY_ART_IMAGES } from "@/lib/gift-legendary-art-images";
 import { GIFT_MARKET, GIFT_PRODUCTS, GIFT_TIERS } from "@/lib/gifts-data";
 import { giftSignatureFor } from "@/lib/gift-signature-motion";
@@ -128,6 +130,30 @@ describe("the scene registry", () => {
     expect(resolveGiftScene([{ slug: "kindred-spirit" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.heart });
   });
 
+  it("the five composed gifts get their own procedural scene (with their own icon where it is placed on the object), and no shared model", () => {
+    expect(GIFT_COMPOSED_SCENE_FOR_ITEM).toEqual({
+      "keepsake-locket": "gold-heart",
+      fireworks: "fireworks-box",
+      "level-up": "star-badge",
+      "aurora-sweep": "gem-sweep",
+      "aurora-frame": "gem-frame",
+    });
+    expect(resolveGiftScene([{ slug: "keepsake-locket" }])).toEqual({ kind: "composed", variant: "gold-heart", artSrc: null });
+    expect(resolveGiftScene([{ slug: "fireworks" }])).toEqual({ kind: "composed", variant: "fireworks-box", artSrc: null });
+    expect(resolveGiftScene([{ slug: "level-up" }])).toEqual({ kind: "composed", variant: "star-badge", artSrc: GIFT_ART_IMAGES["level-up"].src });
+    expect(resolveGiftScene([{ slug: "aurora-sweep" }])).toEqual({ kind: "composed", variant: "gem-sweep", artSrc: GIFT_ART_IMAGES["aurora-sweep"].src });
+    expect(resolveGiftScene([{ slug: "aurora-frame" }])).toEqual({ kind: "composed", variant: "gem-frame", artSrc: GIFT_ART_IMAGES["aurora-frame"].src });
+    for (const slug of Object.keys(GIFT_COMPOSED_SCENE_FOR_ITEM)) {
+      expect(GIFT_MODEL_FOR_ITEM[slug], slug).toBeUndefined();
+      expect(giftSignatureFor([{ slug }]), slug).toBeNull();
+    }
+    // The gifts that shared those models keep them, unchanged.
+    expect(resolveGiftScene([{ slug: "kindred-spirit" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.heart });
+    expect(resolveGiftScene([{ slug: "supporter-star" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.star });
+    expect(resolveGiftScene([{ slug: "midnight-crystal-frame" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES.diamond });
+    expect(resolveGiftScene([{ slug: "playful-kitten" }])).toEqual({ kind: "model", model: GIFT_MODEL_FILES["gift-box"] });
+  });
+
   it("every model file is still used by some gift", () => {
     const used = new Set(Object.values(GIFT_MODEL_FOR_ITEM));
     for (const key of Object.keys(GIFT_MODEL_FILES)) expect(used.has(key as keyof typeof GIFT_MODEL_FILES), key).toBe(true);
@@ -158,7 +184,7 @@ describe("the scene registry", () => {
 
   it("every mapped item exists in the catalog and every model file is registered", () => {
     const slugs = new Set(GIFT_PRODUCTS.flatMap((p) => p.items.map((i) => i.slug)));
-    for (const slug of [...Object.keys(GIFT_MODEL_FOR_ITEM), ...Object.keys(GIFT_LEGENDARY_SCENE_FOR_ITEM)]) {
+    for (const slug of [...Object.keys(GIFT_MODEL_FOR_ITEM), ...Object.keys(GIFT_LEGENDARY_SCENE_FOR_ITEM), ...Object.keys(GIFT_COMPOSED_SCENE_FOR_ITEM)]) {
       expect(slugs.has(slug), slug).toBe(true);
     }
     const onDisk = readdirSync(path.join(ROOT, "public", "gifts", "models")).filter((f) => f.endsWith(".glb"));
@@ -183,13 +209,15 @@ describe("loading boundaries", () => {
   it("three.js and React Three Fiber are imported only by the 3D scenes and their shared canvas / graph", () => {
     expect(importing(/from\s*["'](three|@react-three\/[^"']+)["']|import\(\s*["'](three|@react-three)/)).toEqual([
       "src/components/gift-canvas.tsx",
+      "src/components/gift-composed-graph.ts",
       "src/components/gift-legendary-graph.ts",
       "src/components/gift-scene-3d.tsx",
+      "src/components/gift-scene-composed.tsx",
       "src/components/gift-scene-legendary.tsx",
     ]);
   });
 
-  it.each(["gift-scene-3d", "gift-scene-legendary"])("%s is only ever loaded dynamically", (name) => {
+  it.each(["gift-scene-3d", "gift-scene-legendary", "gift-scene-composed"])("%s is only ever loaded dynamically", (name) => {
     const loaders = importing(new RegExp(`@/components/${name}["']`));
     expect(loaders).toEqual(["src/components/gift-stage.tsx", "src/lib/gift-render-capability.ts"]);
     for (const f of loaders) {
@@ -201,8 +229,13 @@ describe("loading boundaries", () => {
   });
 
   it("the shared canvas and the legendary graph are reached only through the lazily loaded scenes", () => {
-    expect(importing(/@\/components\/gift-canvas["']/)).toEqual(["src/components/gift-scene-3d.tsx", "src/components/gift-scene-legendary.tsx"]);
+    expect(importing(/@\/components\/gift-canvas["']/)).toEqual([
+      "src/components/gift-scene-3d.tsx",
+      "src/components/gift-scene-composed.tsx",
+      "src/components/gift-scene-legendary.tsx",
+    ]);
     expect(importing(/@\/components\/gift-legendary-graph["']/)).toEqual(["src/components/gift-scene-legendary.tsx"]);
+    expect(importing(/@\/components\/gift-composed-graph["']/)).toEqual(["src/components/gift-scene-composed.tsx"]);
   });
 
   it("models load without Draco or Meshopt, and the scenes render on demand with a capped DPR", () => {
@@ -215,10 +248,10 @@ describe("loading boundaries", () => {
     expect(canvas).toContain("giftCanvasDpr(");
     expect(canvas).toContain("acquireGiftCanvas(");
     expect(canvas).toContain("webglcontextlost");
-    for (const f of ["src/components/gift-scene-3d.tsx", "src/components/gift-scene-legendary.tsx"]) {
+    for (const f of ["src/components/gift-scene-3d.tsx", "src/components/gift-scene-legendary.tsx", "src/components/gift-scene-composed.tsx"]) {
       expect(read(f), f).toContain("<GiftCanvas");
     }
-    for (const f of ["gift-canvas.tsx", "gift-scene-3d.tsx", "gift-scene-legendary.tsx", "gift-legendary-graph.ts"]) {
+    for (const f of ["gift-canvas.tsx", "gift-scene-3d.tsx", "gift-scene-legendary.tsx", "gift-legendary-graph.ts", "gift-scene-composed.tsx", "gift-composed-graph.ts"]) {
       expect(read(`src/components/${f}`), f).not.toMatch(/https?:\/\/|fetch\(|XMLHttpRequest/);
     }
   });
@@ -233,6 +266,25 @@ describe("loading boundaries", () => {
     expect(scene).toContain('removeEventListener("visibilitychange"');
     expect(scene).toContain("cancelAnimationFrame(frame)");
     expect(scene).toContain("legendarySceneNeedsFrames(");
+  });
+
+  it("the composed scene cuts its icon out locally, sets up its textures properly and disposes everything on close", () => {
+    const scene = read("src/components/gift-scene-composed.tsx");
+    expect(scene).toContain("cutOutGiftArt(");
+    expect(scene).toContain("colorSpace = SRGBColorSpace");
+    expect(scene).toContain("anisotropy = Math.min(MAX_ANISOTROPY");
+    expect(scene).toContain("art?.dispose()");
+    expect(scene).toContain("envMap?.dispose()");
+    expect(scene).toContain("pmrem.dispose()");
+    expect(scene).toContain("room.dispose()");
+    expect(scene).toContain("built.dispose()");
+    expect(scene).toContain("scene.remove(built.root)");
+    expect(scene).toContain('removeEventListener("visibilitychange"');
+    expect(scene).toContain("cancelAnimationFrame(frame)");
+    expect(scene).toContain("composedSceneNeedsFrames(");
+    // The environment is three's own procedural room: no HDR file, nothing downloaded.
+    expect(scene).toMatch(/three\/examples\/jsm\/environments\/RoomEnvironment\.js/);
+    expect(scene).not.toMatch(/\.hdr|\.exr|RGBELoader|EXRLoader/);
   });
 
   it("the new libraries are pinned to exact versions", () => {

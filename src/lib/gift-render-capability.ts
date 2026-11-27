@@ -53,12 +53,14 @@ export function prefetchGiftReveal(gift: { tier: GiftTierName; items: readonly {
     webgl: scene !== null && hasWebGL(),
   });
   if (renderer !== "three" || !scene) return;
-  const key = scene.kind === "model" ? scene.model.src : scene.artSrc;
+  const key = scene.kind === "model" ? scene.model.src : scene.kind === "composed" ? `composed:${scene.variant}` : scene.artSrc;
   if (prefetched.has(key)) return;
   prefetched.add(key);
   const warm =
     scene.kind === "model"
       ? import("@/components/gift-scene-3d").then((m) => m.preloadGiftModel(scene.model.src))
-      : import("@/components/gift-scene-legendary");
+      : scene.kind === "composed"
+        ? import("@/components/gift-scene-composed")
+        : import("@/components/gift-scene-legendary");
   warm.catch(() => prefetched.delete(key));
 }

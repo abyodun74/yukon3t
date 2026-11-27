@@ -1583,6 +1583,35 @@ img[data-press-highlight] {
   inset: 0 0 0 14%;
   border-right-color: #ffe7a6;
 }
+/* The Heartbeat Note: the beat's glow, rings and the light on the pulse line sit over the art and add light to it
+   (screen blend), centred on the note / starting at the line's left end. */
+.gift-sig-heart-glow,
+.gift-sig-heart-ring {
+  width: 62%;
+  aspect-ratio: 1;
+  margin-left: -31%;
+  margin-top: -31%;
+  border-radius: 9999px;
+  mix-blend-mode: screen;
+}
+.gift-sig-heart-glow {
+  background: radial-gradient(circle, rgba(140, 200, 255, 0.75), rgba(190, 110, 255, 0.3) 40%, transparent 68%);
+}
+.gift-sig-heart-ring {
+  width: 40%;
+  margin-left: -20%;
+  margin-top: -20%;
+  border: 2px solid rgba(205, 160, 255, 0.85);
+}
+.gift-sig-heart-trace {
+  width: 7%;
+  aspect-ratio: 1;
+  margin-left: -3.5%;
+  margin-top: -3.5%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, #ffffff, rgba(255, 150, 240, 0.8) 35%, transparent 70%);
+  mix-blend-mode: screen;
+}
 
 /* The hearts that float up a post, a Muse or a Story when it is liked (heart-burst-layer.tsx in PostCard, MuseCard and
    StoryViewer; src/lib/heart-burst.ts + like-heart-art.tsx). The layer

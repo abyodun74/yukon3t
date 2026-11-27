@@ -7,6 +7,8 @@ import type { GiftTierName } from "@/lib/gift-market";
 import {
   BALLOON_ANCHOR,
   BALLOON_BOX,
+  HEARTBEAT_CENTER,
+  HEARTBEAT_LINE,
   HIGH_FIVE_CONTACT,
   WAVE_PIVOT,
   giftSignaturePlan,
@@ -19,7 +21,8 @@ const pct = (n: number) => `${Math.round(n * 1000) / 10}%`;
 const origin = (p: { x: number; y: number }) => ({ transformOrigin: `${pct(p.x)} ${pct(p.y)}` });
 
 /**
- * A gift's signature motion (src/lib/gift-signature-motion.ts) in place of the stage's generic entrance: GiftStage
+ * A gift's signature motion (src/lib/gift-signature-motion.ts: Wave, High five, Birthday Balloons, Confetti, the
+ * Heartbeat Note's pulse) in place of the stage's generic entrance: GiftStage
  * renders it for the gifts in GIFT_SIGNATURES, so the marketplace Preview and the recipient's open screen play the same
  * thing. Decorative (the stage is aria-hidden). Each layer carries a `data-sig` id; on mount every layer with a track is
  * animated with the Web Animations API (transform and opacity only, finite, fill "backwards"), and every animation is
@@ -167,6 +170,43 @@ export function GiftSignatureMotion({
         <span data-sig="art" className="gift-sig-layer">
           {art}
         </span>
+      )}
+
+      {kind === "heartbeat" && (
+        <>
+          <span data-sig="art" className="gift-sig-layer">
+            <span data-sig="beat" className="gift-sig-layer" style={origin(HEARTBEAT_CENTER)}>
+              {art}
+            </span>
+          </span>
+          {has("glow") && (
+            <span
+              data-sig="glow"
+              className="gift-sig-fx gift-sig-heart-glow"
+              style={{ left: pct(HEARTBEAT_CENTER.x), top: pct(HEARTBEAT_CENTER.y) }}
+            />
+          )}
+          {Object.keys(plan.tracks)
+            .filter((id) => id.startsWith("ring"))
+            .map((id) => (
+              <span
+                key={id}
+                data-sig={id}
+                className="gift-sig-fx gift-sig-heart-ring"
+                style={{ left: pct(HEARTBEAT_CENTER.x), top: pct(HEARTBEAT_CENTER.y) }}
+              />
+            ))}
+          {Object.keys(plan.tracks)
+            .filter((id) => id.startsWith("trace"))
+            .map((id) => (
+              <span
+                key={id}
+                data-sig={id}
+                className="gift-sig-fx gift-sig-heart-trace"
+                style={{ left: pct(HEARTBEAT_LINE.from), top: pct(HEARTBEAT_LINE.y) }}
+              />
+            ))}
+        </>
       )}
 
       {plan.particles.map((p) => (

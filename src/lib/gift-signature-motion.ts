@@ -11,6 +11,12 @@ import type { GiftItemSlug } from "@/lib/gifts-data";
 //                      in from the sides and meet with a flash, a shockwave ring and clap lines, then the whole image.
 //   balloon-release    a gift box appears, its lid pops and the balloon bunch rises out of it, sways and hovers.
 //   confetti-rise      a burst of confetti launches from the bottom and flutters up, the confetti icon rises in.
+//   heartbeat          the Heartbeat Note rises in and, from the name's step, pulsates like a heartbeat: a smooth
+//                      two-part beat ("lub-dub": a swell, back to rest, a smaller swell, back to rest, a pause) several
+//                      times, each beat with a soft glow behind the note, a ring spreading from it and a light running
+//                      along its pulse line. The swell returns to exactly the resting size, eased in and out (a tween,
+//                      not a spring): the only signature scale that rises and comes back, on purpose (allow-listed in
+//                      the test, like the like heart's `post-heart-pulse`).
 //
 // Every track animates transform and opacity only, has a finite length and fills "backwards" only: before its delay it
 // holds its first keyframe, after its end the element's own CSS (globals.css "Gift signature motions") is the final
@@ -20,7 +26,7 @@ import type { GiftItemSlug } from "@/lib/gifts-data";
 // Reduced motion ("still"): the final pose with one short fade, no particles. A low-end device ("light"): fewer
 // particles, no 3D flutter, no hover, shorter swings.
 
-export type GiftSignatureKind = "wave" | "high-five" | "balloon-release" | "confetti-rise";
+export type GiftSignatureKind = "wave" | "high-five" | "balloon-release" | "confetti-rise" | "heartbeat";
 
 /** The gifts (by item slug) that have a signature motion. */
 export const GIFT_SIGNATURES: Readonly<Partial<Record<GiftItemSlug, GiftSignatureKind>>> = {
@@ -28,7 +34,17 @@ export const GIFT_SIGNATURES: Readonly<Partial<Record<GiftItemSlug, GiftSignatur
   "high-five": "high-five",
   "birthday-balloons": "balloon-release",
   confetti: "confetti-rise",
+  "heartbeat-note": "heartbeat",
 };
+
+/** The Heartbeat Note's music note (fraction of the art's box): the beat swells around it, the glow and rings start here. */
+export const HEARTBEAT_CENTER = { x: 0.6, y: 0.52 } as const;
+
+/** The Heartbeat Note's pulse line (fraction of the art's box): its height and where it starts and ends. */
+export const HEARTBEAT_LINE = { y: 0.578, from: 0.1, to: 0.9 } as const;
+
+/** One heartbeat (ms): the swell ("lub"), back, the smaller swell ("dub"), back, then the pause before the next. */
+export const HEARTBEAT = { periodMs: 900, lubScale: 1.1, dubScale: 1.05, beats: { full: 6, light: 3 } } as const;
 
 /** No signature runs longer than this (ms), whatever the tier. */
 export const SIGNATURE_MAX_MS = 8000;
@@ -394,7 +410,67 @@ function confettiPlan(motion: GiftEffectMotion, hit: number, size: number, rando
   return finish("confetti-rise", motion, tracks, particles, hit, hit + 220);
 }
 
-const SEEDS: Record<GiftSignatureKind, number> = { wave: 1, "high-five": 2, "balloon-release": 0x5ba11, "confetti-rise": 0xc0ff37 };
+function heartbeatPlan(motion: GiftEffectMotion, hit: number, size: number, short: boolean): GiftSignaturePlan {
+  const light = motion === "light";
+  // A Common reveal's score is only ~4 s: fewer beats, so it ends within it.
+  const beats = light || short ? HEARTBEAT.beats.light : HEARTBEAT.beats.full;
+  const period = HEARTBEAT.periodMs;
+  const tracks: Record<string, SignatureTrack> = {
+    art: track([
+      { at: 0, transform: `translateY(${px(size * 0.08)})`, opacity: 0, easing: EASE_OUT },
+      { at: hit, transform: "translateY(0px)", opacity: 1 },
+    ]),
+  };
+  // The beat: every swell eases in and out and returns to exactly scale(1) (a tween, no spring), then a pause.
+  const beatKeys: Key[] = [];
+  const glowKeys: Key[] = [];
+  for (let i = 0; i < beats; i++) {
+    const b = hit + i * period;
+    beatKeys.push(
+      { at: b, transform: "scale(1)", easing: EASE_IN_OUT },
+      { at: b + 120, transform: `scale(${HEARTBEAT.lubScale})`, easing: EASE_IN_OUT },
+      { at: b + 270, transform: "scale(1)", easing: EASE_IN_OUT },
+      { at: b + 370, transform: `scale(${HEARTBEAT.dubScale})`, easing: EASE_IN_OUT },
+      { at: b + 540, transform: "scale(1)", easing: EASE_IN_OUT },
+    );
+    glowKeys.push(
+      { at: b, opacity: 0, easing: "ease-out" },
+      { at: b + 120, opacity: 0.85, easing: EASE_IN_OUT },
+      { at: b + 270, opacity: 0.25, easing: EASE_IN_OUT },
+      { at: b + 370, opacity: 0.55, easing: "ease-in" },
+      { at: b + 760, opacity: 0 },
+    );
+  }
+  tracks.beat = track(beatKeys);
+  tracks.glow = track(glowKeys);
+  if (!light) {
+    for (let i = 0; i < beats; i++) {
+      const b = hit + i * period;
+      tracks[`ring${i}`] = track([
+        { at: b, transform: "scale(0.55)", opacity: 0, easing: "ease-out" },
+        { at: b + 80, transform: "scale(0.66)", opacity: 0.7, easing: EASE_OUT },
+        { at: b + 760, transform: "scale(1.9)", opacity: 0 },
+      ]);
+      // A light runs along the pulse line, left to right, through each beat.
+      const travel = size * (HEARTBEAT_LINE.to - HEARTBEAT_LINE.from);
+      tracks[`trace${i}`] = track([
+        { at: b - 200, transform: "translateX(0px)", opacity: 0, easing: "linear" },
+        { at: b - 60, transform: `translateX(${px(travel * 0.17)})`, opacity: 1, easing: "linear" },
+        { at: b + 480, transform: `translateX(${px(travel * 0.83)})`, opacity: 1, easing: "linear" },
+        { at: b + 620, transform: `translateX(${px(travel)})`, opacity: 0 },
+      ]);
+    }
+  }
+  return finish("heartbeat", motion, tracks, [], hit, hit);
+}
+
+const SEEDS: Record<GiftSignatureKind, number> = {
+  wave: 1,
+  "high-five": 2,
+  "balloon-release": 0x5ba11,
+  "confetti-rise": 0xc0ff37,
+  heartbeat: 0x4ea7,
+};
 
 /**
  * The signature motion of a reveal: from the kind, the tier's effect plan (which already says still / light / full)
@@ -413,5 +489,7 @@ export function giftSignaturePlan(kind: GiftSignatureKind, effect: GiftEffectPla
       return balloonPlan(effect.motion, hit, size, random, effect.tier === "COMMON");
     case "confetti-rise":
       return confettiPlan(effect.motion, hit, size, random);
+    case "heartbeat":
+      return heartbeatPlan(effect.motion, hit, size, effect.tier === "COMMON");
   }
 }

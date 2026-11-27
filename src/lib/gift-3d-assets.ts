@@ -1,14 +1,18 @@
 import type { GiftTierName } from "@/lib/gifts-data";
 import type { GiftEffectMotion } from "@/lib/gift-effect-plan";
+import { GIFT_ART_IMAGES } from "@/lib/gift-art-images";
+import { COMPOSED_USES_ART, type ComposedVariant } from "@/lib/gift-composed-plan";
 import { GIFT_LEGENDARY_ART_IMAGES } from "@/lib/gift-legendary-art-images";
 import type { LegendaryVariant } from "@/lib/gift-legendary-plan";
 
 // The richer renderers a gift reveal can use on top of the CSS stage (GiftStage), and the one pure rule that
 // picks between them. Client-safe, no I/O, unit-tested (gift-3d-assets.test.ts).
 //
-//   three  Epic and Legendary: a small React Three Fiber scene, either a self-hosted GLB model (gift-scene-3d.tsx) or,
-//          for the Luxury Red Rose and the Gold Orchid, the cinematic scene around the owner's artwork
-//          (gift-scene-legendary.tsx, plan in gift-legendary-plan.ts). resolveGiftScene says which.
+//   three  Epic and Legendary: a small React Three Fiber scene, either a self-hosted GLB model (gift-scene-3d.tsx), for
+//          the Luxury Red Rose and the Gold Orchid the cinematic scene around the owner's artwork
+//          (gift-scene-legendary.tsx, plan in gift-legendary-plan.ts), or for five gifts a procedural object with the
+//          gift's own icon or effect placed on it (gift-scene-composed.tsx, plan in gift-composed-plan.ts).
+//          resolveGiftScene says which.
 //   stage  everything else, and the fallback for all of the above: the CSS layers + static art.
 //
 // Nothing here is loaded up front: GiftStage only asks for a renderer when a reveal is open, and the libraries are
@@ -46,17 +50,25 @@ export type GiftModelKey = keyof typeof GIFT_MODEL_FILES;
 /** The model each Epic / Legendary marketplace gift's item is revealed with (by item slug). */
 export const GIFT_MODEL_FOR_ITEM: Readonly<Record<string, GiftModelKey>> = {
   "kindred-spirit": "heart",
-  "keepsake-locket": "heart",
   "birthday-balloons": "gift-box",
   "playful-kitten": "gift-box",
   "sunset-postcard": "gift-box",
-  fireworks: "gift-box",
   "supporter-star": "star",
-  "level-up": "star",
   "trophy-frame": "star",
   "midnight-crystal-frame": "diamond",
-  "aurora-sweep": "diamond",
-  "aurora-frame": "diamond",
+};
+
+/**
+ * The gifts revealed with a composed scene (gift-scene-composed.tsx), by item slug: the Keepsake Locket's gold heart,
+ * the Fireworks launching from the opened box, the Level Up badge on the gold star, the Aurora Sweep across the gem and
+ * the Aurora Frame standing on it. Their objects are procedural (no GLB); the other gifts keep their models.
+ */
+export const GIFT_COMPOSED_SCENE_FOR_ITEM: Readonly<Record<string, ComposedVariant>> = {
+  "keepsake-locket": "gold-heart",
+  fireworks: "fireworks-box",
+  "level-up": "star-badge",
+  "aurora-sweep": "gem-sweep",
+  "aurora-frame": "gem-frame",
 };
 
 /** The gifts revealed with the cinematic scene around their artwork (gift-scene-legendary.tsx), by item slug. */
@@ -74,15 +86,22 @@ export function resolveGiftModel(items: readonly { slug: string }[]): GiftModelA
 
 export type GiftScene =
   | { kind: "model"; model: GiftModelAsset }
-  | { kind: "legendary"; variant: LegendaryVariant; artSrc: string };
+  | { kind: "legendary"; variant: LegendaryVariant; artSrc: string }
+  | { kind: "composed"; variant: ComposedVariant; artSrc: string | null };
 
-/** The 3D scene a single-item gift's reveal can play: its legendary scene, else its model, else none. */
+/** The 3D scene a single-item gift's reveal can play: its legendary scene, its composed scene, its model, or none. */
 export function resolveGiftScene(items: readonly { slug: string }[]): GiftScene | null {
   if (items.length !== 1) return null;
   const slug = items[0].slug;
   if (Object.prototype.hasOwnProperty.call(GIFT_LEGENDARY_SCENE_FOR_ITEM, slug)) {
     const art = GIFT_LEGENDARY_ART_IMAGES[slug as keyof typeof GIFT_LEGENDARY_ART_IMAGES];
     if (art) return { kind: "legendary", variant: GIFT_LEGENDARY_SCENE_FOR_ITEM[slug], artSrc: art.src };
+  }
+  if (Object.prototype.hasOwnProperty.call(GIFT_COMPOSED_SCENE_FOR_ITEM, slug)) {
+    const variant = GIFT_COMPOSED_SCENE_FOR_ITEM[slug];
+    if (!COMPOSED_USES_ART[variant]) return { kind: "composed", variant, artSrc: null };
+    const art = GIFT_ART_IMAGES[slug as keyof typeof GIFT_ART_IMAGES];
+    return art ? { kind: "composed", variant, artSrc: art.src } : null;
   }
   const model = resolveGiftModel(items);
   return model ? { kind: "model", model } : null;

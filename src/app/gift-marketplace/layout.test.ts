@@ -111,6 +111,10 @@ describe("gift-marketplace structure", () => {
       "src/lib/gift-legendary-plan.ts",
       "src/components/gift-legendary-graph.ts",
       "src/components/gift-scene-legendary.tsx",
+      "src/lib/gift-composed-plan.ts",
+      "src/components/gift-composed-graph.ts",
+      "src/components/gift-scene-composed.tsx",
+      "src/lib/gift-art-cutout.ts",
       "src/components/gift-canvas.tsx",
     ];
     for (const f of effectFiles) {

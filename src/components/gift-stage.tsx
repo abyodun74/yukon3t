@@ -12,10 +12,12 @@ import { giftSignatureFor } from "@/lib/gift-signature-motion";
 import type { GiftTierName } from "@/lib/gift-market";
 
 // The richer renderers are separate chunks, fetched only when a reveal actually renders one (never on the server, never
-// in the grid's compact cards): three.js + React Three Fiber for Epic / Legendary, a GLB model or, for the Luxury Red
-// Rose and the Gold Orchid, the cinematic scene around their artwork.
+// in the grid's compact cards): three.js + React Three Fiber for Epic / Legendary, a GLB model, for the Luxury Red
+// Rose and the Gold Orchid the cinematic scene around their artwork, or for five gifts a composed scene (a procedural
+// object with the gift's icon or effect placed on it).
 const GiftScene3D = dynamic(() => import("@/components/gift-scene-3d"), { ssr: false, loading: () => null });
 const GiftSceneLegendary = dynamic(() => import("@/components/gift-scene-legendary"), { ssr: false, loading: () => null });
+const GiftSceneComposed = dynamic(() => import("@/components/gift-scene-composed"), { ssr: false, loading: () => null });
 
 /** A renderer that throws (a chunk that failed to load, a broken model) hands back to the plain stage. */
 class RendererBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
@@ -52,8 +54,9 @@ export function useLowEndDevice(): boolean {
  * grid's small card: halo only, nothing moves. Decorative: the name next to it is what screen readers get. `playKey`
  * restarts the whole sequence (Replay).
  *
- * Epic and Legendary gifts with a 3D scene (src/lib/gift-3d-assets.ts, resolveGiftScene: a GLB model, or for the
- * Luxury Red Rose and the Gold Orchid the cinematic scene around their artwork, gift-scene-legendary.tsx) play it over
+ * Epic and Legendary gifts with a 3D scene (src/lib/gift-3d-assets.ts, resolveGiftScene: a GLB model, for the
+ * Luxury Red Rose and the Gold Orchid the cinematic scene around their artwork, gift-scene-legendary.tsx, or a composed
+ * scene, gift-scene-composed.tsx: Keepsake Locket, Fireworks, Level Up, Aurora Sweep, Aurora Frame) play it over
  * the stage's layers instead of the flat art, only with full motion (giftRenderer: never with reduce motion or on a
  * low-end device), only where the browser has WebGL and never in a compact card.
  * The static art stays underneath as the poster until the scene is ready, and is what remains if it fails or the
@@ -181,6 +184,17 @@ export function GiftStage({
                 playStartRef={playStartRef}
                 hitMs={legendaryHitMs(plan)}
                 climaxCount={climaxCount}
+                lowEnd={lowEnd}
+                onReady={onSceneReady}
+                onFallback={onSceneFailed}
+              />
+            ) : scene.kind === "composed" ? (
+              <GiftSceneComposed
+                variant={scene.variant}
+                artSrc={scene.artSrc}
+                playKey={playKey}
+                playStartRef={playStartRef}
+                hitMs={legendaryHitMs(plan)}
                 lowEnd={lowEnd}
                 onReady={onSceneReady}
                 onFallback={onSceneFailed}
