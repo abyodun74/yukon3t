@@ -16,6 +16,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
 import { WRITE_ONCE_PUT_HEADERS } from "@/lib/write-once-upload";
+import { forgetUploadRecords } from "@/lib/upload-records";
 
 // No "avatar": profile pictures never go to the public bucket (they use createAvatarUploadUrl below, see
 // CLAUDE.md "Profile pictures"), so no public presign can be minted for one.
@@ -382,9 +383,14 @@ export async function checkUploadedSize({
     const size = head.ContentLength ?? 0;
 
     if (size === 0 || size > maxBytes) {
-      await c.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })).catch((err) => {
-        console.error(`[storage] failed to delete oversized object ${key}`, err);
-      });
+      const removed = await c.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })).then(
+        () => true,
+        (err) => {
+          console.error(`[storage] failed to delete oversized object ${key}`, err);
+          return false;
+        },
+      );
+      if (removed) await forgetUploadRecords([key]);
       return "too_large";
     }
     return "ok";
@@ -466,16 +472,41 @@ export async function readObjectRange(key: string, offset: number, length: numbe
  * cleanup for a rejected upload that was never referenced by any row — in
  * both cases a transient R2 hiccup here should leave a harmlessly orphaned
  * object behind, not turn an otherwise-successful request into a 500.
+ *
+ * Resolves true only when R2 confirmed the delete; then the key's upload record (if any) is forgotten, so the
+ * abandoned-upload sweep doesn't keep finding a file that is gone. That bookkeeping never throws.
  */
-export async function deleteObject(key: string) {
-  if (!isStorageConfigured()) return;
+export async function deleteObject(key: string): Promise<boolean> {
+  if (!isStorageConfigured()) return false;
   try {
     await client().send(
       new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key }),
     );
   } catch (err) {
     console.error(`[storage] failed to delete object ${key}`, err);
+    return false;
   }
+  await forgetUploadRecords([key]);
+  return true;
+}
+
+/**
+ * Whether an object is in the public bucket: "missing" only for a definite not-found (HTTP 404 / NotFound /
+ * NoSuchKey); every other failure is "error", which callers must never treat as missing.
+ */
+export async function publicObjectStatus(key: string): Promise<"exists" | "missing" | "error"> {
+  try {
+    await client().send(new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: key }));
+    return "exists";
+  } catch (err) {
+    return isDefiniteNotFound(err) ? "missing" : "error";
+  }
+}
+
+export function isDefiniteNotFound(err: unknown): boolean {
+  const e = err as { name?: unknown; $metadata?: { httpStatusCode?: unknown } } | null;
+  if (!e || typeof e !== "object") return false;
+  return e.$metadata?.httpStatusCode === 404 || e.name === "NotFound" || e.name === "NoSuchKey";
 }
 
 /**
@@ -487,9 +518,9 @@ export async function deleteObject(key: string) {
  * oversized upload) and have the resulting cleanup delete the stranger's
  * object for them.
  */
-export async function deleteOwnedObject(key: string, ownerId: string) {
-  if (!keyBelongsToOwner(key, ownerId)) return;
-  await deleteObject(key);
+export async function deleteOwnedObject(key: string, ownerId: string): Promise<boolean> {
+  if (!keyBelongsToOwner(key, ownerId)) return false;
+  return deleteObject(key);
 }
 
 /** Size of each part of a browser-side multipart video upload. R2 requires every part except the last to be the same size. */

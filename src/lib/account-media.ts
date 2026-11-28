@@ -42,7 +42,8 @@ export async function collectAccountMedia(userId: string, avatarUrl: string | nu
     ...muses.flatMap((m) => [m.videoUrl, m.videoThumbnailUrl, m.audioUrl]),
     ...moments.map((m) => m.imageUrl),
   ].filter((u): u is string => Boolean(u) && keyFromPublicUrl(u as string) !== null);
-  // Circle covers aren't in findReferencedUrls; only this person's own `circle-cover/` uploads are candidates.
+  // Circle covers are handled separately: only this person's own `circle-cover/` uploads are candidates, and only
+  // once no Circle uses them (findReferencedUrls also checks Circle.coverImageUrl, so other URLs used as a cover stay).
   const circleCovers = circles
     .map((c) => c.coverImageUrl)
     .filter((u): u is string => {

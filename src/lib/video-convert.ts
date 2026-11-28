@@ -99,7 +99,7 @@ export type ConversionDeps = {
   keyFromPublicUrl(url: string): string | null;
   /** Streams the MP4 at `downloadUrl` into R2 at `key`; returns its public URL. */
   copyToR2(downloadUrl: string, key: string): Promise<string>;
-  deleteObject(key: string): Promise<void>;
+  deleteObject(key: string): Promise<unknown>;
   /** Points every stored reference to `fromUrl` at `toUrl`; returns how many rows changed. */
   swapUrl(fromUrl: string, toUrl: string): Promise<number>;
 };

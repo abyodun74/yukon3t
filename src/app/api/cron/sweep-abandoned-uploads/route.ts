@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/cron-auth";
-import { isStorageConfigured, deleteObject } from "@/lib/storage";
+import { isStorageConfigured, deleteObject, publicObjectStatus } from "@/lib/storage";
 import { sweepAbandonedUploads } from "@/lib/upload-records";
 
 export const maxDuration = 120;
@@ -13,7 +13,9 @@ const LIMIT_PER_RUN = 200;
 /**
  * Triggered hourly (Netlify Scheduled Function). Deletes uploads that were handed out but that nothing ever
  * referenced — see src/lib/upload-records.ts for the safeguards. It only LOGS what it would delete until
- * UPLOAD_SWEEP_DELETE=1 is set on the deploy, so its findings can be reviewed before it removes anything.
+ * UPLOAD_SWEEP_DELETE=1 is set on the deploy, so its findings can be reviewed before it removes anything. A dry run
+ * still HEADs each unreferenced file and marks the checked records (checkedAt) so it moves on to newer ones; it never
+ * deletes a stored file and only forgets records that are in use, as before.
  */
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
@@ -30,6 +32,7 @@ export async function GET(request: Request) {
     limit: LIMIT_PER_RUN,
     publicBaseUrl: process.env.R2_PUBLIC_URL,
     deleteObject,
+    objectStatus: publicObjectStatus,
   });
   if (result.unreferenced > 0 || result.aborted) console.log("[upload-sweep]", JSON.stringify(result));
   return NextResponse.json(result);
