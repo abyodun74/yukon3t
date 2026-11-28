@@ -13,6 +13,8 @@ import {
   HIGH_FIVE_REST,
   HIGH_FIVE_SPLIT,
   SIGNATURE_MAX_MS,
+  SHOOTING_STARS,
+  SHOOTING_STAR_SOURCE,
   SIGNATURE_PALETTE,
   WAVE_PIVOT,
   giftSignatureFor,
@@ -25,11 +27,11 @@ import {
   type SignatureTrack,
 } from "@/lib/gift-signature-motion";
 
-// The signature motions of Wave, High five, Birthday Balloons, Confetti and the Heartbeat Note: the registry, the plans' determinism,
+// The signature motions of Wave, High five, Birthday Balloons, Confetti, the Heartbeat Note and the Shooting Star: the registry, the plans' determinism,
 // their timing against the reveal's timeline (and the tier sound), the reduced-motion and low-end plans, the no-bounce
 // rule for every scale they animate, and the High five seam.
 
-const KINDS: GiftSignatureKind[] = ["wave", "high-five", "balloon-release", "confetti-rise", "heartbeat"];
+const KINDS: GiftSignatureKind[] = ["wave", "high-five", "balloon-release", "confetti-rise", "heartbeat", "shooting-stars"];
 const MOTIONS: GiftEffectMotion[] = ["full", "light", "still"];
 const SIZES = [150, 190, 240, 280];
 const options = (motion: GiftEffectMotion) => ({ reduce: motion === "still", lowEnd: motion === "light" });
@@ -60,13 +62,14 @@ function* everyPlan(): Generator<[string, GiftSignaturePlan, GiftTierName, GiftE
 }
 
 describe("the registry", () => {
-  it("maps exactly the five gifts, each an existing catalogue item and marketplace gift", () => {
+  it("maps exactly the six gifts, each an existing catalogue item and marketplace gift", () => {
     expect(Object.entries(GIFT_SIGNATURES).sort()).toEqual(
       [
         ["birthday-balloons", "balloon-release"],
         ["confetti", "confetti-rise"],
         ["heartbeat-note", "heartbeat"],
         ["high-five", "high-five"],
+        ["shooting-star", "shooting-stars"],
         ["wave", "wave"],
       ].sort(),
     );
@@ -167,8 +170,15 @@ describe("every plan", () => {
     }
   });
 
-  it("each gift's own tier: Wave, High five and Confetti are Common, Birthday Balloons Epic, the Heartbeat Note Rare", () => {
-    expect(["wave", "high-five", "confetti", "birthday-balloons", "heartbeat-note"].map(tierOf)).toEqual(["COMMON", "COMMON", "COMMON", "EPIC", "RARE"]);
+  it("each gift's own tier: Wave, High five and Confetti are Common, Birthday Balloons Epic, the Heartbeat Note and the Shooting Star Rare", () => {
+    expect(["wave", "high-five", "confetti", "birthday-balloons", "heartbeat-note", "shooting-star"].map(tierOf)).toEqual([
+      "COMMON",
+      "COMMON",
+      "COMMON",
+      "EPIC",
+      "RARE",
+      "RARE",
+    ]);
   });
 });
 
@@ -343,5 +353,96 @@ describe("Heartbeat Note", () => {
     expect(Object.keys(light.tracks).sort()).toEqual(["art", "beat", "glow"]);
     expect(HEARTBEAT_CENTER.x).toBeGreaterThan(0.4);
     expect(HEARTBEAT_LINE.to).toBeGreaterThan(HEARTBEAT_LINE.from);
+  });
+});
+
+describe("Shooting Star", () => {
+  const flight = (t: SignatureTrack) =>
+    t.keyframes.map((k) => {
+      const m = k.transform!.match(/^rotate\((-?[0-9.]+)deg\) translateY\((-?[0-9.]+)px\)$/)!;
+      return { angle: Number(m[1]), y: Number(m[2]), opacity: k.opacity! };
+    });
+
+  it("from the name's step, its star shoots several stars UP: each climbs only upward, out past the art, then fades", () => {
+    for (const size of SIZES) {
+      const plan = planFor("shooting-stars", "RARE", "full", size);
+      expect(plan.stars).toHaveLength(SHOOTING_STARS.count.full);
+      expect(plan.particles).toEqual([]);
+      for (const s of plan.stars) {
+        // Launched from the art's own star.
+        expect(s).toMatchObject({ x: SHOOTING_STAR_SOURCE.x, y: SHOOTING_STAR_SOURCE.y });
+        // Up: never more than 50 degrees off vertical.
+        expect(Math.abs(s.angle), s.id).toBeLessThanOrEqual(50);
+        const t = plan.tracks[s.id];
+        expect(t.delayMs, s.id).toBeGreaterThanOrEqual(plan.keyBeatMs);
+        const keys = flight(t);
+        // One fixed direction of travel per star, a climb that only goes up (translateY only falls), well past the art.
+        expect(new Set(keys.map((k) => k.angle)).size, s.id).toBe(1);
+        for (let i = 1; i < keys.length; i++) expect(keys[i].y, s.id).toBeLessThan(keys[i - 1].y);
+        expect(-keys[keys.length - 1].y, s.id).toBeGreaterThanOrEqual(size * SHOOTING_STARS.climb.min - 1);
+        // Fast off the star, slowing as it climbs (no overshoot, no coming back).
+        const firstStep = keys[1].y - keys[0].y;
+        const lastStep = keys[keys.length - 1].y - keys[keys.length - 2].y;
+        expect(Math.abs(firstStep) / 0.05).toBeGreaterThan(Math.abs(lastStep) / 0.15);
+        expect(keys[0].opacity).toBe(0);
+        expect(keys[keys.length - 1].opacity).toBe(0);
+        expect(Math.max(...keys.map((k) => k.opacity))).toBe(1);
+      }
+    }
+  });
+
+  it("each tail grows out behind its star (only grows, never longer than the way it has come)", () => {
+    const size = 190;
+    const plan = planFor("shooting-stars", "RARE", "full", size);
+    for (const s of plan.stars) {
+      const tail = plan.tracks[`${s.id}t`];
+      const head = flight(plan.tracks[s.id]);
+      expect(tail.delayMs).toBe(plan.tracks[s.id].delayMs);
+      expect(tail.durationMs).toBe(plan.tracks[s.id].durationMs);
+      const scales = tail.keyframes.map((k) => Number(k.transform!.match(/^scaleY\(([0-9.]+)\)$/)![1]));
+      for (let i = 1; i < scales.length; i++) expect(scales[i]).toBeGreaterThanOrEqual(scales[i - 1]);
+      expect(scales[scales.length - 1]).toBe(1);
+      scales.forEach((sc, i) => expect(sc * s.tail).toBeLessThanOrEqual(-head[i].y + 0.6));
+      expect(tail.keyframes[0].opacity).toBe(0);
+    }
+  });
+
+  it("varied: different angles (both sides of vertical), head sizes, launch gaps and flight times", () => {
+    const plan = planFor("shooting-stars", "RARE", "full");
+    const angles = plan.stars.map((s) => s.angle);
+    expect(angles.some((a) => a < -20)).toBe(true);
+    expect(angles.some((a) => a > 0)).toBe(true);
+    expect(new Set(angles).size).toBe(angles.length);
+    const heads = plan.stars.map((s) => s.head);
+    expect(Math.max(...heads) / Math.min(...heads)).toBeGreaterThan(1.3);
+    for (const h of heads) expect(h).toBeGreaterThanOrEqual(190 * SHOOTING_STARS.head.min - 0.1);
+    const launches = plan.stars.map((s) => plan.tracks[s.id].delayMs);
+    for (let i = 1; i < launches.length; i++) expect(launches[i]).toBeGreaterThan(launches[i - 1]);
+    expect(new Set(plan.stars.map((s) => plan.tracks[s.id].durationMs)).size).toBeGreaterThan(3);
+    // A glint on the star for every launch, soft (below full opacity).
+    const glints = plan.tracks.launch.keyframes.filter((k) => (k.opacity ?? 0) > 0);
+    expect(glints).toHaveLength(plan.stars.length);
+    for (const g of glints) expect(g.opacity).toBeLessThanOrEqual(0.8);
+  });
+
+  it("scaled to Rare: a short volley, done in under 5 s; a Common-length score gets fewer stars", () => {
+    const plan = planFor("shooting-stars", "RARE", "full");
+    expect(plan.endMs).toBeLessThan(5000);
+    expect(planFor("shooting-stars", "COMMON", "full").stars).toHaveLength(SHOOTING_STARS.count.short);
+  });
+
+  it("a low-end device and reduced motion: no stars at all, the art fades in without moving (a still)", () => {
+    for (const motion of ["light", "still"] as const) {
+      const plan = planFor("shooting-stars", "RARE", motion);
+      expect(plan.stars).toEqual([]);
+      expect(Object.keys(plan.tracks)).toEqual(["art"]);
+      expect(plan.tracks.art.keyframes.every((k) => k.transform === undefined)).toBe(true);
+    }
+  });
+
+  it("other gifts' plans carry no stars", () => {
+    for (const kind of KINDS.filter((k) => k !== "shooting-stars")) {
+      for (const motion of MOTIONS) expect(planFor(kind, "RARE", motion).stars, `${kind}/${motion}`).toEqual([]);
+    }
   });
 });

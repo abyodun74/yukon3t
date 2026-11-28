@@ -65,7 +65,7 @@ export function useLowEndDevice(): boolean {
  * climax cues) adds a light pulse to the legendary scene.
  *
  * A single-item gift with a signature motion (src/lib/gift-signature-motion.ts: Wave, High five, Birthday Balloons,
- * Confetti) plays GiftSignatureMotion instead of the art's generic entrance (and never the 3D scene); the tier's
+ * Confetti, the Heartbeat Note, the Shooting Star) plays GiftSignatureMotion instead of the art's generic entrance (and never the 3D scene); the tier's
  * halo, sparkles and depth rings stay around it. Replay remounts it, so it starts over.
  */
 export function GiftStage({

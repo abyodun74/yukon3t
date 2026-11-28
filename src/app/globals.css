@@ -1499,7 +1499,7 @@ img[data-press-highlight] {
 }
 
 /* Gift signature motions (src/lib/gift-signature-motion.ts, src/components/gift-signature-motion.tsx): Wave, High five,
-   Birthday Balloons and Confetti replace the stage's generic entrance with their own. No keyframes here: the component
+   Birthday Balloons, Confetti, the Heartbeat Note and the Shooting Star replace the stage's generic entrance with their own. No keyframes here: the component
    animates each layer from the pure plan with the Web Animations API (transform + opacity, finite, fill backwards).
    This is only the final pose every layer returns to: the art at rest, every transient layer (box, lid, halves, flash,
    ring, motion lines, particles) hidden. So reduced motion, a missing track or a cancelled animation all show the
@@ -1611,6 +1611,74 @@ img[data-press-highlight] {
   border-radius: 9999px;
   background: radial-gradient(circle, #ffffff, rgba(255, 150, 240, 0.8) 35%, transparent 70%);
   mix-blend-mode: screen;
+}
+/* The Shooting Star: each launched star is a zero-size anchor on the art's star, turned to its direction of travel
+   (--star-w head size, --star-l tail length, px). The tail hangs below the head in the anchor's own frame, so it always
+   points back down the way the star came; it grows from the head (transform-origin at its top). */
+.gift-sig-star {
+  width: 0;
+  height: 0;
+  display: block;
+}
+.gift-sig-star-launch {
+  width: 34%;
+  aspect-ratio: 1;
+  margin-left: -17%;
+  margin-top: -17%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 250, 225, 0.9), rgba(255, 196, 90, 0.4) 34%, transparent 68%);
+  mix-blend-mode: screen;
+}
+.gift-sig-star-tail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: var(--star-l);
+  display: block;
+  transform-origin: 50% 0;
+}
+.gift-sig-star-tail-glow,
+.gift-sig-star-tail-core {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: block;
+}
+.gift-sig-star-tail-glow {
+  left: calc(var(--star-w) * -0.36);
+  width: calc(var(--star-w) * 0.72);
+  border-radius: 9999px;
+  background: linear-gradient(to bottom, rgba(255, 214, 140, 0.55), rgba(180, 140, 255, 0.22) 55%, transparent);
+  mix-blend-mode: screen;
+}
+.gift-sig-star-tail-core {
+  left: calc(var(--star-w) * -0.15);
+  width: calc(var(--star-w) * 0.3);
+  clip-path: polygon(0 0, 100% 0, 56% 100%, 44% 100%);
+  background: linear-gradient(to bottom, #fff8e0, rgba(255, 200, 110, 0.85) 30%, rgba(170, 140, 255, 0.35) 70%, transparent);
+}
+.gift-sig-star-glow,
+.gift-sig-star-head {
+  position: absolute;
+  display: block;
+}
+.gift-sig-star-glow {
+  left: calc(var(--star-w) * -1.1);
+  top: calc(var(--star-w) * -1.1);
+  width: calc(var(--star-w) * 2.2);
+  height: calc(var(--star-w) * 2.2);
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 236, 170, 0.8), rgba(255, 176, 64, 0.3) 38%, transparent 68%);
+  mix-blend-mode: screen;
+}
+.gift-sig-star-head {
+  left: calc(var(--star-w) * -0.5);
+  top: calc(var(--star-w) * -0.52);
+  width: var(--star-w);
+  height: var(--star-w);
+  clip-path: polygon(50% 0%, 61.2% 34.5%, 97.6% 34.5%, 68.2% 55.9%, 79.4% 90.5%, 50% 69.1%, 20.6% 90.5%, 31.8% 55.9%, 2.4% 34.5%, 38.8% 34.5%);
+  background: radial-gradient(circle at 50% 56%, #ffffff 0 16%, #fff0b0 34%, #ffc845 62%, #ff9d1e 92%);
 }
 
 /* The hearts that float up a post, a Muse or a Story when it is liked (heart-burst-layer.tsx in PostCard, MuseCard and

@@ -10,10 +10,12 @@ import {
   HEARTBEAT_CENTER,
   HEARTBEAT_LINE,
   HIGH_FIVE_CONTACT,
+  SHOOTING_STAR_SOURCE,
   WAVE_PIVOT,
   giftSignaturePlan,
   highFiveClips,
   type GiftSignatureKind,
+  type ShootingStarFlight,
   type SignatureParticle,
 } from "@/lib/gift-signature-motion";
 
@@ -22,7 +24,7 @@ const origin = (p: { x: number; y: number }) => ({ transformOrigin: `${pct(p.x)}
 
 /**
  * A gift's signature motion (src/lib/gift-signature-motion.ts: Wave, High five, Birthday Balloons, Confetti, the
- * Heartbeat Note's pulse) in place of the stage's generic entrance: GiftStage
+ * Heartbeat Note's pulse, the Shooting Star's stars) in place of the stage's generic entrance: GiftStage
  * renders it for the gifts in GIFT_SIGNATURES, so the marketplace Preview and the recipient's open screen play the same
  * thing. Decorative (the stage is aria-hidden). Each layer carries a `data-sig` id; on mount every layer with a track is
  * animated with the Web Animations API (transform and opacity only, finite, fill "backwards"), and every animation is
@@ -209,6 +211,24 @@ export function GiftSignatureMotion({
         </>
       )}
 
+      {kind === "shooting-stars" && (
+        <>
+          <span data-sig="art" className="gift-sig-layer">
+            {art}
+          </span>
+          {has("launch") && (
+            <span
+              data-sig="launch"
+              className="gift-sig-fx gift-sig-star-launch"
+              style={{ left: pct(SHOOTING_STAR_SOURCE.x), top: pct(SHOOTING_STAR_SOURCE.y) }}
+            />
+          )}
+          {plan.stars.map((s) => (
+            <ShootingStar key={s.id} star={s} />
+          ))}
+        </>
+      )}
+
       {plan.particles.map((p) => (
         <Particle key={p.id} particle={p} />
       ))}
@@ -250,6 +270,25 @@ function Particle({ particle: p }: { particle: SignatureParticle }) {
     background: p.color,
   };
   return <span data-sig={p.id} className={`gift-sig-fx gift-sig-particle gift-sig-particle-${p.shape}`} style={style} />;
+}
+
+/**
+ * One star the Shooting Star launches: a zero-size anchor on the launch point, turned to its direction of travel (the
+ * flight track moves it up that line), holding the tail (grows out behind, pointing back down at the star it left), the
+ * head's glow and the five-pointed head itself.
+ */
+function ShootingStar({ star: s }: { star: ShootingStarFlight }) {
+  const vars = { left: pct(s.x), top: pct(s.y), "--star-w": `${s.head}px`, "--star-l": `${s.tail}px` } as CSSProperties;
+  return (
+    <span data-sig={s.id} className="gift-sig-fx gift-sig-star" style={vars}>
+      <span data-sig={`${s.id}t`} className="gift-sig-star-tail">
+        <span className="gift-sig-star-tail-glow" />
+        <span className="gift-sig-star-tail-core" />
+      </span>
+      <span className="gift-sig-star-glow" />
+      <span className="gift-sig-star-head" />
+    </span>
+  );
 }
 
 /** A simple gift box (no art file): body with a ribbon, and a lid with a bow that pops off. */

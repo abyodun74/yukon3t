@@ -17,6 +17,11 @@ import type { GiftItemSlug } from "@/lib/gifts-data";
 //                      along its pulse line. The swell returns to exactly the resting size, eased in and out (a tween,
 //                      not a spring): the only signature scale that rises and comes back, on purpose (allow-listed in
 //                      the test, like the like heart's `post-heart-pulse`).
+//   shooting-stars     the Shooting Star rises in and, from the name's step, its star launches smaller stars upward:
+//                      clear five-pointed stars, each with a glowing comet tail pointing back down to the star they
+//                      came from, a few hundred ms apart, at different angles, sizes and speeds, fast off the star and
+//                      slowing as they climb out of the top of the stage. A soft glint on the star marks each launch.
+//                      A low-end device gets no stars (the art only fades in, a still), like reduced motion.
 //
 // Every track animates transform and opacity only, has a finite length and fills "backwards" only: before its delay it
 // holds its first keyframe, after its end the element's own CSS (globals.css "Gift signature motions") is the final
@@ -26,7 +31,7 @@ import type { GiftItemSlug } from "@/lib/gifts-data";
 // Reduced motion ("still"): the final pose with one short fade, no particles. A low-end device ("light"): fewer
 // particles, no 3D flutter, no hover, shorter swings.
 
-export type GiftSignatureKind = "wave" | "high-five" | "balloon-release" | "confetti-rise" | "heartbeat";
+export type GiftSignatureKind = "wave" | "high-five" | "balloon-release" | "confetti-rise" | "heartbeat" | "shooting-stars";
 
 /** The gifts (by item slug) that have a signature motion. */
 export const GIFT_SIGNATURES: Readonly<Partial<Record<GiftItemSlug, GiftSignatureKind>>> = {
@@ -35,7 +40,28 @@ export const GIFT_SIGNATURES: Readonly<Partial<Record<GiftItemSlug, GiftSignatur
   "birthday-balloons": "balloon-release",
   confetti: "confetti-rise",
   "heartbeat-note": "heartbeat",
+  "shooting-star": "shooting-stars",
 };
+
+/** The Shooting Star's star (fraction of the art's box): where the stars it shoots launch from. */
+export const SHOOTING_STAR_SOURCE = { x: 0.815, y: 0.47 } as const;
+
+/**
+ * The Shooting Star's volley (full motion only): how many stars, the gap between launches (ms, before jitter), each
+ * star's flight time (ms), how far it climbs (in art sizes: past the top of the stage on every layout) and its head
+ * and tail size (in art sizes). Angles are degrees from straight up (negative = to the left, where there is more room:
+ * the star sits on the art's right).
+ */
+export const SHOOTING_STARS = {
+  /** `short`: in a Common-length (~4 s) score, so the volley ends within it (the gift itself is Rare). */
+  count: { full: 7, short: 4 },
+  gapMs: 300,
+  flightMs: { min: 1050, max: 1450 },
+  climb: { min: 1.45, max: 1.95 },
+  head: { min: 0.13, max: 0.21 },
+  tail: { min: 0.5, max: 0.75 },
+  angles: [-12, -32, 6, -24, -42, -4, 14],
+} as const;
 
 /** The Heartbeat Note's music note (fraction of the art's box): the beat swells around it, the glow and rings start here. */
 export const HEARTBEAT_CENTER = { x: 0.6, y: 0.52 } as const;
@@ -90,12 +116,27 @@ export type SignatureParticle = {
   height: number;
 };
 
+/** One star the Shooting Star launches: its flight is the track `id`, its tail growing out behind it is `${id}t`. */
+export type ShootingStarFlight = {
+  id: string;
+  /** Launch point, as a fraction of the art's box. */
+  x: number;
+  y: number;
+  /** Direction of travel, degrees from straight up (negative = left). */
+  angle: number;
+  /** Head size and tail length in px. */
+  head: number;
+  tail: number;
+};
+
 export type GiftSignaturePlan = {
   kind: GiftSignatureKind;
   motion: GiftEffectMotion;
   /** Track per data-sig id; a layer without a track sits in its final (CSS) pose. */
   tracks: Record<string, SignatureTrack>;
   particles: SignatureParticle[];
+  /** The Shooting Star's stars (empty for every other kind). */
+  stars: ShootingStarFlight[];
   /** The key beat, aligned with the name's step (the sound's hit). */
   keyBeatMs: number;
   /** When the art is in place and fully visible. */
@@ -168,9 +209,10 @@ function finish(
   particles: SignatureParticle[],
   keyBeatMs: number,
   arrivedMs: number,
+  stars: ShootingStarFlight[] = [],
 ): GiftSignaturePlan {
   const endMs = Math.max(0, ...Object.values(tracks).map(trackEnd));
-  return { kind, motion, tracks, particles, keyBeatMs: Math.round(keyBeatMs), arrivedMs: Math.round(arrivedMs), endMs };
+  return { kind, motion, tracks, particles, stars, keyBeatMs: Math.round(keyBeatMs), arrivedMs: Math.round(arrivedMs), endMs };
 }
 
 /** Reduced motion: the final pose, the art fading in once. */
@@ -464,12 +506,85 @@ function heartbeatPlan(motion: GiftEffectMotion, hit: number, size: number, shor
   return finish("heartbeat", motion, tracks, [], hit, hit);
 }
 
+/** How far along its climb a star is at time fraction t: fast off the star, slowing as it rises (ease-out, no overshoot). */
+export function starClimb(t: number): number {
+  const c = Math.min(1, Math.max(0, t));
+  return 1 - Math.pow(1 - c, 2.2);
+}
+
+const STAR_STOPS = [0, 0.05, 0.12, 0.2, 0.3, 0.42, 0.55, 0.7, 0.85, 1];
+
+function shootingStarsPlan(motion: GiftEffectMotion, hit: number, size: number, random: () => number, short: boolean): GiftSignaturePlan {
+  if (motion === "light") {
+    // A low-end device: no stars, the art only fades in (no movement) and is in place on the name's step.
+    const art = track([
+      { at: 0, opacity: 0, easing: "ease-out" },
+      { at: hit, opacity: 1 },
+    ]);
+    return finish("shooting-stars", motion, { art }, [], hit, hit);
+  }
+  const tracks: Record<string, SignatureTrack> = {
+    art: track([
+      { at: 0, transform: `translateY(${px(size * 0.08)})`, opacity: 0, easing: EASE_OUT },
+      { at: hit, transform: "translateY(0px)", opacity: 1 },
+    ]),
+  };
+  const lerp = (r: { min: number; max: number }, n: number) => r.min + (r.max - r.min) * n;
+  const stars: ShootingStarFlight[] = [];
+  const launches: number[] = [];
+  const count = short ? SHOOTING_STARS.count.short : SHOOTING_STARS.count.full;
+  for (let i = 0; i < count; i++) {
+    const id = `star${i}`;
+    const launch = hit + i * SHOOTING_STARS.gapMs + Math.round(random() * 90);
+    const angle = SHOOTING_STARS.angles[i % SHOOTING_STARS.angles.length] + Math.round((random() - 0.5) * 80) / 10;
+    // Big and small stars alternate, so the volley reads as varied rather than a row of copies.
+    const big = i % 2 === 0;
+    const head = r1(size * lerp(SHOOTING_STARS.head, big ? 0.55 + random() * 0.45 : random() * 0.45));
+    const tail = r1(size * lerp(SHOOTING_STARS.tail, big ? 0.5 + random() * 0.5 : random() * 0.5));
+    const climb = size * lerp(SHOOTING_STARS.climb, random());
+    const flight = Math.round(lerp(SHOOTING_STARS.flightMs, random()));
+    const turn = `rotate(${deg(angle)})`;
+    tracks[id] = track(
+      STAR_STOPS.map((t) => ({
+        at: launch + t * flight,
+        transform: `${turn} translateY(${px(-climb * starClimb(t))})`,
+        opacity: t === 0 ? 0 : t >= 1 ? 0 : t <= 0.62 ? 1 : r3(1 - (t - 0.62) / 0.38),
+      })),
+    );
+    // The tail grows out behind the head and is never longer than the way the star has come (so it never reaches
+    // below the star it left); it only grows.
+    tracks[`${id}t`] = track(
+      STAR_STOPS.map((t) => ({
+        at: launch + t * flight,
+        transform: `scaleY(${r3(Math.min(1, (climb * starClimb(t)) / tail))})`,
+        opacity: t === 0 ? 0 : 1,
+      })),
+    );
+    stars.push({ id, x: SHOOTING_STAR_SOURCE.x, y: SHOOTING_STAR_SOURCE.y, angle, head, tail });
+    launches.push(launch);
+  }
+  // A soft glint on the star as each one leaves it (peaks well below full opacity: a glint, not a strobe).
+  tracks.launch = track(
+    // Each glint is over before the next launch starts, so the keys stay in order.
+    launches.flatMap((at, i) => {
+      const out = Math.min(at + 260, launches[i + 1] ?? Infinity);
+      return [
+        { at, opacity: 0, easing: "ease-out" },
+        { at: at + Math.min(70, (out - at) / 3), opacity: 0.75, easing: "ease-in" },
+        { at: out, opacity: 0 },
+      ];
+    }),
+  );
+  return finish("shooting-stars", motion, tracks, [], hit, hit, stars);
+}
+
 const SEEDS: Record<GiftSignatureKind, number> = {
   wave: 1,
   "high-five": 2,
   "balloon-release": 0x5ba11,
   "confetti-rise": 0xc0ff37,
   heartbeat: 0x4ea7,
+  "shooting-stars": 0x57a75,
 };
 
 /**
@@ -491,5 +606,7 @@ export function giftSignaturePlan(kind: GiftSignatureKind, effect: GiftEffectPla
       return confettiPlan(effect.motion, hit, size, random);
     case "heartbeat":
       return heartbeatPlan(effect.motion, hit, size, effect.tier === "COMMON");
+    case "shooting-stars":
+      return shootingStarsPlan(effect.motion, hit, size, random, effect.tier === "COMMON");
   }
 }
