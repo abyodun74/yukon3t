@@ -11,6 +11,7 @@ const db = vi.hoisted(() => ({
   forgetCalls: [] as string[][],
   forgetFails: false,
   stories: [] as Record<string, unknown>[],
+  linkedUrl: null as string | null,
 }));
 
 vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
@@ -25,6 +26,14 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 
 vi.mock("@/lib/prisma", () => {
   const empty = { findMany: vi.fn(async () => []), count: vi.fn(async () => 0) };
+  // A database that answers the way Postgres would: a LINK post / ad whose link is db.linkedUrl comes back only if
+  // the query actually asks about linkUrl.
+  const linkAware = (row: (url: string) => Record<string, unknown>) => ({
+    findMany: vi.fn(async (args: { where: unknown }) =>
+      db.linkedUrl && JSON.stringify(args.where).includes('"linkUrl"') ? [row(db.linkedUrl)] : [],
+    ),
+    count: vi.fn(async () => 0),
+  });
   return {
     prisma: {
       uploadRecord: {
@@ -34,11 +43,11 @@ vi.mock("@/lib/prisma", () => {
           return { count: args.where.key.in.length };
         }),
       },
-      post: empty,
+      post: linkAware((url) => ({ mediaType: "LINK", mediaUrls: [], videoUrl: null, videoThumbnailUrl: null, linkUrl: url })),
       comment: empty,
       message: empty,
       muse: empty,
-      adCampaign: empty,
+      adCampaign: linkAware((url) => ({ mediaUrl: null, linkUrl: url })),
       announcement: empty,
       ambientMoment: empty,
       circle: empty,
@@ -110,6 +119,7 @@ beforeEach(() => {
   db.forgetCalls = [];
   db.forgetFails = false;
   db.stories = [];
+  db.linkedUrl = null;
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -162,6 +172,14 @@ describe("every delete path forgets the records of the files it deleted", () => 
   it("deleteMediaIfUnreferenced (post/comment/message/Muse/moderation deletes)", async () => {
     await deleteMediaIfUnreferenced([`${BASE}/post-video/u1/v.mp4`, `${BASE}/video-thumb/u1/v.jpg`, null]);
     expect(forgotten()).toEqual(["post-video/u1/v.mp4", "video-thumb/u1/v.jpg"]);
+  });
+
+  it("a LINK post or ad pointing at a media URL doesn't stop deleteMediaIfUnreferenced", async () => {
+    const url = `${BASE}/post-video/u1/v.mp4`;
+    db.linkedUrl = url;
+    await deleteMediaIfUnreferenced([url]);
+    expect(deletedKeys()).toEqual(["post-video/u1/v.mp4"]);
+    expect(forgotten()).toEqual(["post-video/u1/v.mp4"]);
   });
 
   it("story expiry", async () => {

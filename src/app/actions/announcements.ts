@@ -10,7 +10,7 @@ import { broadcastFcmAnnouncement } from "@/lib/fcm";
 import { broadcastPushAnnouncement } from "@/lib/push";
 import { publishEvent } from "@/lib/realtime-server";
 import { REALTIME_CHANNELS } from "@/lib/realtime-channels";
-import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, keyFromPublicUrl } from "@/lib/storage";
+import { MEDIA_LIMITS, verifyUploadedSize, deleteObject, keyFromPublicUrl, keyBelongsToOwner } from "@/lib/storage";
 import { deleteOwnedUploads } from "@/lib/owned-uploads";
 
 /**
@@ -25,6 +25,13 @@ import { deleteOwnedUploads } from "@/lib/owned-uploads";
  * language without one get the English (src/lib/announcement-translations.ts). A posted announcement's text,
  * translations and attachment can be changed later with updateAnnouncement (no new push).
  */
+/** A video announcement's still frame, if any, must be an upload of the acting admin's own (same rule as mediaUrl). */
+function isOwnThumbnail(url: string | undefined, adminId: string) {
+  if (!url) return true;
+  const key = keyFromPublicUrl(url);
+  return key !== null && keyBelongsToOwner(key, adminId);
+}
+
 export async function createAnnouncement(formData: FormData) {
   const admin = await requireAdmin();
 
@@ -49,6 +56,11 @@ export async function createAnnouncement(formData: FormData) {
     return { error: "invalid" as const };
   }
   if (mediaThumbnailUrl && mediaType !== "VIDEO") {
+    return { error: "invalid" as const };
+  }
+  // The thumbnail must be this admin's own upload too: it counts as a use of that file for the media reference check
+  // (findReferencedUrls), so a foreign URL here would keep someone else's deleted media alive.
+  if (!isOwnThumbnail(mediaThumbnailUrl, admin.id)) {
     return { error: "invalid" as const };
   }
 
@@ -150,7 +162,12 @@ export async function updateAnnouncement(formData: FormData) {
   const { title, body, mediaType, mediaUrl, mediaThumbnailUrl } = parsed.data;
 
   if (media === "replace") {
-    if (!mediaType || !mediaUrl || (mediaThumbnailUrl && mediaType !== "VIDEO")) {
+    if (
+      !mediaType ||
+      !mediaUrl ||
+      (mediaThumbnailUrl && mediaType !== "VIDEO") ||
+      !isOwnThumbnail(mediaThumbnailUrl, admin.id)
+    ) {
       await cleanupUploads();
       return { error: "invalid" as const };
     }

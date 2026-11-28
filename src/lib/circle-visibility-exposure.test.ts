@@ -47,9 +47,10 @@ const UNFILTERED_CIRCLE_LISTS: Record<string, number> = {
   // The moderation queue's preview of reported Circles (by id, from open reports): admin-only, server-rendered on
   // /admin/moderation; a PRIVATE one links to /admin/circles, never to its page.
   "lib/report-content-preview.ts": 1,
-  // The media reference check (findReferencedUrls): which of the given URLs a Circle cover still uses. Only those URLs
-  // come back, used server-side to decide what not to delete; never returned to a browser.
-  "lib/upload-records.ts": 1,
+  // The media reference check (findReferencedUrls): which of the given URLs a Circle cover still uses; and the upload
+  // sweep's self-test (referenceControls): the newest cover URL under the bucket. Only URLs, used server-side to
+  // decide what not to delete; never returned to a browser.
+  "lib/upload-records.ts": 2,
 };
 
 describe("queries that list Circles", () => {

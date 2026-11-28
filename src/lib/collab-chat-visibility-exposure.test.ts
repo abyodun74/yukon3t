@@ -75,6 +75,9 @@ const UNCHECKED_CHAT_READS = new Set([
   "app/actions/messages.ts#deleteConversation",
   "lib/content-moderation.ts#removeModeratedContent",
   "lib/report-target.ts#accusedUserIdOf",
+  // The upload sweep's reference-check self-test: the newest message media URL under the bucket, used server-side
+  // only to check that findReferencedUrls still sees it. No chat is shown to anyone.
+  "lib/upload-records.ts#referenceControls",
   // 1:1 chats only (`isGroup: false`, or refuses a group before anything else): a collab chat is always a group.
   "app/actions/stories.ts#replyToStory",
   "lib/birthday-wish-server.ts#sendBirthdayWishAs",

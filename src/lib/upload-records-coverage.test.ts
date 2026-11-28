@@ -24,6 +24,10 @@ const EXCLUDED: Record<string, string> = {
   "Post.videoStreamUid": "Cloudflare Stream id, not a URL",
   "Comment.videoStreamUid": "Cloudflare Stream id, not a URL",
   "Muse.videoStreamUid": "Cloudflare Stream id, not a URL",
+  "Post.linkUrl":
+    "a LINK post's free-form URL: anyone can paste any URL, so counting it would let them keep someone else's deleted media alive",
+  "AdCampaign.linkUrl":
+    "an ad's click-through URL, typed by an anonymous booker (even an unpaid draft): same reason as Post.linkUrl",
   "Comment.gifUrl": "Giphy URL, validated as one (isGiphyUrl) before it is stored",
   "MuseComment.gifUrl": "Giphy URL, validated as one before it is stored",
   "LiveStreamRecordingPost.r2VideoUrl":

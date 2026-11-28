@@ -344,14 +344,24 @@ recorded (`UploadRecord`, `lib/upload-records.ts`), and the hourly `sweep-abando
 cautious: **dry-run (log only) unless `UPLOAD_SWEEP_DELETE=1` is set**; exact-URL reference check across every column that can
 hold such a URL (`findReferencedUrls` / `MEDIA_REFERENCE_COLUMNS` — a NEW column that stores a media URL must be added there or the
 sweep would delete what it uses; `upload-records-coverage.test.ts` fails on any URL-like schema column that is neither covered nor
-excluded with a reason), counting a `.mov` still being converted as in use; 200 per run. Each unreferenced file is HEADed: only a
+excluded with a reason), counting a `.mov` still being converted as in use; 200 per run. Only columns whose every write path
+stores the writer's own upload (or a URL copied server-side from a row they may share) are counted: `findReferencedUrls` also
+decides what `deleteMediaIfUnreferenced` keeps, so free-form links (`Post.linkUrl`, `AdCampaign.linkUrl`) are deliberately NOT
+counted (anyone could paste someone else's media URL there to keep it alive after its owner, moderation or account deletion
+removed it), and an announcement's video thumbnail must be the acting admin's own upload. Before any file is deleted the
+reference check tests itself: the newest in-use URL of each checked column that has one (`referenceControls`) must come back
+referenced in the same query; a failure, or no control URL at all (e.g. a wrong `R2_PUBLIC_URL`), blocks every file deletion
+that run (`reference_check_failed`), however small the batch. Each unreferenced file is HEADed: only a
 definite not-found counts as **missing**, any other storage error is **unknown** (never treated as missing, never deleted, retried
 next run), and a not-found is believed only once storage has shown it can see a file that should exist (an existing orphan, or a
-recent post's media) — otherwise the run reports `storage_unverified` and touches nothing. The **tripwire** refuses to delete when
-the files that exist (plus the unknown ones, counted as suspicious) number 20+ and half or more of them are unreferenced; missing
-files don't count. A dry run never deletes a file and forgets only referenced records (as before); it marks the existing/missing
-orphans it checked (`checkedAt`) so the next run moves on, also when the tripwire trips. Delete mode ignores those marks, deletes
-existing orphans, and clears the records of missing ones. Every other delete path (discardUploads, rejected-upload cleanup,
+control URL) — otherwise the run reports `storage_unverified` and touches nothing. The **tripwire** (`wouldTrip`) is the original
+rule: 20+ records examined and half or more unreferenced (missing files counted as unreferenced, as before) refuses every file
+deletion, except that a batch whose unreferenced files are all definitely missing never trips (nothing in it to delete). Clearing
+the records of definitely missing files is never blocked (by the tripwire or the self-test), so a backlog of gone files can't
+stall the sweep, and the existing files such a batch protected stay protected afterwards by the self-test. A dry run never
+deletes a file and forgets only referenced records (as before); it marks the existing/missing orphans it checked (`checkedAt`)
+so the next run moves on, also when the tripwire trips. Delete mode ignores those marks, deletes existing orphans only with a
+passing self-test and no tripwire, and clears the records of missing ones. Every other delete path (discardUploads, rejected-upload cleanup,
 deleteMediaIfUnreferenced for post/comment/message/Story/Muse/moderation deletes, story expiry, account deletion) goes through
 `storage.ts` `deleteObject`, which forgets the key's `UploadRecord` once R2 confirmed the delete (never throws). Only uploads made
 after this shipped are covered, not historical orphans. Abandoned *multipart* uploads never become an object; R2's default

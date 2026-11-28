@@ -42,7 +42,8 @@ vi.mock("@/lib/storage", () => ({
   MEDIA_LIMITS: { "announcement-image": 100, "announcement-video": 200 },
   verifyUploadedSize: (...a: unknown[]) => verifyUploadedSize(...a),
   deleteObject: (...a: unknown[]) => deleteObject(...a),
-  keyFromPublicUrl: (url: string) => url.replace("https://cdn.example/", ""),
+  keyFromPublicUrl: (url: string) => (url.startsWith("https://cdn.example/") ? url.replace("https://cdn.example/", "") : null),
+  keyBelongsToOwner: (key: string, owner: string) => key.split("/")[1] === owner,
 }));
 vi.mock("@/lib/owned-uploads", () => ({ deleteOwnedUploads: (...a: unknown[]) => deleteOwnedUploads(...a) }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: (...a: unknown[]) => checkRateLimit(...a) }));
@@ -216,6 +217,24 @@ describe("updateAnnouncement", () => {
     });
     expect(deleteObject.mock.calls.map((c) => c[0]).sort()).toEqual(["old.jpg", "old.mp4"]);
     expectNoNotification();
+  });
+
+  it("refuses a video thumbnail that isn't the acting admin's own upload (it would count as a use of that file)", async () => {
+    const own = "https://cdn.example/announcement-image/admin1/t.jpg";
+    const foreign = "https://cdn.example/post-image/someone/t.jpg";
+    const video = { mediaType: "VIDEO", mediaUrl: "https://cdn.example/announcement-video/admin1/v.mp4" };
+    expect(await createAnnouncement(form({ ...EN, ...video, mediaThumbnailUrl: foreign }))).toEqual({ error: "invalid" });
+    expect(await createAnnouncement(form({ ...EN, ...video, mediaThumbnailUrl: "https://elsewhere.example/t.jpg" }))).toEqual({
+      error: "invalid",
+    });
+    expect(announcementCreate).not.toHaveBeenCalled();
+    expect(await createAnnouncement(form({ ...EN, ...video, mediaThumbnailUrl: own }))).toEqual({ error: null });
+    expect(announcementCreate.mock.calls[0][0].data).toMatchObject({ mediaThumbnailUrl: own });
+
+    const replace = { media: "replace", ...video, mediaThumbnailUrl: foreign };
+    expect(await updateAnnouncement(edit(replace))).toEqual({ error: "invalid" });
+    expect(announcementUpdate).not.toHaveBeenCalled();
+    expect(deleteOwnedUploads).toHaveBeenCalledWith([video.mediaUrl, foreign], "admin1");
   });
 
   it("replaces the attachment with a checked upload, and cleans the upload up when refused", async () => {

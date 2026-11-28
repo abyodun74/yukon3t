@@ -8,8 +8,8 @@ import { prisma } from "@/lib/prisma";
 // recorded here, and sweepAbandonedUploads later deletes the ones that, after a grace period, no row in the database
 // points at. Deleting stored media is irreversible, so this is deliberately cautious: dry-run unless explicitly turned
 // on, a long grace period, an exact-URL reference check across EVERY column that can hold one of these URLs, a cap per
-// run, and a tripwire that refuses to delete anything if a suspicious share of the files that still exist look
-// unreferenced (which is what a broken reference check would look like).
+// run, a self-test of the reference check (known-used URLs must come back referenced), and the original tripwire
+// (wouldTrip) that refuses to delete any file when a suspicious share of the batch looks unreferenced.
 //
 // A record is also forgotten whenever its file is deleted by any other path (storage.ts deleteObject calls
 // forgetUploadRecords once R2 confirmed the delete), so records of files that are already gone don't pile up.
@@ -61,15 +61,17 @@ export async function forgetUploadRecords(keys: readonly string[]): Promise<void
 }
 
 /**
- * Every column findReferencedUrls checks, as "Model.field". upload-records-coverage.test.ts fails when a schema
- * column that could hold an upload URL is neither here nor in its explicit exclusion list, and
+ * Every column findReferencedUrls checks, as "Model.field". Only columns whose every write path stores the writer's
+ * OWN upload (or a URL copied server-side from a row the writer may share) belong here: findReferencedUrls also
+ * decides what deleteMediaIfUnreferenced keeps, so a column anyone can type any URL into (Post.linkUrl,
+ * AdCampaign.linkUrl) would let them keep someone else's deleted media alive. upload-records-coverage.test.ts fails
+ * when a schema column that could hold an upload URL is neither here nor in its explicit exclusion list, and
  * upload-records.test.ts checks that each one listed here is really queried and counted.
  */
 export const MEDIA_REFERENCE_COLUMNS = [
   "Post.mediaUrls",
   "Post.videoUrl",
   "Post.videoThumbnailUrl",
-  "Post.linkUrl",
   "Comment.videoUrl",
   "Comment.videoThumbnailUrl",
   "Comment.audioUrl",
@@ -82,7 +84,6 @@ export const MEDIA_REFERENCE_COLUMNS = [
   "Muse.videoThumbnailUrl",
   "Muse.audioUrl",
   "AdCampaign.mediaUrl",
-  "AdCampaign.linkUrl",
   "Announcement.mediaUrl",
   "Announcement.mediaThumbnailUrl",
   "AmbientMoment.imageUrl",
@@ -103,9 +104,9 @@ export async function findReferencedUrls(urls: string[]): Promise<Set<string>> {
     await Promise.all([
       prisma.post.findMany({
         where: {
-          OR: [{ videoUrl: inList }, { videoThumbnailUrl: inList }, { mediaUrls: { hasSome: urls } }, { linkUrl: inList }],
+          OR: [{ videoUrl: inList }, { videoThumbnailUrl: inList }, { mediaUrls: { hasSome: urls } }],
         },
-        select: { videoUrl: true, videoThumbnailUrl: true, mediaUrls: true, linkUrl: true },
+        select: { videoUrl: true, videoThumbnailUrl: true, mediaUrls: true },
       }),
       prisma.comment.findMany({
         where: { OR: [{ videoUrl: inList }, { videoThumbnailUrl: inList }, { audioUrl: inList }] },
@@ -123,10 +124,7 @@ export async function findReferencedUrls(urls: string[]): Promise<Set<string>> {
         where: { OR: [{ videoUrl: inList }, { videoThumbnailUrl: inList }, { audioUrl: inList }] },
         select: { videoUrl: true, videoThumbnailUrl: true, audioUrl: true },
       }),
-      prisma.adCampaign.findMany({
-        where: { OR: [{ mediaUrl: inList }, { linkUrl: inList }] },
-        select: { mediaUrl: true, linkUrl: true },
-      }),
+      prisma.adCampaign.findMany({ where: { mediaUrl: inList }, select: { mediaUrl: true } }),
       prisma.announcement.findMany({
         where: { OR: [{ mediaUrl: inList }, { mediaThumbnailUrl: inList }] },
         select: { mediaUrl: true, mediaThumbnailUrl: true },
@@ -144,14 +142,13 @@ export async function findReferencedUrls(urls: string[]): Promise<Set<string>> {
   for (const r of posts) {
     note(r.videoUrl);
     note(r.videoThumbnailUrl);
-    note(r.linkUrl);
     r.mediaUrls.forEach(note);
   }
   for (const r of comments) [r.videoUrl, r.videoThumbnailUrl, r.audioUrl].forEach(note);
   for (const r of messages) [r.mediaUrl, r.mediaThumbnailUrl].forEach(note);
   for (const r of stories) [r.mediaUrl, r.mediaThumbnailUrl, r.audioUrl].forEach(note);
   for (const r of muses) [r.videoUrl, r.videoThumbnailUrl, r.audioUrl].forEach(note);
-  for (const r of ads) [r.mediaUrl, r.linkUrl].forEach(note);
+  for (const r of ads) note(r.mediaUrl);
   for (const r of announcements) [r.mediaUrl, r.mediaThumbnailUrl].forEach(note);
   for (const r of moments) note(r.imageUrl);
   for (const r of circles) note(r.coverImageUrl);
@@ -175,17 +172,22 @@ export type SweepResult = {
   unreferenced: number;
   /** Unreferenced and the file is in storage: what delete mode deletes. */
   existing: number;
-  /** Unreferenced and storage definitely says the file is gone. Never counted by the tripwire. */
+  /** Unreferenced and storage definitely says the file is gone. Can't trip the tripwire on their own. */
   missing: number;
   /** Unreferenced but storage couldn't be asked (or couldn't be trusted this run). Left untouched, retried later. */
   unknown: number;
+  /**
+   * The reference check's self-test: URLs known to be in use (the newest of each checked column that has any) must
+   * all come back as referenced. "failed" or "no_controls" blocks every file deletion this run.
+   */
+  referenceCheck: "ok" | "failed" | "no_controls" | "skipped";
   /** Dry run: records marked as checked so the next dry run moves on (nothing deleted). */
   marked: number;
   /** Delete mode: files deleted. */
   deleted: number;
   /** Delete mode: records cleared because their file was already gone. */
   cleared: number;
-  aborted?: "no_public_url" | "tripwire" | "storage_unverified";
+  aborted?: "no_public_url" | "tripwire" | "storage_unverified" | "reference_check_failed";
   sample: string[];
 };
 
@@ -202,15 +204,24 @@ type SweepOptions = {
   objectStatus: (key: string) => Promise<ObjectStatus>;
 };
 
-/**
- * Among the files that exist (plus the ones storage couldn't check, counted as if they existed and were unreferenced),
- * a batch this size or larger with at least this share unreferenced is treated as a sign the reference check is
- * broken: delete mode refuses to delete anything.
- */
+/** The tripwire's thresholds, unchanged from the original: see wouldTrip. */
 export const TRIPWIRE_MIN_BATCH = 20;
 export const TRIPWIRE_UNREFERENCED_SHARE = 0.5;
 const STATUS_CONCURRENCY = 10;
-const CONTROL_POSTS = 5;
+
+/**
+ * Blocks every FILE deletion of a batch exactly when the original tripwire would have tripped (examined >= 20 and
+ * unreferenced >= 50%, missing files counted as unreferenced as before), except that a batch whose unreferenced
+ * files are ALL definitely missing never trips: there is nothing in it to delete. Clearing the records of definitely
+ * missing files is never blocked by it, so a backlog of gone files can't stall the sweep.
+ */
+export function wouldTrip(c: { examined: number; unreferenced: number; existing: number; unknown: number }): boolean {
+  return (
+    c.examined >= TRIPWIRE_MIN_BATCH &&
+    c.unreferenced / c.examined >= TRIPWIRE_UNREFERENCED_SHARE &&
+    c.existing + c.unknown > 0
+  );
+}
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
@@ -235,34 +246,43 @@ async function safeStatus(check: SweepOptions["objectStatus"], key: string): Pro
 }
 
 /**
- * Keys of files that should exist: this batch's referenced uploads first, then the media of a few recent posts.
- * Used only to prove that storage is answering for the right bucket before any "not found" is believed.
+ * URLs the database certainly uses right now, under this bucket's public URL: the newest one of each checked column
+ * that has any (up to two from Post.mediaUrls, whose rows may also hold Giphy links). They test the reference check
+ * itself (each must come back referenced) and, as files that should exist, storage's "not found" answers. A wrong
+ * public base URL finds none, which blocks every file deletion.
  */
-async function controlKeys(base: string, referencedKeys: string[]): Promise<string[]> {
+export async function referenceControls(base: string): Promise<string[]> {
   const prefix = `${base}/`;
-  const keys = referencedKeys.slice(0, 3);
+  const sw = { startsWith: prefix };
+  const newest = { orderBy: { createdAt: "desc" as const } };
   try {
-    const [videos, images] = await Promise.all([
-      prisma.post.findMany({
-        where: { videoUrl: { startsWith: prefix } },
-        orderBy: { createdAt: "desc" },
-        take: CONTROL_POSTS,
-        select: { videoUrl: true },
-      }),
-      prisma.post.findMany({
-        where: { mediaUrls: { isEmpty: false } },
-        orderBy: { createdAt: "desc" },
-        take: CONTROL_POSTS,
-        select: { mediaUrls: true },
-      }),
+    const [images, ...singles] = await Promise.all([
+      prisma.post.findMany({ where: { mediaUrls: { isEmpty: false } }, ...newest, take: 5, select: { mediaUrls: true } }),
+      prisma.post.findFirst({ where: { videoUrl: sw }, ...newest, select: { videoUrl: true } }),
+      prisma.post.findFirst({ where: { videoThumbnailUrl: sw }, ...newest, select: { videoThumbnailUrl: true } }),
+      prisma.comment.findFirst({ where: { videoUrl: sw }, ...newest, select: { videoUrl: true } }),
+      prisma.comment.findFirst({ where: { audioUrl: sw }, ...newest, select: { audioUrl: true } }),
+      prisma.message.findFirst({ where: { mediaUrl: sw }, ...newest, select: { mediaUrl: true } }),
+      prisma.story.findFirst({ where: { mediaUrl: sw }, ...newest, select: { mediaUrl: true } }),
+      prisma.muse.findFirst({ where: { videoUrl: sw }, ...newest, select: { videoUrl: true } }),
+      prisma.adCampaign.findFirst({ where: { mediaUrl: sw }, ...newest, select: { mediaUrl: true } }),
+      prisma.announcement.findFirst({ where: { mediaUrl: sw }, ...newest, select: { mediaUrl: true } }),
+      prisma.ambientMoment.findFirst({ where: { imageUrl: sw }, ...newest, select: { imageUrl: true } }),
+      prisma.circle.findFirst({ where: { coverImageUrl: sw }, ...newest, select: { coverImageUrl: true } }),
+      prisma.videoConversion.findFirst({ where: { sourceUrl: sw }, ...newest, select: { sourceUrl: true } }),
     ]);
-    for (const u of [...videos.map((v) => v.videoUrl), ...images.flatMap((p) => p.mediaUrls)]) {
-      if (u && u.startsWith(prefix)) keys.push(u.slice(prefix.length));
+    const urls = images
+      .flatMap((p) => p.mediaUrls)
+      .filter((u) => u.startsWith(prefix))
+      .slice(0, 2);
+    for (const row of singles) {
+      for (const v of Object.values(row ?? {})) if (typeof v === "string" && v.startsWith(prefix)) urls.push(v);
     }
+    return [...new Set(urls)];
   } catch (err) {
-    console.error("[upload-sweep] couldn't look up control files", err);
+    console.error("[upload-sweep] couldn't look up control URLs", err);
+    return [];
   }
-  return [...new Set(keys)].slice(0, 2 * CONTROL_POSTS + 3);
 }
 
 export async function sweepAbandonedUploads(opts: SweepOptions): Promise<SweepResult> {
@@ -274,6 +294,7 @@ export async function sweepAbandonedUploads(opts: SweepOptions): Promise<SweepRe
     existing: 0,
     missing: 0,
     unknown: 0,
+    referenceCheck: "skipped",
     marked: 0,
     deleted: 0,
     cleared: 0,
@@ -291,7 +312,13 @@ export async function sweepAbandonedUploads(opts: SweepOptions): Promise<SweepRe
   result.examined = candidates.length;
   if (candidates.length === 0) return result;
 
-  const referencedUrls = await findReferencedUrls(candidates.map((c) => `${base}/${c.key}`));
+  // The controls go through the very same query as the candidates, so a reference check that can't see what the
+  // database uses (a wrong public URL, a broken query) fails its self-test however small the batch is.
+  const controls = await referenceControls(base);
+  const candidateUrls = candidates.map((c) => `${base}/${c.key}`);
+  const referencedUrls = await findReferencedUrls([...new Set([...candidateUrls, ...controls])]);
+  result.referenceCheck =
+    controls.length === 0 ? "no_controls" : controls.every((u) => referencedUrls.has(u)) ? "ok" : "failed";
   const referenced = candidates.filter((c) => referencedUrls.has(`${base}/${c.key}`));
   const orphans = candidates.filter((c) => !referencedUrls.has(`${base}/${c.key}`));
   result.referenced = referenced.length;
@@ -302,6 +329,12 @@ export async function sweepAbandonedUploads(opts: SweepOptions): Promise<SweepRe
     await prisma.uploadRecord.deleteMany({ where: { id: { in: referenced.map((c) => c.id) } } });
   }
   if (orphans.length === 0) return result;
+  if (result.referenceCheck !== "ok") {
+    console.error(
+      `[upload-sweep] reference check self-test: ${result.referenceCheck} (${controls.length} control URL(s)) — no file will be deleted this run`,
+    );
+    result.aborted = "reference_check_failed";
+  }
 
   const statuses = await mapLimit(orphans, STATUS_CONCURRENCY, (o) => safeStatus(opts.objectStatus, o.key));
   const existing = orphans.filter((_, i) => statuses[i] === "exists");
@@ -309,14 +342,15 @@ export async function sweepAbandonedUploads(opts: SweepOptions): Promise<SweepRe
   let unknown = orphans.filter((_, i) => statuses[i] === "error");
 
   // A misconfigured bucket or a storage fault can answer "not found" for everything. Believe a not-found only once
-  // storage has shown it can see a file that should be there: one of these orphans, or a known-used control file.
+  // storage has shown it can see a file that should be there: one of these orphans, or a file known to be in use.
   if (missing.length > 0 && existing.length === 0) {
-    const controls = await controlKeys(
-      base,
-      referenced.map((r) => r.key),
-    );
+    const prefix = `${base}/`;
+    const controlKeys = [
+      ...referenced.slice(0, 3).map((r) => r.key),
+      ...controls.filter((u) => u.startsWith(prefix)).map((u) => u.slice(prefix.length)),
+    ];
     let verified = false;
-    for (const key of controls) {
+    for (const key of [...new Set(controlKeys)]) {
       if ((await safeStatus(opts.objectStatus, key)) === "exists") {
         verified = true;
         break;
@@ -328,7 +362,7 @@ export async function sweepAbandonedUploads(opts: SweepOptions): Promise<SweepRe
       );
       unknown = [...unknown, ...missing];
       missing = [];
-      result.aborted = "storage_unverified";
+      result.aborted ??= "storage_unverified";
     }
   }
   result.existing = existing.length;
@@ -336,18 +370,14 @@ export async function sweepAbandonedUploads(opts: SweepOptions): Promise<SweepRe
   result.unknown = unknown.length;
   result.sample = [...existing, ...missing, ...unknown].slice(0, 5).map((o) => o.key);
 
-  // Missing files don't count: the ratio is over files that exist. Files storage couldn't check are counted as if
-  // they existed and were unreferenced, so an outage makes the tripwire likelier to trip, never less.
-  const suspicious = existing.length + unknown.length;
-  const pool = referenced.length + suspicious;
-  const tripped = pool >= TRIPWIRE_MIN_BATCH && suspicious / pool >= TRIPWIRE_UNREFERENCED_SHARE;
+  const tripped = wouldTrip(result);
   if (tripped) {
     console.error(
-      `[upload-sweep] tripwire: ${suspicious}/${pool} existing (or uncheckable) candidates look unreferenced — ${
-        opts.dryRun ? "a delete run would refuse to delete anything" : "refusing to delete anything"
+      `[upload-sweep] tripwire: ${orphans.length}/${candidates.length} candidates look unreferenced (${existing.length} existing, ${unknown.length} uncheckable) — ${
+        opts.dryRun ? "a delete run would refuse to delete any file" : "refusing to delete any file"
       }`,
     );
-    // storage_unverified, if set, is kept: it is the more fundamental problem. Either way nothing is deleted.
+    // An earlier reason, if set, is kept: it is the more fundamental problem. Either way no file is deleted.
     result.aborted ??= "tripwire";
   }
 
@@ -365,12 +395,14 @@ export async function sweepAbandonedUploads(opts: SweepOptions): Promise<SweepRe
     return result;
   }
 
-  if (tripped) return result;
-
-  for (const orphan of existing) {
-    if (await opts.deleteObject(orphan.key)) {
-      await prisma.uploadRecord.deleteMany({ where: { id: orphan.id } }).catch(() => {});
-      result.deleted += 1;
+  // Files only with a passing self-test and no tripwire. Records of definitely missing files (storage verified) are
+  // cleared either way: there is no file left to protect, and a backlog of them must not stall the sweep.
+  if (!tripped && result.referenceCheck === "ok") {
+    for (const orphan of existing) {
+      if (await opts.deleteObject(orphan.key)) {
+        await prisma.uploadRecord.deleteMany({ where: { id: orphan.id } }).catch(() => {});
+        result.deleted += 1;
+      }
     }
   }
   if (missing.length > 0) {
